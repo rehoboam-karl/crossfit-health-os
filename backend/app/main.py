@@ -11,7 +11,7 @@ import logging
 from pathlib import Path
 
 from app.core.config import settings
-from app.api.v1 import training, health, nutrition, integrations, users, schedule, review
+from app.api.v1 import training, health, nutrition, integrations, users, schedule, review, auth
 from app.web import routes as web_routes
 
 # Configure logging
@@ -98,6 +98,13 @@ async def health_check():
 app.include_router(
     web_routes.router,
     tags=["Web"]
+)
+
+# Authentication (public endpoints - no auth required)
+app.include_router(
+    auth.router,
+    prefix="/api/v1/auth",
+    tags=["Authentication"]
 )
 
 # Include API routers

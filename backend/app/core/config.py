@@ -33,6 +33,9 @@ class Settings(BaseSettings):
         "https://crossfit.leicbit.com"
     ]
     
+    # Frontend URL (for email links)
+    FRONTEND_URL: str = "http://localhost:3000"
+    
     # Integrations
     GOOGLE_CALENDAR_CLIENT_ID: str = ""
     GOOGLE_CALENDAR_CLIENT_SECRET: str = ""
