@@ -1,0 +1,385 @@
+{
+  "example_ai_output": {
+    "program_summary": "Week 3 of HWPO accumulation phase. Focus on building squat strength and improving snatch technique. Volume remains high with 5 training days. Metabolic conditioning targets lactate threshold.",
+    "workouts": {
+      "monday": {
+        "name": "Heavy Squat + Short AMRAP",
+        "duration_minutes": 90,
+        "workout_type": "strength",
+        "description": "Back squat volume day with high-rep accessory work. Short, intense metcon to develop lactate tolerance without excessive fatigue.",
+        "warm_up": "15min: Row 500m easy, then 2 rounds (10 air squats, 10 PVC pass-throughs, 5 inchworms, 5 spiderman lunges per side). Squat-specific: 10 goblet squats, 10 cossack squats, wall sits 30s x 2",
+        "parts": [
+          {
+            "part_name": "Strength",
+            "duration_minutes": 35,
+            "movements": [
+              {
+                "movement": "back_squat",
+                "sets": 5,
+                "reps": 5,
+                "intensity": "80% 1RM",
+                "rest": "3min",
+                "notes": "Focus on hitting depth (hip crease below knee), maintain upright torso, drive knees out. Tempo: controlled down (3s), explosive up (1s). Film last set for form check."
+              },
+              {
+                "movement": "bulgarian_split_squat",
+                "sets": 3,
+                "reps": 10,
+                "intensity": "Bodyweight + 20kg DB per hand",
+                "rest": "90s per leg",
+                "notes": "Rear foot elevated on bench. Front shin vertical, drive through heel. Control 2s descent, explode up. Address quad/glute imbalances."
+              },
+              {
+                "movement": "leg_curl",
+                "sets": 3,
+                "reps": 15,
+                "intensity": "Moderate weight, controlled tempo",
+                "rest": "60s",
+                "notes": "Hamstring isolation after heavy squats. 2s squeeze at top, slow eccentric. Superset with next if short on time."
+              }
+            ]
+          },
+          {
+            "part_name": "MetCon",
+            "duration_minutes": 15,
+            "format": "AMRAP 12 minutes",
+            "target_rounds": "6-8 rounds",
+            "movements": [
+              {
+                "movement": "thruster",
+                "reps": 5,
+                "weight_kg": 42.5,
+                "notes": "Barbell (43kg bar). Aim for unbroken sets. Full lockout overhead, full depth squat. Pacing: quick but sustainable."
+              },
+              {
+                "movement": "burpee_box_jump",
+                "reps": 10,
+                "box_height_inches": 24,
+                "notes": "Full chest-to-ground burpee, jump to box, step down. No rebounds. Control landing."
+              },
+              {
+                "movement": "cal_row",
+                "reps": 15,
+                "notes": "Damper 10, hold 2:00/500m pace or faster. Strong legs, patient hands. Keep pulling!"
+              }
+            ],
+            "pacing_strategy": "First 3 rounds: smooth, unbroken thrusters. Rounds 4+: break thrusters 3-2 if needed. Consistent row pace throughout.",
+            "target_stimulus": "Lactate threshold, mental toughness. Should feel spicy but not soul-crushing."
+          }
+        ],
+        "cooldown": "10min: Easy bike 5min (Zone 1 HR), then foam roll quads 2min, hamstrings 2min, glutes 1min. Couch stretch 2min per side.",
+        "target_stimulus": "Squat strength development + high-rep barbell cycling under fatigue",
+        "scaling_options": {
+          "rx": "As written above",
+          "scaled": "Thruster 35kg, Box step-ups 20inch, Row 12 cal",
+          "beginner": "Goblet squat 5x8 @ 24kg KB, Goblet thrusters, Box step-ups, Bike 20 cal instead of row"
+        },
+        "equipment": [
+          "barbell",
+          "squat_rack",
+          "bench",
+          "dumbbells",
+          "box",
+          "rower"
+        ]
+      },
+      "tuesday": {
+        "name": "Olympic Lifting + Gymnastics",
+        "duration_minutes": 90,
+        "workout_type": "mixed",
+        "description": "Technical snatch work with volume. Muscle-up progression. Moderate metcon to maintain conditioning without interfering with skill work.",
+        "warm_up": "15min: 400m jog, then 3 rounds (5 snatch grip deadlifts with empty bar, 10 scap pull-ups, 5 slow wall walks, 10 PVC overhead squats). Mobility: shoulder dislocates 20x, wrist prep, ankle rocks.",
+        "parts": [
+          {
+            "part_name": "Snatch Complex (Focus Movement)",
+            "duration_minutes": 40,
+            "movements": [
+              {
+                "movement": "snatch_complex",
+                "sets": 8,
+                "reps": "1+1+1",
+                "intensity": "60-65% 1RM",
+                "rest": "2-3min",
+                "notes": "Complex = Hang Power Snatch (above knee) + Power Snatch (from floor) + Overhead Squat. Focus: fast elbows, catch high and ride down, active shoulders in OHS. Week 3 = volume work, not max effort. Quality over load."
+              }
+            ],
+            "coaching_cues": "Setup: wide grip (fingertips to opposite shoulder). Pull: vertical bar path, keep it close. Turnover: aggressive elbows, punch under fast. Catch: heels down, weight in midfoot. This is skill work - miss a rep? Lower weight."
+          },
+          {
+            "part_name": "Gymnastics Strength",
+            "duration_minutes": 20,
+            "movements": [
+              {
+                "movement": "strict_muscle_up",
+                "sets": 6,
+                "reps": 2,
+                "rest": "2min",
+                "notes": "Strict deficit if possible (start from bottom of dip). If not proficient: Russian dips 6x5 or ring transitions 6x3. Goal: build strength for MU."
+              },
+              {
+                "movement": "handstand_hold",
+                "sets": 4,
+                "duration_seconds": 45,
+                "rest": "90s",
+                "notes": "Freestanding against wall. Hollow body, tight core, active shoulders. Progress to handstand walk if holds are solid 60s+."
+              }
+            ]
+          },
+          {
+            "part_name": "MetCon",
+            "duration_minutes": 18,
+            "format": "For Time (15min cap)",
+            "movements": [
+              {
+                "movement": "power_snatch",
+                "reps": "21-15-9",
+                "weight_kg": 35,
+                "notes": "Light weight, fast cycling. Touch-and-go reps. Don't drop bar."
+              },
+              {
+                "movement": "chest_to_bar_pullup",
+                "reps": "21-15-9",
+                "notes": "Kipping allowed. Chest makes contact with bar at sternum height. Scale: regular pull-ups."
+              },
+              {
+                "movement": "handstand_pushup",
+                "reps": "21-15-9",
+                "notes": "Nose/forehead to ground, full lockout. Kipping allowed. Scale: Push-ups to parallette or abmat under head."
+              }
+            ],
+            "target_time": "Sub 10min RX, sub 12min scaled",
+            "pacing_strategy": "Round of 21: Break early (11-10 or 7-7-7). Round of 15: minimize breaks. Round of 9: push hard, small sets ok.",
+            "target_stimulus": "Moderate intensity, gymnastic stamina. Should finish tired but not destroyed."
+          }
+        ],
+        "cooldown": "12min: Row 1000m easy pace, then shoulder stretches (doorway pec stretch 90s per side, cross-body stretch, lat stretch on rig). Wrist stretches.",
+        "target_stimulus": "Snatch technique refinement + gymnastic strength",
+        "scaling_options": {
+          "rx": "As written",
+          "scaled": "Snatch 25kg, Pull-ups (not C2B), HSPU with 1 abmat",
+          "beginner": "Hang power snatch 15kg, Ring rows, Push-ups"
+        },
+        "equipment": [
+          "barbell",
+          "plates",
+          "pull_up_bar",
+          "rings",
+          "abmat",
+          "rower"
+        ]
+      },
+      "wednesday": {
+        "name": "Active Recovery + Midline",
+        "duration_minutes": 60,
+        "workout_type": "conditioning",
+        "description": "Low-intensity aerobic work to promote recovery. Core strength focus. Stay in Zone 2 heart rate (conversational pace).",
+        "warm_up": "10min: Easy bike 5min, then 2 rounds (10 cat-cows, 10 bird-dogs per side, plank 30s, side plank 20s per side)",
+        "parts": [
+          {
+            "part_name": "Aerobic Conditioning",
+            "duration_minutes": 35,
+            "format": "Every 5min x 7 rounds (35min total)",
+            "movements": [
+              {
+                "movement": "assault_bike",
+                "duration_seconds": 90,
+                "intensity": "65-70% effort",
+                "notes": "Conversational pace, nose breathing if possible. HR should stay in Zone 2 (130-150 bpm for most)."
+              },
+              {
+                "movement": "run",
+                "distance_meters": 200,
+                "intensity": "Easy jog",
+                "notes": "Smooth, relaxed. No sprinting. Should be able to hold conversation."
+              },
+              {
+                "movement": "row",
+                "duration_seconds": 90,
+                "intensity": "2:10-2:15/500m pace",
+                "notes": "Damper 5-6, long strokes, patient hands. Recovery row."
+              }
+            ],
+            "target_stimulus": "Aerobic base building, flush out yesterday's legs. NOT a metcon. Stay easy.",
+            "notes": "Remaining time each 5min = rest. This should feel restorative, not challenging."
+          },
+          {
+            "part_name": "Core Strength",
+            "duration_minutes": 15,
+            "format": "3 rounds for quality",
+            "movements": [
+              {
+                "movement": "ghd_situp",
+                "reps": 20,
+                "notes": "Full range, control on way up. If new to GHD, start with 10-12 reps."
+              },
+              {
+                "movement": "back_extension",
+                "reps": 15,
+                "notes": "GHD or back extension bench. Slow tempo, squeeze glutes at top."
+              },
+              {
+                "movement": "hollow_hold",
+                "duration_seconds": 45,
+                "notes": "Low back pressed to floor, arms overhead, legs 6 inches off ground. Break into sets if needed."
+              },
+              {
+                "movement": "plank",
+                "duration_seconds": 60,
+                "notes": "Forearm plank, straight line from head to heels. Squeeze glutes, brace core."
+              }
+            ],
+            "notes": "Rest 60-90s between rounds. Focus on quality contractions, not speed."
+          }
+        ],
+        "cooldown": "Walk 400m, stretching, breathing exercises",
+        "target_stimulus": "Recovery, aerobic base, core strength",
+        "scaling_options": {
+          "All levels": "Keep intensity LOW. If you're breathing hard, slow down."
+        },
+        "equipment": [
+          "assault_bike",
+          "track",
+          "rower",
+          "ghd"
+        ]
+      },
+      "thursday": {
+        "name": "Heavy Deadlift + Interval Running",
+        "duration_minutes": 90,
+        "workout_type": "strength",
+        "description": "Posterior chain strength. Running intervals for conditioning. Complements Monday's squat day.",
+        "warm_up": "15min: Row 800m easy, then 3 rounds (10 good mornings with PVC, 10 glute bridges, 5 inchworms). Deadlift-specific: 5 reps @ empty bar, 5 @ 40%, 3 @ 60%, 1 @ 70%",
+        "parts": [
+          {
+            "part_name": "Strength",
+            "duration_minutes": 40,
+            "movements": [
+              {
+                "movement": "deadlift",
+                "sets": "1-1-1-1-1",
+                "reps": 1,
+                "intensity": "Build to heavy single @ RPE 8-9",
+                "rest": "3-4min",
+                "notes": "Work up to heavy single, NOT max. Should feel hard but leave 1 rep in tank. Focus: tight setup, drive through floor, finish with glutes."
+              },
+              {
+                "movement": "deadlift_backoff",
+                "sets": 3,
+                "reps": 5,
+                "intensity": "85% of today's heavy single",
+                "rest": "3min",
+                "notes": "Drop weight, work on speed. Explosive off floor, control lockout."
+              },
+              {
+                "movement": "romanian_deadlift",
+                "sets": 3,
+                "reps": 10,
+                "intensity": "50% of 1RM deadlift",
+                "rest": "90s",
+                "notes": "Hamstring stretch, hinge at hips. Bar stays close to legs. Feel it in hamstrings."
+              }
+            ]
+          },
+          {
+            "part_name": "Conditioning",
+            "duration_minutes": 30,
+            "format": "6 rounds",
+            "movements": [
+              {
+                "movement": "run",
+                "distance_meters": 400,
+                "intensity": "85% effort",
+                "rest": "2min",
+                "notes": "400m repeats. Goal: consistent splits across all 6. Target 1:30-1:45 per lap. Walk/jog during rest."
+              }
+            ],
+            "target_stimulus": "Anaerobic threshold, leg speed after heavy deads. Legs will be fatigued - that's the point.",
+            "pacing_strategy": "First 2 rounds: dial in pace. Rounds 3-6: hold or negative split. Don't go out too hot."
+          }
+        ],
+        "cooldown": "10min: Walk 400m, foam roll posterior chain (glutes, hamstrings, calves), pigeon stretch 2min per side",
+        "target_stimulus": "Deadlift strength + running conditioning",
+        "scaling_options": {
+          "rx": "As written",
+          "scaled": "Deadlift to RPE 7-8, Run 300m x 6",
+          "beginner": "Deadlift 5x5 @ 70%, Run 200m x 6"
+        },
+        "equipment": [
+          "barbell",
+          "plates",
+          "track"
+        ]
+      },
+      "friday": {
+        "name": "Competition WOD Simulation",
+        "duration_minutes": 90,
+        "workout_type": "metcon",
+        "description": "Long, mixed-modal workout simulating competition environment. Full effort. Week 3 benchmark.",
+        "warm_up": "20min: General warm-up (row 1000m, 3 rounds of 10 air squats, 10 push-ups, 10 sit-ups), then specific movement prep for workout (light rounds of each movement)",
+        "parts": [
+          {
+            "part_name": "Main Event",
+            "duration_minutes": 50,
+            "format": "For Time (40min cap)",
+            "workout_name": "The Chief's Revenge",
+            "movements": [
+              {
+                "movement": "deadlift",
+                "reps": 30,
+                "weight_kg": 100,
+                "notes": "Touch and go or singles. Full lockout each rep."
+              },
+              {
+                "movement": "box_jump",
+                "reps": 40,
+                "box_height_inches": 24,
+                "notes": "Step down. No rebounds. Full hip extension at top."
+              },
+              {
+                "movement": "kettlebell_swing",
+                "reps": 50,
+                "weight_kg": 32,
+                "notes": "American swings (overhead). Russian (eye level) is scaled."
+              },
+              {
+                "movement": "wall_ball",
+                "reps": 60,
+                "weight_kg": 9,
+                "target_height_feet": 10,
+                "notes": "20lb ball to 10ft target. Full squat depth, hit target."
+              },
+              {
+                "movement": "calorie_row",
+                "reps": 70,
+                "notes": "All out. Don't pace this. Just row."
+              },
+              {
+                "movement": "burpee",
+                "reps": 80,
+                "notes": "Chest to ground, jump over imaginary bar. Or lateral burpees over rower."
+              }
+            ],
+            "target_time": "25-35min",
+            "pacing_strategy": "This is a grinder. Pace early, push late. Break deads into manageable sets (10-10-10 or 15-15). Box jumps: steady rhythm. KB swings: big sets early. Wall balls: don't stop moving. Row: give everything left. Burpees: stay moving, small steps ok.",
+            "target_stimulus": "Mental toughness, work capacity, suffer fest. This should hurt. Log time as benchmark."
+          }
+        ],
+        "cooldown": "15min: Walk 800m slowly, static stretching (everything), ice bath if available, nutrition immediately after",
+        "target_stimulus": "Competition simulation, benchmark test",
+        "scaling_options": {
+          "rx": "As written above",
+          "scaled": "Deadlift 80kg, Box 20in, KB 24kg, Wall ball 6kg to 9ft, Row 50 cal, Burpees 60",
+          "beginner": "Half all reps (15-20-25-30-35-40), lighter weights"
+        },
+        "equipment": [
+          "barbell",
+          "box",
+          "kettlebell",
+          "wall_ball",
+          "rower"
+        ],
+        "notes": "Record time. This is a benchmark for week 3. You'll repeat similar workout in week 7 to measure progress."
+      }
+    }
+  }
+}
