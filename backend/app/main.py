@@ -11,7 +11,7 @@ import logging
 from pathlib import Path
 
 from app.core.config import settings
-from app.api.v1 import training, health, nutrition, integrations, users
+from app.api.v1 import training, health, nutrition, integrations, users, schedule
 from app.web import routes as web_routes
 
 # Configure logging
@@ -129,6 +129,12 @@ app.include_router(
     integrations.router,
     prefix="/api/v1/integrations",
     tags=["Integrations"]
+)
+
+app.include_router(
+    schedule.router,
+    prefix="/api/v1/schedule",
+    tags=["Schedule"]
 )
 
 

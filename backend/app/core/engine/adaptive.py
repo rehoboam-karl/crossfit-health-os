@@ -14,6 +14,7 @@ from app.models.training import (
     Methodology
 )
 from app.db.supabase import supabase_client
+from app.db.helpers import handle_supabase_response
 
 logger = logging.getLogger(__name__)
 
@@ -105,10 +106,14 @@ class AdaptiveTrainingEngine:
             "user_id", str(user_id)
         ).eq("date", target_date.isoformat()).execute()
         
-        if response.data:
-            return response.data[0]
+        # ✅ Check for errors
+        data = handle_supabase_response(response, "Failed to fetch recovery metrics")
+        
+        if data:
+            return data[0]
         
         # If no data, return default "unknown" state
+        logger.warning(f"No recovery data for user {user_id} on {target_date}, using defaults")
         return {
             "hrv_ratio": 1.0,
             "sleep_quality_score": 70,
@@ -124,7 +129,9 @@ class AdaptiveTrainingEngine:
             "id", str(user_id)
         ).single().execute()
         
-        return response.data
+        # ✅ Check for errors
+        data = handle_supabase_response(response, "Failed to fetch user profile")
+        return data
     
     def _calculate_readiness_score(self, recovery: dict) -> int:
         """

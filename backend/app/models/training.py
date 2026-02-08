@@ -1,9 +1,9 @@
 """
 Pydantic models for Training domain
 """
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional, List, Dict, Any
-from datetime import datetime, date
+from datetime import datetime, date, time
 from enum import Enum
 from uuid import UUID
 
@@ -118,6 +118,14 @@ class WorkoutSessionCreate(WorkoutSessionBase):
     """Create workout session"""
     template_id: Optional[UUID] = None
     scheduled_at: Optional[datetime] = None
+    
+    @field_validator('scheduled_at')
+    @classmethod
+    def validate_future_date(cls, v):
+        """Ensure scheduled_at is not in the past"""
+        if v and v < datetime.utcnow():
+            raise ValueError('scheduled_at must be in the future or present')
+        return v
 
 
 class WorkoutSessionUpdate(BaseModel):
@@ -188,7 +196,7 @@ class WorkoutGenerationRequest(BaseModel):
 class AdaptiveWorkoutResponse(BaseModel):
     """Generated workout with volume adjustment"""
     template: WorkoutTemplate
-    volume_multiplier: float = Field(..., description="1.0 = normal, 0.8 = reduced, 1.1 = increased")
+    volume_multiplier: float = Field(..., ge=0.0, le=2.0, description="1.0 = normal, 0.8 = reduced, 1.1 = increased")
     readiness_score: int = Field(..., ge=0, le=100)
     recommendation: str
     adjusted_movements: List[Movement]
@@ -225,5 +233,120 @@ class PersonalRecord(PersonalRecordCreate):
     user_id: UUID
     achieved_at: datetime
     session_id: Optional[UUID] = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ============================================
+# Weekly Training Schedule
+# ============================================
+
+class DayOfWeek(str, Enum):
+    """Days of the week"""
+    MONDAY = "monday"
+    TUESDAY = "tuesday"
+    WEDNESDAY = "wednesday"
+    THURSDAY = "thursday"
+    FRIDAY = "friday"
+    SATURDAY = "saturday"
+    SUNDAY = "sunday"
+
+
+class TrainingSessionSlot(BaseModel):
+    """Individual training session slot in a day"""
+    time: time = Field(..., description="Time of day (e.g., 06:00, 18:30)")
+    duration_minutes: int = Field(60, ge=30, le=180, description="Session duration")
+    workout_type: Optional[WorkoutType] = None
+    notes: Optional[str] = None
+
+
+class DailyTrainingSchedule(BaseModel):
+    """Training schedule for a single day"""
+    day: DayOfWeek
+    sessions: List[TrainingSessionSlot] = Field(..., min_length=0, max_length=3, description="Max 3 sessions per day")
+    rest_day: bool = Field(False, description="Mark as rest day")
+    
+    @field_validator('sessions')
+    @classmethod
+    def validate_no_sessions_on_rest_day(cls, v, info):
+        """Ensure no sessions if rest_day=True"""
+        if info.data.get('rest_day') and len(v) > 0:
+            raise ValueError('Rest days cannot have training sessions')
+        return v
+
+
+class WeeklyScheduleCreate(BaseModel):
+    """Create weekly training schedule"""
+    name: str = Field(..., max_length=100, description="Schedule name (e.g., 'HWPO 5x/week')")
+    methodology: Methodology = Field(Methodology.HWPO, description="Training methodology")
+    schedule: Dict[DayOfWeek, DailyTrainingSchedule] = Field(..., description="Schedule for each day")
+    start_date: date = Field(..., description="When this schedule starts")
+    end_date: Optional[date] = None
+    active: bool = True
+    
+    @field_validator('end_date')
+    @classmethod
+    def validate_end_after_start(cls, v, info):
+        """Ensure end_date is after start_date"""
+        if v and 'start_date' in info.data and v <= info.data['start_date']:
+            raise ValueError('end_date must be after start_date')
+        return v
+
+
+class WeeklySchedule(WeeklyScheduleCreate):
+    """Weekly schedule response"""
+    id: UUID
+    user_id: UUID
+    created_at: datetime
+    updated_at: datetime
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ============================================
+# Meal Timing (Synced with Training)
+# ============================================
+
+class MealType(str, Enum):
+    """Meal types"""
+    PRE_WORKOUT = "pre_workout"
+    POST_WORKOUT = "post_workout"
+    BREAKFAST = "breakfast"
+    LUNCH = "lunch"
+    DINNER = "dinner"
+    SNACK = "snack"
+
+
+class MealWindow(BaseModel):
+    """Meal timing window"""
+    meal_type: MealType
+    time: time
+    duration_minutes: int = Field(30, ge=15, le=90)
+    macros: Optional[Dict[str, float]] = Field(None, description="Target macros: {protein, carbs, fats}")
+    notes: Optional[str] = None
+
+
+class DailyMealPlan(BaseModel):
+    """Meal plan for a single day"""
+    day: DayOfWeek
+    meals: List[MealWindow] = Field(..., min_length=1, max_length=8)
+    total_calories: Optional[int] = None
+    training_day: bool = True
+
+
+class WeeklyMealPlanCreate(BaseModel):
+    """Create weekly meal plan (auto-generated from training schedule)"""
+    training_schedule_id: UUID = Field(..., description="Linked training schedule")
+    meal_plans: Dict[DayOfWeek, DailyMealPlan]
+    pre_workout_offset_minutes: int = Field(-60, description="Minutes before workout (negative)")
+    post_workout_offset_minutes: int = Field(30, description="Minutes after workout")
+
+
+class WeeklyMealPlan(WeeklyMealPlanCreate):
+    """Weekly meal plan response"""
+    id: UUID
+    user_id: UUID
+    created_at: datetime
+    updated_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
