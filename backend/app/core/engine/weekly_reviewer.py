@@ -1,0 +1,456 @@
+"""
+Weekly Review Engine
+Analyzes athlete performance and suggests adjustments using Claude 3.5 Sonnet
+"""
+from datetime import date, timedelta
+from typing import Dict, List, Optional
+from uuid import UUID
+import json
+import logging
+from anthropic import AsyncAnthropic
+
+from app.core.config import settings
+from app.models.review import (
+    WeeklyReview,
+    PerformanceHighlight,
+    PerformanceChallenge,
+    NextWeekAdjustments,
+    RecoveryStatus,
+    VolumeAssessment,
+    IntensityChange
+)
+from app.db.supabase import supabase_client
+from app.db.helpers import handle_supabase_response
+
+logger = logging.getLogger(__name__)
+
+
+class WeeklyReviewEngine:
+    """
+    AI-powered weekly performance review
+    Uses Claude 3.5 Sonnet for deep analysis
+    """
+    
+    def __init__(self):
+        # Try Claude first (best for analysis), fallback to OpenAI
+        self.anthropic_client = None
+        self.openai_client = None
+        
+        if hasattr(settings, 'ANTHROPIC_API_KEY') and settings.ANTHROPIC_API_KEY:
+            from anthropic import AsyncAnthropic
+            self.anthropic_client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+            logger.info("Weekly reviewer using Claude 3.5 Sonnet")
+        elif hasattr(settings, 'OPENAI_API_KEY') and settings.OPENAI_API_KEY:
+            from openai import AsyncOpenAI
+            self.openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+            logger.info("Weekly reviewer using GPT-4o (fallback)")
+        else:
+            logger.warning("No AI API keys configured for weekly review")
+    
+    async def generate_weekly_review(
+        self,
+        user_id: UUID,
+        week_number: int,
+        week_start: date,
+        week_end: date,
+        athlete_notes: Optional[str] = None
+    ) -> WeeklyReview:
+        """
+        Generate comprehensive weekly review with AI analysis
+        
+        Args:
+            user_id: User UUID
+            week_number: Week number in mesocycle
+            week_start: Start date of week
+            week_end: End date of week
+            athlete_notes: Optional feedback from athlete
+            
+        Returns:
+            WeeklyReview object with analysis and recommendations
+        """
+        # Collect all data for the week
+        weekly_data = await self._collect_weekly_data(user_id, week_start, week_end)
+        
+        # Get user profile
+        user_profile = await self._get_user_profile(user_id)
+        
+        # Generate review using AI
+        if self.anthropic_client:
+            review_data = await self._generate_review_claude(
+                user_profile, weekly_data, week_number, athlete_notes
+            )
+            model_used = "claude-3-5-sonnet"
+        elif self.openai_client:
+            review_data = await self._generate_review_openai(
+                user_profile, weekly_data, week_number, athlete_notes
+            )
+            model_used = "gpt-4o"
+        else:
+            # Fallback to rule-based review
+            review_data = self._generate_review_fallback(weekly_data, week_number)
+            model_used = "rule-based"
+        
+        # Create WeeklyReview object
+        review = WeeklyReview(
+            id=UUID("00000000-0000-0000-0000-000000000000"),  # Will be replaced on save
+            user_id=user_id,
+            week_number=week_number,
+            week_start_date=week_start,
+            week_end_date=week_end,
+            ai_model_used=model_used,
+            created_at=date.today(),
+            **review_data
+        )
+        
+        # Save to database
+        saved_review = await self._save_review(review)
+        
+        return saved_review
+    
+    async def _collect_weekly_data(
+        self,
+        user_id: UUID,
+        week_start: date,
+        week_end: date
+    ) -> Dict:
+        """
+        Collect all relevant data for the week
+        """
+        # Get workout sessions
+        sessions_response = supabase_client.table("workout_sessions").select("*").eq(
+            "user_id", str(user_id)
+        ).gte("started_at", week_start.isoformat()).lte(
+            "started_at", week_end.isoformat()
+        ).execute()
+        
+        sessions = handle_supabase_response(sessions_response, "Failed to fetch sessions")
+        
+        # Get recovery metrics
+        recovery_response = supabase_client.table("recovery_metrics").select("*").eq(
+            "user_id", str(user_id)
+        ).gte("date", week_start.isoformat()).lte(
+            "date", week_end.isoformat()
+        ).execute()
+        
+        recovery_metrics = handle_supabase_response(recovery_response, "Failed to fetch recovery")
+        
+        # Get session feedback
+        feedback_response = supabase_client.table("session_feedback").select("*").eq(
+            "user_id", str(user_id)
+        ).gte("date", week_start.isoformat()).lte(
+            "date", week_end.isoformat()
+        ).execute()
+        
+        feedback = handle_supabase_response(feedback_response, "Failed to fetch feedback")
+        
+        # Calculate aggregates
+        completed_sessions = len([s for s in sessions if s.get("completed_at")])
+        avg_rpe = sum(f.get("rpe_score", 0) for f in feedback) / len(feedback) if feedback else 7
+        avg_readiness = sum(r.get("readiness_score", 70) for r in recovery_metrics) / len(recovery_metrics) if recovery_metrics else 70
+        
+        return {
+            "sessions": sessions,
+            "recovery_metrics": recovery_metrics,
+            "feedback": feedback,
+            "planned_sessions": len(sessions),
+            "completed_sessions": completed_sessions,
+            "adherence_rate": (completed_sessions / len(sessions) * 100) if sessions else 0,
+            "avg_rpe": avg_rpe,
+            "avg_readiness": avg_readiness
+        }
+    
+    async def _get_user_profile(self, user_id: UUID) -> Dict:
+        """Get user profile"""
+        response = supabase_client.table("users").select("*").eq(
+            "id", str(user_id)
+        ).single().execute()
+        
+        return handle_supabase_response(response, "Failed to fetch user profile")
+    
+    async def _generate_review_claude(
+        self,
+        user_profile: Dict,
+        weekly_data: Dict,
+        week_number: int,
+        athlete_notes: Optional[str]
+    ) -> Dict:
+        """
+        Generate review using Claude 3.5 Sonnet
+        """
+        prompt = self._build_review_prompt(user_profile, weekly_data, week_number, athlete_notes)
+        
+        try:
+            response = await self.anthropic_client.messages.create(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=4096,
+                temperature=0.7,
+                system=self._get_coach_system_prompt(),
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
+            )
+            
+            # Parse response
+            review_text = response.content[0].text
+            
+            # Extract JSON from markdown code block if present
+            if "```json" in review_text:
+                json_start = review_text.find("```json") + 7
+                json_end = review_text.find("```", json_start)
+                review_text = review_text[json_start:json_end].strip()
+            
+            review_data = json.loads(review_text)
+            
+            return self._parse_review_response(review_data, weekly_data)
+            
+        except Exception as e:
+            logger.error(f"Failed to generate review with Claude: {e}", exc_info=True)
+            return self._generate_review_fallback(weekly_data, week_number)
+    
+    async def _generate_review_openai(
+        self,
+        user_profile: Dict,
+        weekly_data: Dict,
+        week_number: int,
+        athlete_notes: Optional[str]
+    ) -> Dict:
+        """
+        Fallback: Generate review using GPT-4o
+        """
+        prompt = self._build_review_prompt(user_profile, weekly_data, week_number, athlete_notes)
+        
+        try:
+            response = await self.openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": self._get_coach_system_prompt()
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.7,
+                response_format={"type": "json_object"}
+            )
+            
+            review_data = json.loads(response.choices[0].message.content)
+            
+            return self._parse_review_response(review_data, weekly_data)
+            
+        except Exception as e:
+            logger.error(f"Failed to generate review with GPT-4: {e}", exc_info=True)
+            return self._generate_review_fallback(weekly_data, week_number)
+    
+    def _get_coach_system_prompt(self) -> str:
+        """System prompt for AI coach"""
+        return """You are an elite CrossFit coach analyzing athlete performance for a weekly review.
+
+Your role:
+1. Analyze workout completion, RPE, and recovery metrics
+2. Identify 2-3 specific strengths (movements, skills improving)
+3. Identify 2-3 areas needing attention (technique issues, stagnation)
+4. Assess recovery status (HRV, sleep, readiness scores)
+5. Determine if volume/intensity were appropriate
+6. Suggest specific adjustments for next week
+7. Provide motivational, personalized coaching message
+
+Communication style:
+- Be specific and evidence-based
+- Use athlete's name if available
+- Balance encouragement with honest assessment
+- Provide actionable recommendations
+- Keep coach message under 200 words
+
+Return structured JSON with your analysis."""
+    
+    def _build_review_prompt(
+        self,
+        user_profile: Dict,
+        weekly_data: Dict,
+        week_number: int,
+        athlete_notes: Optional[str]
+    ) -> str:
+        """Build prompt for AI review"""
+        
+        # Determine phase
+        if week_number <= 3:
+            phase = "Accumulation"
+        elif week_number == 4:
+            phase = "Deload"
+        elif week_number <= 7:
+            phase = "Intensification"
+        else:
+            phase = "Test Week"
+        
+        prompt = f"""Analyze this athlete's Week {week_number} ({phase} phase) performance:
+
+ATHLETE PROFILE:
+- Name: {user_profile.get('name', 'Athlete')}
+- Level: {user_profile.get('fitness_level', 'intermediate')}
+- Goals: {json.dumps(user_profile.get('preferences', {}).get('goals', []))}
+- Weaknesses: {json.dumps(user_profile.get('preferences', {}).get('weaknesses', []))}
+
+WEEK SUMMARY:
+- Planned sessions: {weekly_data['planned_sessions']}
+- Completed: {weekly_data['completed_sessions']}
+- Adherence: {weekly_data['adherence_rate']:.1f}%
+- Avg RPE: {weekly_data['avg_rpe']:.1f}/10
+- Avg Readiness: {weekly_data['avg_readiness']:.1f}/100
+
+SESSIONS:
+{json.dumps(weekly_data['sessions'], indent=2, default=str)}
+
+RECOVERY METRICS:
+{json.dumps(weekly_data['recovery_metrics'], indent=2, default=str)}
+
+ATHLETE FEEDBACK:
+{json.dumps(weekly_data['feedback'], indent=2, default=str)}
+{f"Additional notes: {athlete_notes}" if athlete_notes else ""}
+
+Provide review in this JSON format:
+{{
+  "summary": "Brief 2-3 sentence overview",
+  "strengths": [
+    {{"movement": "back_squat", "improvement": "Increased working weight 2kg", "confidence": "high"}},
+    {{"movement": "muscle_up", "improvement": "First unbroken sets", "confidence": "medium"}}
+  ],
+  "weaknesses": [
+    {{"movement": "handstand_walk", "issue": "Balance inconsistent", "suggested_focus": "Add 10min skill work 3x/week"}}
+  ],
+  "recovery_status": "optimal|adequate|compromised",
+  "volume_assessment": "appropriate|too_high|too_low",
+  "progressions_detected": ["Back squat +2kg", "Fran -8 seconds"],
+  "next_week_adjustments": {{
+    "volume_change_pct": 0,
+    "intensity_change": "maintain|increase|decrease",
+    "focus_movements": ["handstand_walk", "snatch"],
+    "special_notes": "Week 4 deload - reduce volume 40%",
+    "add_skill_work_minutes": 10,
+    "add_mobility_work": true
+  }},
+  "coach_message": "Personalized, motivational message addressing specific performance"
+}}"""
+        
+        return prompt
+    
+    def _parse_review_response(self, review_data: Dict, weekly_data: Dict) -> Dict:
+        """Parse AI response into WeeklyReview fields"""
+        
+        # Parse strengths
+        strengths = [
+            PerformanceHighlight(**s) for s in review_data.get("strengths", [])
+        ]
+        
+        # Parse weaknesses
+        weaknesses = [
+            PerformanceChallenge(**w) for w in review_data.get("weaknesses", [])
+        ]
+        
+        # Parse adjustments
+        adjustments_data = review_data.get("next_week_adjustments", {})
+        next_week_adjustments = NextWeekAdjustments(
+            volume_change_pct=adjustments_data.get("volume_change_pct", 0),
+            intensity_change=IntensityChange(adjustments_data.get("intensity_change", "maintain")),
+            focus_movements=adjustments_data.get("focus_movements", []),
+            special_notes=adjustments_data.get("special_notes"),
+            add_skill_work_minutes=adjustments_data.get("add_skill_work_minutes", 0),
+            add_mobility_work=adjustments_data.get("add_mobility_work", False)
+        )
+        
+        return {
+            "summary": review_data.get("summary", "Week completed successfully."),
+            "planned_sessions": weekly_data["planned_sessions"],
+            "completed_sessions": weekly_data["completed_sessions"],
+            "adherence_rate": weekly_data["adherence_rate"],
+            "avg_rpe": weekly_data["avg_rpe"],
+            "avg_readiness": weekly_data["avg_readiness"],
+            "overall_satisfaction": None,  # From athlete feedback if available
+            "strengths": strengths,
+            "weaknesses": weaknesses,
+            "recovery_status": RecoveryStatus(review_data.get("recovery_status", "adequate")),
+            "volume_assessment": VolumeAssessment(review_data.get("volume_assessment", "appropriate")),
+            "progressions_detected": review_data.get("progressions_detected", []),
+            "next_week_adjustments": next_week_adjustments,
+            "coach_message": review_data.get("coach_message", "Keep up the great work!")
+        }
+    
+    def _generate_review_fallback(self, weekly_data: Dict, week_number: int) -> Dict:
+        """Rule-based fallback review"""
+        
+        adherence = weekly_data["adherence_rate"]
+        avg_rpe = weekly_data["avg_rpe"]
+        avg_readiness = weekly_data["avg_readiness"]
+        
+        # Simple rule-based assessment
+        if adherence >= 90:
+            summary = f"Excellent adherence this week ({adherence:.0f}%). "
+        elif adherence >= 70:
+            summary = f"Good adherence ({adherence:.0f}%). "
+        else:
+            summary = f"Low adherence ({adherence:.0f}%). Consider adjusting schedule. "
+        
+        if avg_rpe > 8:
+            summary += "High RPE suggests volume may be too high."
+            volume_assessment = VolumeAssessment.TOO_HIGH
+        elif avg_rpe < 6:
+            summary += "Low RPE suggests room to increase intensity."
+            volume_assessment = VolumeAssessment.TOO_LOW
+        else:
+            summary += "RPE indicates appropriate training load."
+            volume_assessment = VolumeAssessment.APPROPRIATE
+        
+        if avg_readiness < 60:
+            recovery_status = RecoveryStatus.COMPROMISED
+        elif avg_readiness < 75:
+            recovery_status = RecoveryStatus.ADEQUATE
+        else:
+            recovery_status = RecoveryStatus.OPTIMAL
+        
+        return {
+            "summary": summary,
+            "planned_sessions": weekly_data["planned_sessions"],
+            "completed_sessions": weekly_data["completed_sessions"],
+            "adherence_rate": adherence,
+            "avg_rpe": avg_rpe,
+            "avg_readiness": avg_readiness,
+            "overall_satisfaction": None,
+            "strengths": [],
+            "weaknesses": [],
+            "recovery_status": recovery_status,
+            "volume_assessment": volume_assessment,
+            "progressions_detected": [],
+            "next_week_adjustments": NextWeekAdjustments(
+                volume_change_pct=0,
+                intensity_change=IntensityChange.MAINTAIN,
+                focus_movements=[],
+                special_notes="AI review unavailable. Manual review recommended."
+            ),
+            "coach_message": f"Week {week_number} completed. Keep training consistently!"
+        }
+    
+    async def _save_review(self, review: WeeklyReview) -> WeeklyReview:
+        """Save review to database"""
+        review_data = review.model_dump(mode='json', exclude={'id'})
+        review_data["user_id"] = str(review.user_id)
+        review_data["created_at"] = review.created_at.isoformat()
+        
+        response = supabase_client.table("weekly_reviews").insert(
+            review_data
+        ).execute()
+        
+        data = handle_supabase_response(response, "Failed to save review")
+        
+        if data:
+            return WeeklyReview(**data[0])
+        
+        return review
+
+
+# Global instance
+weekly_reviewer = WeeklyReviewEngine()

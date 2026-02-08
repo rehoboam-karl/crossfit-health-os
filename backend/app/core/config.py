@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     
     # AI & OCR
     OPENAI_API_KEY: str = ""
+    ANTHROPIC_API_KEY: str = ""
     
     # JWT
     JWT_ALGORITHM: str = "HS256"
