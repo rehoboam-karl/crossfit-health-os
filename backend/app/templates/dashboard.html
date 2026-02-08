@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block page_subtitle %}Visão geral da sua performance{% endblock %}
+
+{% block content %}
+<!-- Stats Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Readiness Score -->
+    <div class="bg-white rounded-xl shadow-sm p-6 card-hover">
+        <div class="flex items-center justify-between mb-4">
+            <div class="bg-green-100 rounded-lg p-3">
+                <i class="fas fa-bolt text-green-600 text-2xl"></i>
+            </div>
+            <span class="text-sm font-medium text-green-600">+5% vs ontem</span>
+        </div>
+        <h3 class="text-gray-500 text-sm font-medium mb-1">Readiness Score</h3>
+        <p class="text-3xl font-bold text-gray-900">{{ readiness_score }}/100</p>
+        <div class="mt-3">
+            <div class="w-full bg-gray-200 rounded-full h-2">
+                <div class="bg-green-500 h-2 rounded-full" style="width: {{ readiness_score }}%"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Total Workouts -->
+    <div class="bg-white rounded-xl shadow-sm p-6 card-hover">
+        <div class="flex items-center justify-between mb-4">
+            <div class="bg-blue-100 rounded-lg p-3">
+                <i class="fas fa-dumbbell text-blue-600 text-2xl"></i>
+            </div>
+            <span class="text-sm font-medium text-blue-600">Este mês</span>
+        </div>
+        <h3 class="text-gray-500 text-sm font-medium mb-1">Treinos Completos</h3>
+        <p class="text-3xl font-bold text-gray-900">{{ total_workouts }}</p>
+        <p class="text-sm text-gray-500 mt-2">{{ avg_duration }} min média</p>
+    </div>
+    
+    <!-- HRV Status -->
+    <div class="bg-white rounded-xl shadow-sm p-6 card-hover">
+        <div class="flex items-center justify-between mb-4">
+            <div class="bg-purple-100 rounded-lg p-3">
+                <i class="fas fa-heartbeat text-purple-600 text-2xl"></i>
+            </div>
+            <span class="text-sm font-medium text-purple-600">HRV</span>
+        </div>
+        <h3 class="text-gray-500 text-sm font-medium mb-1">Variabilidade Cardíaca</h3>
+        <p class="text-3xl font-bold text-gray-900">{{ hrv_value }} ms</p>
+        <p class="text-sm text-gray-500 mt-2">{{ hrv_ratio }}x baseline</p>
+    </div>
+    
+    <!-- Macros Today -->
+    <div class="bg-white rounded-xl shadow-sm p-6 card-hover">
+        <div class="flex items-center justify-between mb-4">
+            <div class="bg-orange-100 rounded-lg p-3">
+                <i class="fas fa-utensils text-orange-600 text-2xl"></i>
+            </div>
+            <span class="text-sm font-medium text-orange-600">Hoje</span>
+        </div>
+        <h3 class="text-gray-500 text-sm font-medium mb-1">Calorias</h3>
+        <p class="text-3xl font-bold text-gray-900">{{ calories_today }}</p>
+        <p class="text-sm text-gray-500 mt-2">Meta: {{ calories_target }} kcal</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <!-- Today's Workout -->
+    <div class="lg:col-span-2 bg-white rounded-xl shadow-sm p-6">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-lg font-bold text-gray-900">Treino de Hoje</h3>
+            <button class="btn btn-sm btn-primary">
+                <i class="fas fa-sync-alt mr-2"></i>Gerar Novo
+            </button>
+        </div>
+        
+        <div class="gradient-bg rounded-xl p-6 text-white mb-4">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <span class="bg-white/20 px-3 py-1 rounded-full text-xs font-medium">HWPO - Strength</span>
+                    <h4 class="text-2xl font-bold mt-3">{{ workout_name }}</h4>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm opacity-90">Volume Ajustado</p>
+                    <p class="text-3xl font-bold">{{ volume_multiplier }}x</p>
+                </div>
+            </div>
+            
+            <div class="border-t border-white/20 pt-4">
+                <p class="text-sm opacity-90 mb-3">{{ workout_recommendation }}</p>
+                
+                <!-- Movements -->
+                <div class="space-y-3">
+                    {% for movement in workout_movements %}
+                    <div class="bg-white/10 rounded-lg p-3">
+                        <div class="flex justify-between items-center">
+                            <span class="font-medium">{{ movement.movement }}</span>
+                            <span class="text-sm">{{ movement.sets }}x{{ movement.reps }} @ {{ movement.intensity }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex space-x-3">
+            <button class="flex-1 btn btn-primary">
+                <i class="fas fa-play mr-2"></i>Iniciar Treino
+            </button>
+            <button class="btn btn-outline-secondary">
+                <i class="fas fa-info-circle"></i>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Recovery Gauge -->
+    <div class="bg-white rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-bold text-gray-900 mb-6">Status de Recuperação</h3>
+        
+        <div id="recovery-gauge" class="mb-6"></div>
+        
+        <div class="space-y-3">
+            <div>
+                <div class="flex justify-between text-sm mb-1">
+                    <span class="text-gray-600">Sono</span>
+                    <span class="font-medium">{{ sleep_hours }}h</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-blue-500 h-2 rounded-full" style="width: {{ sleep_quality }}%"></div>
+                </div>
+            </div>
+            
+            <div>
+                <div class="flex justify-between text-sm mb-1">
+                    <span class="text-gray-600">Estresse</span>
+                    <span class="font-medium">{{ stress_level }}/10</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-yellow-500 h-2 rounded-full" style="width: {{ stress_level * 10 }}%"></div>
+                </div>
+            </div>
+            
+            <div>
+                <div class="flex justify-between text-sm mb-1">
+                    <span class="text-gray-600">Dor Muscular</span>
+                    <span class="font-medium">{{ soreness }}/10</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-red-500 h-2 rounded-full" style="width: {{ soreness * 10 }}%"></div>
+                </div>
+            </div>
+        </div>
+        
+        <button class="w-full mt-6 btn btn-outline-primary">
+            <i class="fas fa-plus mr-2"></i>Atualizar Métricas
+        </button>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Workout Volume Trend -->
+    <div class="bg-white rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-bold text-gray-900 mb-4">Volume de Treino (30 dias)</h3>
+        <div id="volume-chart"></div>
+    </div>
+    
+    <!-- HRV Trend -->
+    <div class="bg-white rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-bold text-gray-900 mb-4">HRV & Readiness (30 dias)</h3>
+        <div id="hrv-chart"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Recovery Gauge (ApexCharts Radial Bar)
+    var recoveryOptions = {
+        series: [{{ readiness_score }}],
+        chart: {
+            height: 250,
+            type: 'radialBar',
+        },
+        plotOptions: {
+            radialBar: {
+                hollow: {
+                    size: '65%',
+                },
+                dataLabels: {
+                    name: {
+                        fontSize: '14px',
+                        color: '#6b7280'
+                    },
+                    value: {
+                        fontSize: '30px',
+                        fontWeight: 'bold',
+                        color: '#111827',
+                        formatter: function(val) {
+                            return val + '%'
+                        }
+                    }
+                }
+            }
+        },
+        fill: {
+            type: 'gradient',
+            gradient: {
+                shade: 'dark',
+                type: 'vertical',
+                gradientToColors: ['#10b981'],
+                stops: [0, 100]
+            }
+        },
+        labels: ['Readiness'],
+        colors: ['#6366f1']
+    };
+    var recoveryChart = new ApexCharts(document.querySelector("#recovery-gauge"), recoveryOptions);
+    recoveryChart.render();
+    
+    // Workout Volume Chart
+    var volumeOptions = {
+        series: [{
+            name: 'Volume',
+            data: {{ volume_data | tojson }}
+        }],
+        chart: {
+            height: 300,
+            type: 'area',
+            toolbar: {
+                show: false
+            }
+        },
+        dataLabels: {
+            enabled: false
+        },
+        stroke: {
+            curve: 'smooth',
+            width: 2
+        },
+        fill: {
+            type: 'gradient',
+            gradient: {
+                shadeIntensity: 1,
+                opacityFrom: 0.4,
+                opacityTo: 0.1,
+            }
+        },
+        xaxis: {
+            categories: {{ volume_dates | tojson }},
+            labels: {
+                rotate: -45
+            }
+        },
+        colors: ['#3b82f6']
+    };
+    var volumeChart = new ApexCharts(document.querySelector("#volume-chart"), volumeOptions);
+    volumeChart.render();
+    
+    // HRV Chart
+    var hrvOptions = {
+        series: [
+            {
+                name: 'HRV',
+                data: {{ hrv_data | tojson }}
+            },
+            {
+                name: 'Readiness',
+                data: {{ readiness_data | tojson }}
+            }
+        ],
+        chart: {
+            height: 300,
+            type: 'line',
+            toolbar: {
+                show: false
+            }
+        },
+        stroke: {
+            curve: 'smooth',
+            width: [2, 2]
+        },
+        xaxis: {
+            categories: {{ hrv_dates | tojson }}
+        },
+        yaxis: [
+            {
+                title: {
+                    text: 'HRV (ms)'
+                }
+            },
+            {
+                opposite: true,
+                title: {
+                    text: 'Readiness'
+                },
+                min: 0,
+                max: 100
+            }
+        ],
+        colors: ['#8b5cf6', '#10b981']
+    };
+    var hrvChart = new ApexCharts(document.querySelector("#hrv-chart"), hrvOptions);
+    hrvChart.render();
+</script>
+{% endblock %}

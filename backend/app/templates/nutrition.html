@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% block page_title %}Nutrição{% endblock %}
+{% block page_subtitle %}Macros, refeições e planejamento alimentar{% endblock %}
+
+{% block content %}
+<!-- Daily Macros Overview -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <!-- Macro Rings -->
+    <div class="lg:col-span-2 bg-white rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-bold text-gray-900 mb-6">Macros de Hoje</h3>
+        
+        <div class="grid grid-cols-3 gap-6">
+            <div class="text-center">
+                <div id="protein-ring"></div>
+                <h4 class="font-medium text-gray-700 mt-2">Proteína</h4>
+                <p class="text-2xl font-bold text-gray-900">{{ today_macros.protein }}g</p>
+                <p class="text-sm text-gray-500">/ {{ targets.protein }}g</p>
+            </div>
+            
+            <div class="text-center">
+                <div id="carbs-ring"></div>
+                <h4 class="font-medium text-gray-700 mt-2">Carboidratos</h4>
+                <p class="text-2xl font-bold text-gray-900">{{ today_macros.carbs }}g</p>
+                <p class="text-sm text-gray-500">/ {{ targets.carbs }}g</p>
+            </div>
+            
+            <div class="text-center">
+                <div id="fat-ring"></div>
+                <h4 class="font-medium text-gray-700 mt-2">Gordura</h4>
+                <p class="text-2xl font-bold text-gray-900">{{ today_macros.fat }}g</p>
+                <p class="text-sm text-gray-500">/ {{ targets.fat }}g</p>
+            </div>
+        </div>
+        
+        <div class="mt-8 p-4 bg-gray-50 rounded-xl">
+            <div class="flex justify-between items-center">
+                <div>
+                    <p class="text-sm text-gray-600">Calorias Totais</p>
+                    <p class="text-3xl font-bold text-gray-900">{{ today_macros.calories }}</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm text-gray-600">Meta Diária</p>
+                    <p class="text-2xl font-bold text-gray-700">{{ targets.calories }}</p>
+                </div>
+                <div>
+                    {% set percentage = (today_macros.calories / targets.calories * 100) | round %}
+                    <div class="text-center">
+                        <span class="text-4xl font-bold {% if percentage >= 90 %}text-green-600{% elif percentage >= 70 %}text-blue-600{% else %}text-yellow-600{% endif %}">
+                            {{ percentage }}%
+                        </span>
+                        <p class="text-xs text-gray-500 mt-1">da meta</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Add Meal -->
+    <div class="bg-white rounded-xl shadow-sm p-6">
+        <h3 class="text-lg font-bold text-gray-900 mb-4">Adicionar Refeição</h3>
+        
+        <form class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Refeição</label>
+                <select class="form-select w-full rounded-lg border-gray-300">
+                    <option>Café da Manhã</option>
+                    <option>Almoço</option>
+                    <option>Lanche</option>
+                    <option>Jantar</option>
+                    <option>Pré-Treino</option>
+                    <option>Pós-Treino</option>
+                </select>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Calorias</label>
+                <input type="number" class="form-control w-full rounded-lg border-gray-300" placeholder="kcal">
+            </div>
+            
+            <div class="grid grid-cols-3 gap-2">
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Proteína</label>
+                    <input type="number" class="form-control w-full rounded-lg border-gray-300 text-sm" placeholder="g">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Carbs</label>
+                    <input type="number" class="form-control w-full rounded-lg border-gray-300 text-sm" placeholder="g">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Gordura</label>
+                    <input type="number" class="form-control w-full rounded-lg border-gray-300 text-sm" placeholder="g">
+                </div>
+            </div>
+            
+            <button type="submit" class="w-full btn btn-primary">
+                <i class="fas fa-plus mr-2"></i>Adicionar
+            </button>
+        </form>
+        
+        <div class="mt-6 pt-6 border-t border-gray-200">
+            <button class="w-full btn btn-outline-primary mb-2">
+                <i class="fas fa-camera mr-2"></i>Foto da Refeição (IA)
+            </button>
+            <p class="text-xs text-gray-500 text-center">AI estima macros automaticamente</p>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Meals -->
+<div class="bg-white rounded-xl shadow-sm p-6 mb-8">
+    <div class="flex justify-between items-center mb-6">
+        <h3 class="text-lg font-bold text-gray-900">Refeições de Hoje</h3>
+        <button class="btn btn-sm btn-outline-secondary">
+            <i class="far fa-calendar mr-2"></i>Ver Histórico
+        </button>
+    </div>
+    
+    <div class="space-y-4">
+        {% for meal in recent_meals %}
+        <div class="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+            <div class="flex justify-between items-start">
+                <div class="flex-1">
+                    <div class="flex items-center space-x-3 mb-2">
+                        <span class="text-sm font-medium text-gray-500">{{ meal.time }}</span>
+                        <h4 class="font-bold text-gray-900">{{ meal.name }}</h4>
+                    </div>
+                    
+                    <div class="grid grid-cols-4 gap-4">
+                        <div>
+                            <p class="text-xs text-gray-600">Calorias</p>
+                            <p class="text-lg font-bold text-gray-900">{{ meal.calories }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-600">Proteína</p>
+                            <p class="text-lg font-bold text-blue-600">{{ meal.protein }}g</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-600">Carbs</p>
+                            <p class="text-lg font-bold text-green-600">{{ meal.carbs }}g</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-600">Gordura</p>
+                            <p class="text-lg font-bold text-orange-600">{{ meal.fat }}g</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex space-x-2">
+                    <button class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Weekly Macro Trend -->
+<div class="bg-white rounded-xl shadow-sm p-6">
+    <h3 class="text-lg font-bold text-gray-900 mb-4">Tendência Semanal</h3>
+    <div id="macro-trend-chart"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Protein Ring
+    {% set protein_pct = (today_macros.protein / targets.protein * 100) | round %}
+    new ApexCharts(document.querySelector("#protein-ring"), {
+        series: [{{ protein_pct }}],
+        chart: { type: 'radialBar', height: 200 },
+        plotOptions: {
+            radialBar: {
+                hollow: { size: '60%' },
+                dataLabels: {
+                    value: { fontSize: '16px', fontWeight: 'bold', color: '#1f2937', formatter: val => val + '%' }
+                }
+            }
+        },
+        colors: ['#3b82f6']
+    }).render();
+    
+    // Carbs Ring
+    {% set carbs_pct = (today_macros.carbs / targets.carbs * 100) | round %}
+    new ApexCharts(document.querySelector("#carbs-ring"), {
+        series: [{{ carbs_pct }}],
+        chart: { type: 'radialBar', height: 200 },
+        plotOptions: {
+            radialBar: {
+                hollow: { size: '60%' },
+                dataLabels: {
+                    value: { fontSize: '16px', fontWeight: 'bold', color: '#1f2937', formatter: val => val + '%' }
+                }
+            }
+        },
+        colors: ['#10b981']
+    }).render();
+    
+    // Fat Ring
+    {% set fat_pct = (today_macros.fat / targets.fat * 100) | round %}
+    new ApexCharts(document.querySelector("#fat-ring"), {
+        series: [{{ fat_pct }}],
+        chart: { type: 'radialBar', height: 200 },
+        plotOptions: {
+            radialBar: {
+                hollow: { size: '60%' },
+                dataLabels: {
+                    value: { fontSize: '16px', fontWeight: 'bold', color: '#1f2937', formatter: val => val + '%' }
+                }
+            }
+        },
+        colors: ['#f59e0b']
+    }).render();
+    
+    // Weekly Macro Trend
+    var macroTrendOptions = {
+        series: [
+            { name: 'Proteína', data: [175, 180, 185, 178, 180, 182, 180] },
+            { name: 'Carbs', data: [220, 230, 240, 235, 245, 248, 245] },
+            { name: 'Gordura', data: [70, 75, 72, 76, 78, 80, 78] }
+        ],
+        chart: {
+            type: 'line',
+            height: 300,
+            toolbar: { show: false }
+        },
+        stroke: { curve: 'smooth', width: 2 },
+        xaxis: {
+            categories: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+        },
+        colors: ['#3b82f6', '#10b981', '#f59e0b']
+    };
+    new ApexCharts(document.querySelector("#macro-trend-chart"), macroTrendOptions).render();
+</script>
+{% endblock %}

@@ -5,11 +5,14 @@ Main entry point for the backend API
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import logging
+from pathlib import Path
 
 from app.core.config import settings
 from app.api.v1 import training, health, nutrition, integrations, users
+from app.web import routes as web_routes
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -49,6 +52,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static files
+static_path = Path(__file__).parent / "static"
+static_path.mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+
 
 # Exception handlers
 @app.exception_handler(Exception)
@@ -86,7 +94,13 @@ async def health_check():
     }
 
 
-# Include routers
+# Include web routes (HTML pages)
+app.include_router(
+    web_routes.router,
+    tags=["Web"]
+)
+
+# Include API routers
 app.include_router(
     users.router,
     prefix="/api/v1/users",

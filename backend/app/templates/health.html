@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block page_title %}Saúde & Recovery{% endblock %}
+{% block page_subtitle %}Biomarkers, exames e métricas de recuperação{% endblock %}
+
+{% block content %}
+<!-- Upload Lab Report -->
+<div class="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-8 text-white mb-8">
+    <div class="flex items-center justify-between">
+        <div class="flex-1">
+            <h2 class="text-2xl font-bold mb-2">Upload de Exames Laboratoriais</h2>
+            <p class="text-indigo-100 mb-4">Envie seu PDF de exames e deixamos a IA extrair automaticamente os biomarcadores</p>
+            <button class="btn btn-light">
+                <i class="fas fa-upload mr-2"></i>Fazer Upload (OCR Inteligente)
+            </button>
+        </div>
+        <div class="hidden lg:block">
+            <i class="fas fa-file-medical text-white/20 text-9xl"></i>
+        </div>
+    </div>
+</div>
+
+<!-- Biomarkers Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    {% for biomarker in biomarkers %}
+    <div class="bg-white rounded-xl shadow-sm p-6 card-hover">
+        <div class="flex justify-between items-start mb-4">
+            <span class="px-2 py-1 rounded text-xs font-medium
+                {% if biomarker.status == 'optimal' %}bg-green-100 text-green-700
+                {% elif biomarker.status == 'normal' %}bg-blue-100 text-blue-700
+                {% else %}bg-yellow-100 text-yellow-700{% endif %}">
+                {{ biomarker.status.upper() }}
+            </span>
+            <span class="text-xs text-gray-500">{{ biomarker.date }}</span>
+        </div>
+        
+        <h4 class="font-medium text-gray-700 text-sm mb-2">{{ biomarker.name }}</h4>
+        <p class="text-3xl font-bold text-gray-900 mb-1">{{ biomarker.value }}</p>
+        <p class="text-sm text-gray-500">{{ biomarker.unit }}</p>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Recovery Metrics -->
+<div class="bg-white rounded-xl shadow-sm p-6 mb-8">
+    <h3 class="text-lg font-bold text-gray-900 mb-6">Métricas de Recuperação (7 dias)</h3>
+    
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead>
+                <tr class="border-b border-gray-200">
+                    <th class="text-left py-3 px-4 text-sm font-medium text-gray-600">Dia</th>
+                    <th class="text-center py-3 px-4 text-sm font-medium text-gray-600">Readiness</th>
+                    <th class="text-center py-3 px-4 text-sm font-medium text-gray-600">HRV (ms)</th>
+                    <th class="text-center py-3 px-4 text-sm font-medium text-gray-600">Sono (h)</th>
+                    <th class="text-center py-3 px-4 text-sm font-medium text-gray-600">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for day in recovery_trend %}
+                <tr class="border-b border-gray-100 hover:bg-gray-50">
+                    <td class="py-4 px-4 font-medium text-gray-900">{{ day.day }}</td>
+                    <td class="py-4 px-4 text-center">
+                        <span class="inline-flex items-center justify-center w-12 h-12 rounded-full
+                            {% if day.readiness >= 80 %}bg-green-100 text-green-700
+                            {% elif day.readiness >= 60 %}bg-blue-100 text-blue-700
+                            {% else %}bg-yellow-100 text-yellow-700{% endif %} font-bold">
+                            {{ day.readiness }}
+                        </span>
+                    </td>
+                    <td class="py-4 px-4 text-center text-gray-900">{{ day.hrv }}</td>
+                    <td class="py-4 px-4 text-center text-gray-900">{{ day.sleep }}</td>
+                    <td class="py-4 px-4 text-center">
+                        {% if day.readiness >= 80 %}
+                        <span class="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Excelente</span>
+                        {% elif day.readiness >= 60 %}
+                        <span class="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Normal</span>
+                        {% else %}
+                        <span class="px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Fadiga</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Biomarker Trends -->
+<div class="bg-white rounded-xl shadow-sm p-6">
+    <h3 class="text-lg font-bold text-gray-900 mb-4">Tendência de Biomarcadores (6 meses)</h3>
+    <div id="biomarker-trend-chart"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Biomarker Trend Chart
+    var biomarkerOptions = {
+        series: [
+            {
+                name: 'Testosterone',
+                data: [680, 695, 710, 720, 715, 720]
+            },
+            {
+                name: 'Vitamin D',
+                data: [45, 52, 58, 63, 65, 65]
+            },
+            {
+                name: 'Cortisol',
+                data: [18, 17, 16, 15.5, 15.2, 15.2]
+            }
+        ],
+        chart: {
+            height: 350,
+            type: 'line',
+            toolbar: {
+                show: false
+            }
+        },
+        stroke: {
+            curve: 'smooth',
+            width: 3
+        },
+        xaxis: {
+            categories: ['Set', 'Out', 'Nov', 'Dez', 'Jan', 'Fev']
+        },
+        yaxis: [
+            {
+                title: {
+                    text: 'ng/dL'
+                }
+            }
+        ],
+        colors: ['#3b82f6', '#f59e0b', '#ef4444']
+    };
+    var biomarkerChart = new ApexCharts(document.querySelector("#biomarker-trend-chart"), biomarkerOptions);
+    biomarkerChart.render();
+</script>
+{% endblock %}
