@@ -1,305 +1,280 @@
 {% extends "base.html" %}
 
-{% block page_title %}Dashboard{% endblock %}
-{% block page_subtitle %}Visão geral da sua performance{% endblock %}
+{% block title %}Dashboard - CrossFit Health OS{% endblock %}
+
+{% block navbar %}
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/dashboard">
+            <i class="fas fa-dumbbell"></i> CrossFit Health OS
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link active" href="/dashboard">
+                        <i class="fas fa-home me-1"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/dashboard/workouts">
+                        <i class="fas fa-dumbbell me-1"></i> Workouts
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/dashboard/schedule">
+                        <i class="fas fa-calendar me-1"></i> Schedule
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/dashboard/reviews">
+                        <i class="fas fa-chart-line me-1"></i> Reviews
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/dashboard/profile">
+                        <i class="fas fa-user me-1"></i> Profile
+                    </a>
+                </li>
+            </ul>
+            <ul class="navbar-nav">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-user-circle me-1"></i> <span id="user-name">User</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="/dashboard/profile"><i class="fas fa-cog me-2"></i> Settings</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" id="logout-btn"><i class="fas fa-sign-out-alt me-2"></i> Logout</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+{% endblock %}
 
 {% block content %}
-<!-- Stats Cards -->
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <!-- Readiness Score -->
-    <div class="bg-white rounded-xl shadow-sm p-6 card-hover">
-        <div class="flex items-center justify-between mb-4">
-            <div class="bg-green-100 rounded-lg p-3">
-                <i class="fas fa-bolt text-green-600 text-2xl"></i>
-            </div>
-            <span class="text-sm font-medium text-green-600">+5% vs ontem</span>
-        </div>
-        <h3 class="text-gray-500 text-sm font-medium mb-1">Readiness Score</h3>
-        <p class="text-3xl font-bold text-gray-900">{{ readiness_score }}/100</p>
-        <div class="mt-3">
-            <div class="w-full bg-gray-200 rounded-full h-2">
-                <div class="bg-green-500 h-2 rounded-full" style="width: {{ readiness_score }}%"></div>
-            </div>
+<div class="container-fluid py-4">
+    <!-- Welcome Banner -->
+    <div class="card bg-gradient-primary text-white mb-4 border-0">
+        <div class="card-body p-4">
+            <h1 class="display-6 fw-bold mb-2">
+                Welcome back, <span id="welcome-name">Athlete</span>! 💪
+            </h1>
+            <p class="mb-0 opacity-75">
+                Ready to crush today's workout? Your AI coach has your program ready.
+            </p>
         </div>
     </div>
     
-    <!-- Total Workouts -->
-    <div class="bg-white rounded-xl shadow-sm p-6 card-hover">
-        <div class="flex items-center justify-between mb-4">
-            <div class="bg-blue-100 rounded-lg p-3">
-                <i class="fas fa-dumbbell text-blue-600 text-2xl"></i>
-            </div>
-            <span class="text-sm font-medium text-blue-600">Este mês</span>
-        </div>
-        <h3 class="text-gray-500 text-sm font-medium mb-1">Treinos Completos</h3>
-        <p class="text-3xl font-bold text-gray-900">{{ total_workouts }}</p>
-        <p class="text-sm text-gray-500 mt-2">{{ avg_duration }} min média</p>
-    </div>
-    
-    <!-- HRV Status -->
-    <div class="bg-white rounded-xl shadow-sm p-6 card-hover">
-        <div class="flex items-center justify-between mb-4">
-            <div class="bg-purple-100 rounded-lg p-3">
-                <i class="fas fa-heartbeat text-purple-600 text-2xl"></i>
-            </div>
-            <span class="text-sm font-medium text-purple-600">HRV</span>
-        </div>
-        <h3 class="text-gray-500 text-sm font-medium mb-1">Variabilidade Cardíaca</h3>
-        <p class="text-3xl font-bold text-gray-900">{{ hrv_value }} ms</p>
-        <p class="text-sm text-gray-500 mt-2">{{ hrv_ratio }}x baseline</p>
-    </div>
-    
-    <!-- Macros Today -->
-    <div class="bg-white rounded-xl shadow-sm p-6 card-hover">
-        <div class="flex items-center justify-between mb-4">
-            <div class="bg-orange-100 rounded-lg p-3">
-                <i class="fas fa-utensils text-orange-600 text-2xl"></i>
-            </div>
-            <span class="text-sm font-medium text-orange-600">Hoje</span>
-        </div>
-        <h3 class="text-gray-500 text-sm font-medium mb-1">Calorias</h3>
-        <p class="text-3xl font-bold text-gray-900">{{ calories_today }}</p>
-        <p class="text-sm text-gray-500 mt-2">Meta: {{ calories_target }} kcal</p>
-    </div>
-</div>
-
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-    <!-- Today's Workout -->
-    <div class="lg:col-span-2 bg-white rounded-xl shadow-sm p-6">
-        <div class="flex justify-between items-center mb-6">
-            <h3 class="text-lg font-bold text-gray-900">Treino de Hoje</h3>
-            <button class="btn btn-sm btn-primary">
-                <i class="fas fa-sync-alt mr-2"></i>Gerar Novo
-            </button>
-        </div>
-        
-        <div class="gradient-bg rounded-xl p-6 text-white mb-4">
-            <div class="flex justify-between items-start mb-4">
-                <div>
-                    <span class="bg-white/20 px-3 py-1 rounded-full text-xs font-medium">HWPO - Strength</span>
-                    <h4 class="text-2xl font-bold mt-3">{{ workout_name }}</h4>
-                </div>
-                <div class="text-right">
-                    <p class="text-sm opacity-90">Volume Ajustado</p>
-                    <p class="text-3xl font-bold">{{ volume_multiplier }}x</p>
-                </div>
-            </div>
-            
-            <div class="border-t border-white/20 pt-4">
-                <p class="text-sm opacity-90 mb-3">{{ workout_recommendation }}</p>
-                
-                <!-- Movements -->
-                <div class="space-y-3">
-                    {% for movement in workout_movements %}
-                    <div class="bg-white/10 rounded-lg p-3">
-                        <div class="flex justify-between items-center">
-                            <span class="font-medium">{{ movement.movement }}</span>
-                            <span class="text-sm">{{ movement.sets }}x{{ movement.reps }} @ {{ movement.intensity }}</span>
-                        </div>
+    <!-- Quick Stats -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="text-muted mb-0">Readiness Score</h6>
+                        <i class="fas fa-heartbeat text-primary"></i>
                     </div>
-                    {% endfor %}
+                    <h2 class="fw-bold text-primary mb-0">--</h2>
+                    <small class="text-muted">Sync HealthKit</small>
                 </div>
             </div>
         </div>
         
-        <div class="flex space-x-3">
-            <button class="flex-1 btn btn-primary">
-                <i class="fas fa-play mr-2"></i>Iniciar Treino
-            </button>
-            <button class="btn btn-outline-secondary">
-                <i class="fas fa-info-circle"></i>
-            </button>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="text-muted mb-0">This Week</h6>
+                        <i class="fas fa-check-circle text-success"></i>
+                    </div>
+                    <h2 class="fw-bold mb-0">0/5</h2>
+                    <small class="text-muted">Sessions Complete</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="text-muted mb-0">Current Week</h6>
+                        <i class="fas fa-calendar text-info"></i>
+                    </div>
+                    <h2 class="fw-bold mb-0">1</h2>
+                    <small class="text-muted">Accumulation Phase</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="text-muted mb-0">Next Review</h6>
+                        <i class="fas fa-chart-line text-warning"></i>
+                    </div>
+                    <h2 class="fw-bold mb-0">--</h2>
+                    <small class="text-muted">Days until</small>
+                </div>
+            </div>
         </div>
     </div>
     
-    <!-- Recovery Gauge -->
-    <div class="bg-white rounded-xl shadow-sm p-6">
-        <h3 class="text-lg font-bold text-gray-900 mb-6">Status de Recuperação</h3>
-        
-        <div id="recovery-gauge" class="mb-6"></div>
-        
-        <div class="space-y-3">
-            <div>
-                <div class="flex justify-between text-sm mb-1">
-                    <span class="text-gray-600">Sono</span>
-                    <span class="font-medium">{{ sleep_hours }}h</span>
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-2">
-                    <div class="bg-blue-500 h-2 rounded-full" style="width: {{ sleep_quality }}%"></div>
-                </div>
-            </div>
-            
-            <div>
-                <div class="flex justify-between text-sm mb-1">
-                    <span class="text-gray-600">Estresse</span>
-                    <span class="font-medium">{{ stress_level }}/10</span>
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-2">
-                    <div class="bg-yellow-500 h-2 rounded-full" style="width: {{ stress_level * 10 }}%"></div>
-                </div>
-            </div>
-            
-            <div>
-                <div class="flex justify-between text-sm mb-1">
-                    <span class="text-gray-600">Dor Muscular</span>
-                    <span class="font-medium">{{ soreness }}/10</span>
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-2">
-                    <div class="bg-red-500 h-2 rounded-full" style="width: {{ soreness * 10 }}%"></div>
-                </div>
+    <!-- Today's Workout -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white border-0 py-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <h4 class="mb-0 fw-bold">Today's Workout</h4>
+                <span class="badge bg-primary" id="today-date"></span>
             </div>
         </div>
-        
-        <button class="w-full mt-6 btn btn-outline-primary">
-            <i class="fas fa-plus mr-2"></i>Atualizar Métricas
-        </button>
-    </div>
-</div>
-
-<!-- Charts Row -->
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-    <!-- Workout Volume Trend -->
-    <div class="bg-white rounded-xl shadow-sm p-6">
-        <h3 class="text-lg font-bold text-gray-900 mb-4">Volume de Treino (30 dias)</h3>
-        <div id="volume-chart"></div>
+        <div class="card-body">
+            <div class="text-center py-5">
+                <i class="fas fa-bullseye fa-4x text-muted mb-3"></i>
+                <h5 class="fw-bold mb-3">No workout generated yet</h5>
+                <p class="text-muted mb-4">
+                    Create your training schedule to get AI-powered workouts
+                </p>
+                <a href="/dashboard/schedule" class="btn btn-primary btn-lg">
+                    <i class="fas fa-calendar-plus me-2"></i> Create Schedule
+                </a>
+            </div>
+        </div>
     </div>
     
-    <!-- HRV Trend -->
-    <div class="bg-white rounded-xl shadow-sm p-6">
-        <h3 class="text-lg font-bold text-gray-900 mb-4">HRV & Readiness (30 dias)</h3>
-        <div id="hrv-chart"></div>
+    <!-- Quick Actions -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <a href="/dashboard/schedule" class="text-decoration-none">
+                <div class="card h-100 border-0 shadow-sm hover-lift">
+                    <div class="card-body text-center p-4">
+                        <i class="fas fa-calendar-alt fa-3x text-primary mb-3"></i>
+                        <h5 class="fw-bold mb-2">Create Schedule</h5>
+                        <p class="text-muted mb-0">
+                            Set up your weekly training schedule with AI-powered programming
+                        </p>
+                    </div>
+                </div>
+            </a>
+        </div>
+        
+        <div class="col-md-4">
+            <a href="/dashboard/workouts" class="text-decoration-none">
+                <div class="card h-100 border-0 shadow-sm hover-lift">
+                    <div class="card-body text-center p-4">
+                        <i class="fas fa-dumbbell fa-3x text-success mb-3"></i>
+                        <h5 class="fw-bold mb-2">View Workouts</h5>
+                        <p class="text-muted mb-0">
+                            Browse your training history and track progress
+                        </p>
+                    </div>
+                </div>
+            </a>
+        </div>
+        
+        <div class="col-md-4">
+            <a href="/dashboard/profile" class="text-decoration-none">
+                <div class="card h-100 border-0 shadow-sm hover-lift">
+                    <div class="card-body text-center p-4">
+                        <i class="fas fa-user-cog fa-3x text-info mb-3"></i>
+                        <h5 class="fw-bold mb-2">Profile Settings</h5>
+                        <p class="text-muted mb-0">
+                            Update your goals, weaknesses, and preferences
+                        </p>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+    
+    <!-- Getting Started Guide -->
+    <div class="card border-primary shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+                <i class="fas fa-rocket me-2"></i> Getting Started
+            </h5>
+        </div>
+        <div class="card-body">
+            <ol class="list-unstyled mb-0">
+                <li class="d-flex align-items-start mb-3">
+                    <span class="badge bg-primary rounded-circle me-3" style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">1</span>
+                    <div>
+                        <strong>Create your training schedule:</strong> Choose training days and times that fit your lifestyle
+                    </div>
+                </li>
+                <li class="d-flex align-items-start mb-3">
+                    <span class="badge bg-primary rounded-circle me-3" style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">2</span>
+                    <div>
+                        <strong>Generate AI workouts:</strong> Select methodology (HWPO, Mayhem, CompTrain) and week number
+                    </div>
+                </li>
+                <li class="d-flex align-items-start mb-3">
+                    <span class="badge bg-primary rounded-circle me-3" style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">3</span>
+                    <div>
+                        <strong>Track your sessions:</strong> Log weights, reps, RPE, and recovery metrics
+                    </div>
+                </li>
+                <li class="d-flex align-items-start">
+                    <span class="badge bg-primary rounded-circle me-3" style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">4</span>
+                    <div>
+                        <strong>Weekly reviews:</strong> AI analyzes your performance and adjusts next week's program
+                    </div>
+                </li>
+            </ol>
+        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
+<script src="/static/js/dashboard.js"></script>
 <script>
-    // Recovery Gauge (ApexCharts Radial Bar)
-    var recoveryOptions = {
-        series: [{{ readiness_score }}],
-        chart: {
-            height: 250,
-            type: 'radialBar',
-        },
-        plotOptions: {
-            radialBar: {
-                hollow: {
-                    size: '65%',
-                },
-                dataLabels: {
-                    name: {
-                        fontSize: '14px',
-                        color: '#6b7280'
-                    },
-                    value: {
-                        fontSize: '30px',
-                        fontWeight: 'bold',
-                        color: '#111827',
-                        formatter: function(val) {
-                            return val + '%'
-                        }
-                    }
-                }
-            }
-        },
-        fill: {
-            type: 'gradient',
-            gradient: {
-                shade: 'dark',
-                type: 'vertical',
-                gradientToColors: ['#10b981'],
-                stops: [0, 100]
-            }
-        },
-        labels: ['Readiness'],
-        colors: ['#6366f1']
-    };
-    var recoveryChart = new ApexCharts(document.querySelector("#recovery-gauge"), recoveryOptions);
-    recoveryChart.render();
+$(document).ready(function() {
+    // Check authentication
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+        window.location.href = '/login';
+        return;
+    }
     
-    // Workout Volume Chart
-    var volumeOptions = {
-        series: [{
-            name: 'Volume',
-            data: {{ volume_data | tojson }}
-        }],
-        chart: {
-            height: 300,
-            type: 'area',
-            toolbar: {
-                show: false
-            }
-        },
-        dataLabels: {
-            enabled: false
-        },
-        stroke: {
-            curve: 'smooth',
-            width: 2
-        },
-        fill: {
-            type: 'gradient',
-            gradient: {
-                shadeIntensity: 1,
-                opacityFrom: 0.4,
-                opacityTo: 0.1,
-            }
-        },
-        xaxis: {
-            categories: {{ volume_dates | tojson }},
-            labels: {
-                rotate: -45
-            }
-        },
-        colors: ['#3b82f6']
-    };
-    var volumeChart = new ApexCharts(document.querySelector("#volume-chart"), volumeOptions);
-    volumeChart.render();
+    // Load user info
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (user.name) {
+        $('#user-name').text(user.name);
+        $('#welcome-name').text(user.name.split(' ')[0]);
+    }
     
-    // HRV Chart
-    var hrvOptions = {
-        series: [
-            {
-                name: 'HRV',
-                data: {{ hrv_data | tojson }}
+    // Set today's date
+    const today = new Date().toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+    });
+    $('#today-date').text(today);
+    
+    // Logout handler
+    $('#logout-btn').on('click', function(e) {
+        e.preventDefault();
+        
+        $.ajax({
+            url: '/api/v1/auth/logout',
+            type: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + token
             },
-            {
-                name: 'Readiness',
-                data: {{ readiness_data | tojson }}
+            complete: function() {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('user');
+                window.location.href = '/';
             }
-        ],
-        chart: {
-            height: 300,
-            type: 'line',
-            toolbar: {
-                show: false
-            }
-        },
-        stroke: {
-            curve: 'smooth',
-            width: [2, 2]
-        },
-        xaxis: {
-            categories: {{ hrv_dates | tojson }}
-        },
-        yaxis: [
-            {
-                title: {
-                    text: 'HRV (ms)'
-                }
-            },
-            {
-                opposite: true,
-                title: {
-                    text: 'Readiness'
-                },
-                min: 0,
-                max: 100
-            }
-        ],
-        colors: ['#8b5cf6', '#10b981']
-    };
-    var hrvChart = new ApexCharts(document.querySelector("#hrv-chart"), hrvOptions);
-    hrvChart.render();
+        });
+    });
+});
 </script>
 {% endblock %}

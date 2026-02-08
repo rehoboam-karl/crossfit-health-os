@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+
+{% block title %}CrossFit Health OS - Elite Performance Ecosystem{% endblock %}
+
+{% block navbar %}
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container">
+        <a class="navbar-brand" href="/">
+            <i class="fas fa-dumbbell"></i> CrossFit Health OS
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="#features">Features</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#pricing">Pricing</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/login">Login</a>
+                </li>
+                <li class="nav-item">
+                    <a class="btn btn-light ms-2" href="/register">Get Started</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section bg-primary text-white py-5">
+    <div class="container text-center py-5">
+        <h1 class="display-3 fw-bold mb-4">
+            Elite Human Performance
+            <br><span class="text-light-emphasis">Powered by AI</span>
+        </h1>
+        <p class="lead mb-5 fs-4">
+            Integrating biometrics, adaptive training, and nutritional intelligence
+            <br>to create a closed-loop system for performance optimization.
+        </p>
+        <div class="d-flex gap-3 justify-content-center">
+            <a href="/register" class="btn btn-light btn-lg px-5 py-3">
+                Start Free Trial <i class="fas fa-arrow-right ms-2"></i>
+            </a>
+            <a href="#features" class="btn btn-outline-light btn-lg px-5 py-3">
+                Learn More
+            </a>
+        </div>
+    </div>
+</section>
+
+<!-- Features -->
+<section id="features" class="py-5">
+    <div class="container">
+        <h2 class="display-5 fw-bold text-center mb-5">Everything You Need to Perform</h2>
+        
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="display-4 mb-3"><i class="fas fa-brain text-primary"></i></div>
+                        <h5 class="card-title fw-bold">AI-Powered Programming</h5>
+                        <p class="card-text text-muted">
+                            GPT-4 generates personalized training programs adapting to your
+                            recovery, goals, and weaknesses. HWPO, Mayhem, CompTrain methodologies.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="display-4 mb-3"><i class="fas fa-chart-line text-primary"></i></div>
+                        <h5 class="card-title fw-bold">Adaptive Training</h5>
+                        <p class="card-text text-muted">
+                            Your workouts adjust automatically based on HRV, sleep quality,
+                            and readiness scores. Volume and intensity optimized daily.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="display-4 mb-3"><i class="fas fa-sync-alt text-primary"></i></div>
+                        <h5 class="card-title fw-bold">Weekly Reviews</h5>
+                        <p class="card-text text-muted">
+                            AI analyzes your performance, identifies strengths and weaknesses,
+                            and recommends specific adjustments for progressive overload.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="display-4 mb-3"><i class="fas fa-utensils text-primary"></i></div>
+                        <h5 class="card-title fw-bold">Auto Meal Planning</h5>
+                        <p class="card-text text-muted">
+                            Pre/post-workout nutrition automatically synced with training
+                            schedule. Macro calculations based on your goals.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="display-4 mb-3"><i class="fas fa-heartbeat text-primary"></i></div>
+                        <h5 class="card-title fw-bold">Recovery Tracking</h5>
+                        <p class="card-text text-muted">
+                            HRV, sleep, readiness, biomarker tracking. Apple HealthKit
+                            integration for seamless data sync.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body text-center p-4">
+                        <div class="display-4 mb-3"><i class="fas fa-trophy text-primary"></i></div>
+                        <h5 class="card-title fw-bold">Performance Analytics</h5>
+                        <p class="card-text text-muted">
+                            Track PRs, benchmark times, volume trends. Monthly analysis
+                            with Gemini AI for long-term insights.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- How It Works -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <h2 class="display-5 fw-bold text-center mb-5">The Feedback Loop</h2>
+        
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="timeline">
+                    <div class="timeline-item d-flex mb-4">
+                        <div class="timeline-badge bg-primary text-white rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width: 50px; height: 50px; min-width: 50px;">
+                            1
+                        </div>
+                        <div class="ms-4">
+                            <h5 class="fw-bold">Track Recovery</h5>
+                            <p class="text-muted">
+                                Log HRV, sleep quality, stress, and soreness. Sync with Apple
+                                HealthKit for automatic tracking.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="timeline-item d-flex mb-4">
+                        <div class="timeline-badge bg-primary text-white rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width: 50px; height: 50px; min-width: 50px;">
+                            2
+                        </div>
+                        <div class="ms-4">
+                            <h5 class="fw-bold">AI Generates Workout</h5>
+                            <p class="text-muted">
+                                Based on your readiness score, AI adjusts workout volume and
+                                intensity. High HRV → push harder. Low HRV → reduce volume.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="timeline-item d-flex mb-4">
+                        <div class="timeline-badge bg-primary text-white rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width: 50px; height: 50px; min-width: 50px;">
+                            3
+                        </div>
+                        <div class="ms-4">
+                            <h5 class="fw-bold">Train & Track</h5>
+                            <p class="text-muted">
+                                Complete your workout. Log actual weights, reps, RPE, and
+                                technique quality. The more data, the smarter the system.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="timeline-item d-flex mb-4">
+                        <div class="timeline-badge bg-primary text-white rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width: 50px; height: 50px; min-width: 50px;">
+                            4
+                        </div>
+                        <div class="ms-4">
+                            <h5 class="fw-bold">Weekly Review</h5>
+                            <p class="text-muted">
+                                Every Sunday, Claude AI analyzes your week. Identifies what's
+                                working, what needs work, and adjusts next week's program.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="timeline-item d-flex">
+                        <div class="timeline-badge bg-primary text-white rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width: 50px; height: 50px; min-width: 50px;">
+                            5
+                        </div>
+                        <div class="ms-4">
+                            <h5 class="fw-bold">Progressive Overload</h5>
+                            <p class="text-muted">
+                                Week 1-3: Volume accumulation. Week 4: Deload. Week 5-7:
+                                Intensification. Week 8: Test PRs. Rinse and repeat.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Pricing -->
+<section id="pricing" class="py-5">
+    <div class="container">
+        <h2 class="display-5 fw-bold text-center mb-5">Simple, Transparent Pricing</h2>
+        
+        <div class="row justify-content-center">
+            <div class="col-md-6 col-lg-5">
+                <div class="card shadow border-0">
+                    <div class="card-body text-center p-5">
+                        <h3 class="display-4 fw-bold text-primary mb-2">$29<span class="fs-4 text-muted">/mo</span></h3>
+                        <p class="text-muted mb-4">Everything included. No hidden fees.</p>
+                        
+                        <ul class="list-unstyled text-start mb-4">
+                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i> AI-powered weekly programming</li>
+                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Adaptive training adjustments</li>
+                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Weekly performance reviews</li>
+                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Auto meal planning</li>
+                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Recovery & biomarker tracking</li>
+                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i> HealthKit integration</li>
+                            <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Unlimited workouts</li>
+                        </ul>
+                        
+                        <a href="/register" class="btn btn-primary btn-lg w-100">
+                            Start Free 14-Day Trial
+                        </a>
+                        <p class="text-muted small mt-3 mb-0">No credit card required</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA -->
+<section class="bg-primary text-white py-5">
+    <div class="container text-center py-4">
+        <h2 class="display-5 fw-bold mb-4">Ready to Optimize Your Performance?</h2>
+        <p class="lead mb-4">
+            Join elite athletes using AI to train smarter, not just harder.
+        </p>
+        <a href="/register" class="btn btn-light btn-lg px-5 py-3">
+            Get Started Free <i class="fas fa-arrow-right ms-2"></i>
+        </a>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer class="bg-dark text-white py-4">
+    <div class="container text-center">
+        <p class="mb-2">© 2026 CrossFit Health OS. Built for athletes, by athletes.</p>
+        <p class="text-muted small mb-0">
+            Powered by GPT-4, Claude 3.5 Sonnet, and Gemini 1.5 Pro
+        </p>
+    </div>
+</footer>
+{% endblock %}

@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block title %}Register - CrossFit Health OS{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-lg border-0">
+                <div class="card-body p-5">
+                    <div class="text-center mb-4">
+                        <i class="fas fa-dumbbell fa-3x text-primary mb-3"></i>
+                        <h2 class="fw-bold">Create Your Account</h2>
+                        <p class="text-muted">Join elite athletes optimizing performance with AI</p>
+                    </div>
+                    
+                    <div id="alert-container"></div>
+                    
+                    <form id="register-form">
+                        <!-- Basic Info -->
+                        <h5 class="fw-bold mb-3">Basic Information</h5>
+                        <div class="row mb-3">
+                            <div class="col-md-6 mb-3">
+                                <label for="name" class="form-label">Full Name *</label>
+                                <input type="text" class="form-control" id="name" name="name" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="email" class="form-label">Email *</label>
+                                <input type="email" class="form-control" id="email" name="email" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="password" class="form-label">Password *</label>
+                                <input type="password" class="form-control" id="password" name="password" required>
+                                <small class="text-muted">Min 8 chars, 1 uppercase, 1 lowercase, 1 number</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="confirm_password" class="form-label">Confirm Password *</label>
+                                <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <!-- Profile Info -->
+                        <h5 class="fw-bold mb-3">Profile Information <span class="text-muted fw-normal">(Optional)</span></h5>
+                        <div class="row mb-3">
+                            <div class="col-md-4 mb-3">
+                                <label for="birth_date" class="form-label">Birth Date</label>
+                                <input type="date" class="form-control" id="birth_date" name="birth_date">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="weight_kg" class="form-label">Weight (kg)</label>
+                                <input type="number" class="form-control" id="weight_kg" name="weight_kg" step="0.1" placeholder="80">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="height_cm" class="form-label">Height (cm)</label>
+                                <input type="number" class="form-control" id="height_cm" name="height_cm" placeholder="175">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="fitness_level" class="form-label">Fitness Level</label>
+                            <select class="form-select" id="fitness_level" name="fitness_level">
+                                <option value="beginner">Beginner (0-1 year training)</option>
+                                <option value="intermediate" selected>Intermediate (1-3 years)</option>
+                                <option value="advanced">Advanced (3+ years)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label">Training Goals (Select all that apply)</label>
+                            <div class="row">
+                                <div class="col-md-6 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input goal-checkbox" type="checkbox" value="strength" id="goal-strength">
+                                        <label class="form-check-label" for="goal-strength">Increase Strength</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input goal-checkbox" type="checkbox" value="conditioning" id="goal-conditioning">
+                                        <label class="form-check-label" for="goal-conditioning">Improve Conditioning</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input goal-checkbox" type="checkbox" value="lose_fat" id="goal-lose-fat">
+                                        <label class="form-check-label" for="goal-lose-fat">Lose Fat</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input goal-checkbox" type="checkbox" value="gain_muscle" id="goal-gain-muscle">
+                                        <label class="form-check-label" for="goal-gain-muscle">Gain Muscle</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input goal-checkbox" type="checkbox" value="general_fitness" id="goal-general" checked>
+                                        <label class="form-check-label" for="goal-general">General Fitness</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input goal-checkbox" type="checkbox" value="competition" id="goal-competition">
+                                        <label class="form-check-label" for="goal-competition">Competition Prep</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-lg w-100 mb-3" id="register-btn">
+                            <span class="btn-text">Create Account</span>
+                            <span class="btn-spinner d-none">
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                Creating account...
+                            </span>
+                        </button>
+                        
+                        <p class="text-center text-muted small mb-0">
+                            By creating an account, you agree to our Terms of Service and Privacy Policy.
+                        </p>
+                    </form>
+                    
+                    <hr>
+                    
+                    <p class="text-center text-muted mb-0">
+                        Already have an account?
+                        <a href="/login" class="text-decoration-none fw-bold">Sign In</a>
+                    </p>
+                    
+                    <div class="text-center mt-3">
+                        <a href="/" class="text-muted text-decoration-none small">
+                            <i class="fas fa-arrow-left me-1"></i> Back to home
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/auth.js"></script>
+<script>
+$(document).ready(function() {
+    $('#register-form').on('submit', function(e) {
+        e.preventDefault();
+        
+        const $btn = $('#register-btn');
+        
+        // Collect goals
+        const goals = [];
+        $('.goal-checkbox:checked').each(function() {
+            goals.push($(this).val());
+        });
+        
+        // Build payload
+        const data = {
+            email: $('#email').val(),
+            password: $('#password').val(),
+            confirm_password: $('#confirm_password').val(),
+            name: $('#name').val(),
+            birth_date: $('#birth_date').val() || null,
+            weight_kg: $('#weight_kg').val() ? parseFloat($('#weight_kg').val()) : null,
+            height_cm: $('#height_cm').val() ? parseInt($('#height_cm').val()) : null,
+            fitness_level: $('#fitness_level').val(),
+            goals: goals
+        };
+        
+        // Show loading
+        $btn.prop('disabled', true);
+        $btn.find('.btn-text').addClass('d-none');
+        $btn.find('.btn-spinner').removeClass('d-none');
+        
+        // Call API
+        $.ajax({
+            url: '/api/v1/auth/register',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function(response) {
+                // Store token
+                localStorage.setItem('access_token', response.access_token);
+                localStorage.setItem('user', JSON.stringify(response.user));
+                
+                // Redirect to dashboard
+                window.location.href = '/dashboard';
+            },
+            error: function(xhr) {
+                let errorMsg = 'Registration failed. Please try again.';
+                if (xhr.responseJSON && xhr.responseJSON.detail) {
+                    errorMsg = xhr.responseJSON.detail;
+                }
+                
+                showAlert(errorMsg, 'danger');
+                
+                // Reset button
+                $btn.prop('disabled', false);
+                $btn.find('.btn-text').removeClass('d-none');
+                $btn.find('.btn-spinner').addClass('d-none');
+                
+                // Scroll to top to see error
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        });
+    });
+    
+    function showAlert(message, type) {
+        const alert = `
+            <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        $('#alert-container').html(alert);
+    }
+});
+</script>
+{% endblock %}
