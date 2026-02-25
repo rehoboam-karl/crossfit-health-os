@@ -81,3 +81,28 @@ $(document).ready(function() {
         }
     });
 });
+
+// Logout handler for all pages
+$(document).ready(function() {
+    $('#logout-btn').on('click', function(e) {
+        e.preventDefault();
+        const token = localStorage.getItem('access_token');
+        
+        $.ajax({
+            url: '/api/v1/auth/logout',
+            type: 'POST',
+            headers: token ? { 'Authorization': 'Bearer ' + token } : {},
+            complete: function() {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('user');
+                window.location.href = '/';
+            }
+        });
+    });
+    
+    // Load user name from localStorage
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (user.name) {
+        $('#user-name').text(user.name);
+    }
+});

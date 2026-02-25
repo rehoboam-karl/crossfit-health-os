@@ -2,8 +2,10 @@
 
 // Check authentication on dashboard pages
 $(document).ready(function() {
+    const token = localStorage.getItem('access_token');
+    
     if (window.location.pathname.startsWith('/dashboard')) {
-        if (!Utils.isAuthenticated()) {
+        if (!token) {
             window.location.href = '/login';
             return;
         }
@@ -14,57 +16,100 @@ $(document).ready(function() {
 const DashboardAPI = {
     // Get user profile
     getProfile: function() {
+        const token = localStorage.getItem('access_token');
         return $.ajax({
             url: '/api/v1/users/me',
-            type: 'GET'
+            type: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + token
+            }
+        });
+    },
+    
+    // Get user stats
+    getStats: function() {
+        const token = localStorage.getItem('access_token');
+        return $.ajax({
+            url: '/api/v1/users/stats',
+            type: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + token
+            }
         });
     },
     
     // Get active schedule
     getActiveSchedule: function() {
+        const token = localStorage.getItem('access_token');
         return $.ajax({
             url: '/api/v1/schedule/weekly/active',
-            type: 'GET'
+            type: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + token
+            }
         });
     },
     
     // Get today's workout
     getTodayWorkout: function() {
+        const token = localStorage.getItem('access_token');
         return $.ajax({
             url: '/api/v1/training/workouts/today',
-            type: 'GET'
-        });
-    },
-    
-    // Get latest review
-    getLatestReview: function() {
-        return $.ajax({
-            url: '/api/v1/review/weekly/latest',
-            type: 'GET'
+            type: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + token
+            }
         });
     }
 };
 
+// Update dashboard UI with user data
+function updateUserUI(user) {
+    if (user.name) {
+        $('#user-name').text(user.name);
+        $('#welcome-name').text(user.name.split(' ')[0]);
+    }
+    
+    if (user.fitness_level) {
+        $('#fitness-level').text(user.fitness_level.charAt(0).toUpperCase() + user.fitness_level.slice(1));
+    }
+}
+
+// Update stats cards
+function updateStatsUI(stats) {
+    if (stats) {
+        if (stats.weekly_sessions !== undefined) {
+            $('#sessions-count').text(stats.weekly_sessions + '/5');
+        }
+        if (stats.current_phase) {
+            $('#current-phase').text(stats.current_phase);
+        }
+    }
+}
+
 // Load dashboard data
 function loadDashboardData() {
-    // Load user profile
-    DashboardAPI.getProfile().done(function(user) {
-        // Update UI with user data
-        console.log('User profile loaded:', user);
-    }).fail(function(xhr) {
-        if (xhr.status !== 401) {
-            console.error('Failed to load profile:', xhr);
-        }
-    });
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
     
-    // Load today's workout
-    DashboardAPI.getTodayWorkout().done(function(workout) {
-        // Display workout
-        console.log('Today workout:', workout);
-    }).fail(function(xhr) {
-        // No workout yet
-        console.log('No workout scheduled');
-    });
+    // Load user profile
+    DashboardAPI.getProfile()
+        .done(function(user) {
+            updateUserUI(user);
+            localStorage.setItem('user', JSON.stringify(user));
+        })
+        .fail(function(xhr) {
+            console.error('Failed to load profile:', xhr);
+        });
+    
+    // Load stats
+    DashboardAPI.getStats()
+        .done(function(stats) {
+            updateStatsUI(stats);
+        })
+        .fail(function(xhr) {
+            console.log('No stats available yet');
+        });
 }
 
 // Initialize dashboard

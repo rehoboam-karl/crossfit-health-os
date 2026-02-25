@@ -22,7 +22,8 @@ def handle_supabase_response(response, error_message: str = "Database error"):
     Raises:
         HTTPException if error occurred
     """
-    if response.error:
+    # Check if response has error attribute (PostgrestResponse)
+    if hasattr(response, 'error') and response.error:
         logger.error(f"Supabase error: {response.error}")
         raise HTTPException(
             status_code=500,

@@ -72,7 +72,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # Health check
-@app.get("/", tags=["Health"])
+@app.get("/api", tags=["Health"])
 async def root():
     """Root endpoint - API health check"""
     return {

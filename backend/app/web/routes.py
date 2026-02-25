@@ -36,32 +36,114 @@ async def forgot_password_page(request: Request):
     return templates.TemplateResponse("forgot_password.html", {"request": request})
 
 
+# ============================================
+# Dashboard pages
+# ============================================
+
 @router.get("/dashboard")
 async def dashboard_page(request: Request):
-    """Dashboard page (protected client-side)"""
+    """Main dashboard"""
     return templates.TemplateResponse("dashboard.html", {"request": request})
 
 
-# Dashboard subpages (to be implemented)
 @router.get("/dashboard/workouts")
 async def workouts_page(request: Request):
-    """Workouts page - placeholder"""
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    """Workouts page"""
+    context = {
+        "request": request,
+        "recent_workouts": []
+    }
+    return templates.TemplateResponse("training.html", context)
 
 
 @router.get("/dashboard/schedule")
 async def schedule_page(request: Request):
-    """Schedule page - placeholder"""
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    """Schedule page"""
+    context = {
+        "request": request,
+        "recent_workouts": []
+    }
+    return templates.TemplateResponse("training.html", context)
+
+
+@router.get("/dashboard/health")
+async def health_page(request: Request):
+    """Health/biometrics page"""
+    context = {
+        "request": request,
+        "biomarkers": [],
+        "recovery_trend": []
+    }
+    return templates.TemplateResponse("health.html", context)
+
+
+@router.get("/dashboard/nutrition")
+async def nutrition_page(request: Request):
+    """Nutrition page"""
+    # Default context to avoid template errors
+    context = {
+        "request": request,
+        "today_macros": {"protein": 0, "carbs": 0, "fat": 0, "calories": 0},
+        "targets": {"protein": 150, "carbs": 200, "fat": 70, "calories": 2000},
+        "meals": [],
+        "protein_pct": 0,
+        "carbs_pct": 0,
+        "fat_pct": 0
+    }
+    return templates.TemplateResponse("nutrition.html", context)
 
 
 @router.get("/dashboard/reviews")
 async def reviews_page(request: Request):
-    """Reviews page - placeholder"""
+    """Reviews page"""
     return templates.TemplateResponse("dashboard.html", {"request": request})
 
 
 @router.get("/dashboard/profile")
 async def profile_page(request: Request):
-    """Profile page - placeholder"""
+    """Profile page"""
     return templates.TemplateResponse("dashboard.html", {"request": request})
+
+
+# ============================================
+# Auth Verification Routes (Supabase callbacks)
+# ============================================
+
+@router.get("/auth/callback")
+async def auth_callback(request: Request):
+    """Handle Supabase auth callback"""
+    token = request.query_params.get("token")
+    type_param = request.query_params.get("type")
+    redirect_to = request.query_params.get("redirect_to", "/dashboard")
+    
+    return templates.TemplateResponse(
+        "auth_callback.html", 
+        {"request": request, "token": token, "type": type_param, "redirect_to": redirect_to}
+    )
+
+
+@router.get("/auth/verify")
+async def auth_verify(request: Request):
+    """Alternative verify route"""
+    token = request.query_params.get("token")
+    type_param = request.query_params.get("type")
+    
+    return templates.TemplateResponse(
+        "auth_callback.html", 
+        {"request": request, "token": token, "type": type_param, "redirect_to": "/dashboard"}
+    )
+
+
+@router.get("/auth/handler")
+async def auth_handler(request: Request):
+    """Handle auth responses with tokens in URL hash"""
+    return templates.TemplateResponse(
+        "auth_handler.html",
+        {"request": request}
+    )
+
+
+@router.get("/update-password")
+async def update_password_page(request: Request):
+    """Page to set new password after recovery link"""
+    return templates.TemplateResponse("update_password.html", {"request": request})

@@ -3,7 +3,7 @@ Pydantic models for Training domain
 """
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional, List, Dict, Any
-from datetime import datetime, date, time
+from datetime import datetime, date, time as dt_time
 from enum import Enum
 from uuid import UUID
 
@@ -254,7 +254,7 @@ class DayOfWeek(str, Enum):
 
 class TrainingSessionSlot(BaseModel):
     """Individual training session slot in a day"""
-    time: time = Field(..., description="Time of day (e.g., 06:00, 18:30)")
+    time: dt_time = Field(..., description="Time of day (e.g., 06:00, 18:30)")
     duration_minutes: int = Field(60, ge=30, le=180, description="Session duration")
     workout_type: Optional[WorkoutType] = None
     notes: Optional[str] = None
@@ -320,7 +320,7 @@ class MealType(str, Enum):
 class MealWindow(BaseModel):
     """Meal timing window"""
     meal_type: MealType
-    time: time
+    time: dt_time
     duration_minutes: int = Field(30, ge=15, le=90)
     macros: Optional[Dict[str, float]] = Field(None, description="Target macros: {protein, carbs, fats}")
     notes: Optional[str] = None

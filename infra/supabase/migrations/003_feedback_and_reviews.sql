@@ -240,15 +240,15 @@ $$ LANGUAGE plpgsql;
 -- Weekly performance summary view
 CREATE OR REPLACE VIEW weekly_performance_summary AS
 SELECT 
-    user_id,
+    ws.user_id,
     DATE_TRUNC('week', started_at::DATE) AS week_start,
     COUNT(*) AS total_sessions,
     COUNT(CASE WHEN completed_at IS NOT NULL THEN 1 END) AS completed_sessions,
-    AVG(duration_minutes) AS avg_duration,
-    AVG(rpe_score) AS avg_rpe
+    AVG(ws.duration_minutes) AS avg_duration,
+    AVG(sf.rpe_score) AS avg_rpe
 FROM workout_sessions ws
 LEFT JOIN session_feedback sf ON ws.id = sf.session_id
-GROUP BY user_id, DATE_TRUNC('week', started_at::DATE);
+GROUP BY ws.user_id, DATE_TRUNC('week', started_at::DATE);
 
 
 COMMENT ON TABLE session_feedback IS 'Post-workout subjective feedback from athletes';

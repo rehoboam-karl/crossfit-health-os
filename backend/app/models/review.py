@@ -2,7 +2,7 @@
 Pydantic models for Weekly Review and Performance Tracking
 """
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from enum import Enum
 from uuid import UUID
@@ -45,7 +45,7 @@ class MovementPerformance(BaseModel):
     actual_reps: List[int] = Field(default_factory=list, description="Reps per set [5,5,5,4,3]")
     actual_weight_kg: List[float] = Field(default_factory=list, description="Weight per set")
     
-    breaks_taken: List[str] = Field(default_factory=list, description=["after_set_3", "during_set_5"])
+    breaks_taken: List[str] = Field(default_factory=list, description="List of break points, e.g., 'after_set_3', 'during_set_5'")
     technique_quality: Optional[int] = Field(None, ge=1, le=10, description="1-10 scale")
     notes: Optional[str] = None
 
@@ -189,7 +189,7 @@ class MonthlyAnalysis(BaseModel):
     conditioning_progress: List[ConditioningProgress]
     
     body_composition: Optional[Dict[str, float]] = None
-    injury_report: Optional[Dict[str, any]] = None
+    injury_report: Optional[Dict[str, Any]] = None
     
     volume_trend: str = Field(..., description="increasing|stable|decreasing")
     overall_assessment: str
