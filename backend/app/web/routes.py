@@ -124,6 +124,8 @@ async def profile_page(request: Request):
 @router.get("/auth/callback")
 async def auth_callback(request: Request):
     """Handle Supabase auth callback"""
+    from app.core.config import settings
+    
     token = request.query_params.get("token")
     type_param = request.query_params.get("type")
     redirect_to = request.query_params.get("redirect_to", "/dashboard")
@@ -132,7 +134,9 @@ async def auth_callback(request: Request):
         "request": request,
         "token": token,
         "type": type_param,
-        "redirect_to": redirect_to
+        "redirect_to": redirect_to,
+        "supabase_url": settings.SUPABASE_URL,
+        "supabase_anon_key": settings.SUPABASE_ANON_KEY
     })
 
 
@@ -156,7 +160,21 @@ async def auth_handler(request: Request):
     return templates.TemplateResponse("auth_handler.html", {"request": request})
 
 
+@router.get("/reset-password")
+async def reset_password_redirect(request: Request):
+    """Redirect from forgot-password email to update-password page"""
+    from fastapi.responses import RedirectResponse
+    # Preserve hash fragment by redirecting to update-password
+    return RedirectResponse(url="/update-password", status_code=302)
+
+
 @router.get("/update-password")
 async def update_password_page(request: Request):
     """Page to set new password after recovery link"""
-    return templates.TemplateResponse("update_password.html", {"request": request})
+    from app.core.config import settings
+    
+    return templates.TemplateResponse("update_password.html", {
+        "request": request,
+        "supabase_url": settings.SUPABASE_URL,
+        "supabase_anon_key": settings.SUPABASE_ANON_KEY
+    })

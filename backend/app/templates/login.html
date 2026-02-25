@@ -16,6 +16,9 @@
                     
                     <div id="alert-container"></div>
                     
+                    <!-- Success banners -->
+                    <div id="success-banner-container"></div>
+                    
                     <form id="login-form">
                         <div class="mb-3">
                             <label for="email" class="form-label">Email address</label>
@@ -69,6 +72,29 @@
 <script src="/static/js/auth.js"></script>
 <script>
 $(document).ready(function() {
+    // Check for success query parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    if (urlParams.get('password_updated') === 'true') {
+        showSuccessBanner('Password updated successfully! You can now log in with your new password.');
+        // Clean URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (urlParams.get('verified') === 'true') {
+        showSuccessBanner('Email verified successfully! You can now log in to your account.');
+        // Clean URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    
+    function showSuccessBanner(message) {
+        const banner = `
+            <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+                <i class="fas fa-check-circle me-2"></i>${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        $('#success-banner-container').html(banner);
+    }
+    
     $('#login-form').on('submit', function(e) {
         e.preventDefault();
         
