@@ -1,0 +1,399 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - CrossFit Health OS{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Page Header -->
+    <div class="mb-4">
+        <h1 class="h3 fw-bold mb-1">Profile Settings</h1>
+        <p class="text-muted mb-0">Manage your account and training preferences</p>
+    </div>
+
+    <div class="row g-3">
+        <!-- Account Information -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="mb-0 fw-bold">Account Information</h5>
+                </div>
+                <div class="card-body">
+                    <form id="account-form">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="full-name" class="form-label fw-semibold">Full Name</label>
+                                <input type="text" class="form-control" id="full-name" name="full_name" required>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="email" class="form-label fw-semibold">Email</label>
+                                <input type="email" class="form-control" id="email" name="email" disabled>
+                                <small class="text-muted">Email cannot be changed</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="age" class="form-label fw-semibold">Age</label>
+                                <input type="number" class="form-control" id="age" name="age" min="13" max="100">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="weight" class="form-label fw-semibold">Weight (kg)</label>
+                                <input type="number" class="form-control" id="weight" name="weight" step="0.1" min="30" max="200">
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Save Changes
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- CrossFit-Specific Settings -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="mb-0 fw-bold">CrossFit Profile</h5>
+                </div>
+                <div class="card-body">
+                    <form id="crossfit-form">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="experience-level" class="form-label fw-semibold">Experience Level</label>
+                                <select class="form-select" id="experience-level" name="experience_level">
+                                    <option value="">Select level...</option>
+                                    <option value="beginner">Beginner (0-1 years)</option>
+                                    <option value="intermediate">Intermediate (1-3 years)</option>
+                                    <option value="advanced">Advanced (3-5 years)</option>
+                                    <option value="elite">Elite (5+ years)</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="preferred-methodology" class="form-label fw-semibold">Preferred Methodology</label>
+                                <select class="form-select" id="preferred-methodology" name="preferred_methodology">
+                                    <option value="">Select methodology...</option>
+                                    <option value="hwpo">HWPO (Hard Work Pays Off)</option>
+                                    <option value="mayhem">Mayhem Athlete</option>
+                                    <option value="comptrain">CompTrain</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12">
+                                <label for="goals" class="form-label fw-semibold">Training Goals</label>
+                                <textarea class="form-control" id="goals" name="goals" rows="3" 
+                                    placeholder="E.g., Compete in local competitions, improve gymnastics skills, build muscle mass..."></textarea>
+                            </div>
+
+                            <div class="col-12">
+                                <label for="weaknesses" class="form-label fw-semibold">Known Weaknesses</label>
+                                <textarea class="form-control" id="weaknesses" name="weaknesses" rows="3" 
+                                    placeholder="E.g., Double-unders, overhead squats, endurance..."></textarea>
+                                <small class="text-muted">Help AI personalize your training by identifying areas to improve</small>
+                            </div>
+
+                            <div class="col-12">
+                                <label for="injuries" class="form-label fw-semibold">Injuries / Limitations</label>
+                                <textarea class="form-control" id="injuries" name="injuries" rows="2" 
+                                    placeholder="E.g., Previous shoulder injury, avoid heavy overhead work..."></textarea>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Save CrossFit Profile
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Security Settings -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="mb-0 fw-bold">Security</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h6 class="mb-1">Password</h6>
+                            <p class="text-muted small mb-0">Update your password to keep your account secure</p>
+                        </div>
+                        <a href="/update-password" class="btn btn-outline-primary">
+                            <i class="fas fa-key me-2"></i>Change Password
+                        </a>
+                    </div>
+
+                    <hr class="my-3">
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">Delete Account</h6>
+                            <p class="text-muted small mb-0">Permanently delete your account and all data</p>
+                        </div>
+                        <button class="btn btn-outline-danger" id="delete-account-btn">
+                            <i class="fas fa-trash me-2"></i>Delete Account
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Profile Summary Sidebar -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm mb-3">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <div class="rounded-circle bg-primary text-white d-inline-flex justify-content-center align-items-center" 
+                             style="width: 100px; height: 100px; font-size: 3rem;">
+                            <i class="fas fa-user"></i>
+                        </div>
+                    </div>
+                    <h5 class="fw-bold mb-1" id="profile-name">-</h5>
+                    <p class="text-muted small mb-0" id="profile-email">-</p>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-3">
+                <div class="card-body">
+                    <h6 class="fw-bold mb-3">Quick Stats</h6>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="small text-muted">Experience</span>
+                            <span class="fw-semibold small" id="profile-experience">-</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="small text-muted">Methodology</span>
+                            <span class="fw-semibold small" id="profile-methodology">-</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="small text-muted">Member Since</span>
+                            <span class="fw-semibold small" id="profile-member-since">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm bg-primary text-white">
+                <div class="card-body">
+                    <h6 class="fw-bold mb-2">
+                        <i class="fas fa-info-circle me-2"></i>Profile Tips
+                    </h6>
+                    <ul class="small mb-0 ps-3">
+                        <li class="mb-2">Keep your weaknesses updated for better AI recommendations</li>
+                        <li class="mb-2">Set clear goals to track progress effectively</li>
+                        <li>Update your experience level as you improve</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loading-spinner" class="d-none">
+        <div class="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-50 d-flex justify-content-center align-items-center" style="z-index: 9999;">
+            <div class="spinner-border text-light" style="width: 3rem; height: 3rem;" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+        <div id="toast-container"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Show loading spinner
+    function showLoading() {
+        $('#loading-spinner').removeClass('d-none');
+    }
+    
+    // Hide loading spinner
+    function hideLoading() {
+        $('#loading-spinner').addClass('d-none');
+    }
+    
+    // Show toast notification
+    function showToast(message, type = 'info') {
+        const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
+        const toast = `
+            <div class="toast align-items-center text-white ${bgClass} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        `;
+        $('#toast-container').append(toast);
+        const toastEl = $('#toast-container .toast').last()[0];
+        const bsToast = new bootstrap.Toast(toastEl);
+        bsToast.show();
+    }
+
+    // Load user profile
+    function loadProfile() {
+        showLoading();
+
+        $.ajax({
+            url: '/api/v1/profile',
+            type: 'GET',
+            success: function(profile) {
+                hideLoading();
+                populateProfile(profile);
+            },
+            error: function(xhr) {
+                hideLoading();
+                showToast('Failed to load profile', 'error');
+            }
+        });
+    }
+
+    // Populate profile form
+    function populateProfile(profile) {
+        // Account info
+        $('#full-name').val(profile.full_name || '');
+        $('#email').val(profile.email || '');
+        $('#age').val(profile.age || '');
+        $('#weight').val(profile.weight || '');
+
+        // CrossFit profile
+        $('#experience-level').val(profile.experience_level || '');
+        $('#preferred-methodology').val(profile.preferred_methodology || '');
+        $('#goals').val(profile.goals || '');
+        $('#weaknesses').val(profile.weaknesses || '');
+        $('#injuries').val(profile.injuries || '');
+
+        // Sidebar summary
+        $('#profile-name').text(profile.full_name || 'User');
+        $('#profile-email').text(profile.email || '');
+        $('#profile-experience').text((profile.experience_level || '-').charAt(0).toUpperCase() + (profile.experience_level || '-').slice(1));
+        $('#profile-methodology').text((profile.preferred_methodology || '-').toUpperCase());
+        
+        if (profile.created_at) {
+            const memberSince = new Date(profile.created_at).toLocaleDateString('en-US', { 
+                month: 'short', 
+                year: 'numeric' 
+            });
+            $('#profile-member-since').text(memberSince);
+        }
+    }
+
+    // Save account information
+    $('#account-form').on('submit', function(e) {
+        e.preventDefault();
+        
+        const accountData = {
+            full_name: $('#full-name').val(),
+            age: parseInt($('#age').val()) || null,
+            weight: parseFloat($('#weight').val()) || null
+        };
+
+        showLoading();
+
+        $.ajax({
+            url: '/api/v1/profile',
+            type: 'PUT',
+            contentType: 'application/json',
+            data: JSON.stringify(accountData),
+            success: function(response) {
+                hideLoading();
+                showToast('Account information saved successfully!', 'success');
+                
+                // Update localStorage user name
+                const user = JSON.parse(localStorage.getItem('user') || '{}');
+                user.name = accountData.full_name;
+                localStorage.setItem('user', JSON.stringify(user));
+                
+                loadProfile();
+            },
+            error: function(xhr) {
+                hideLoading();
+                const errorMsg = xhr.responseJSON?.detail || 'Failed to save account information';
+                showToast(errorMsg, 'error');
+            }
+        });
+    });
+
+    // Save CrossFit profile
+    $('#crossfit-form').on('submit', function(e) {
+        e.preventDefault();
+        
+        const crossfitData = {
+            experience_level: $('#experience-level').val(),
+            preferred_methodology: $('#preferred-methodology').val(),
+            goals: $('#goals').val(),
+            weaknesses: $('#weaknesses').val(),
+            injuries: $('#injuries').val()
+        };
+
+        showLoading();
+
+        $.ajax({
+            url: '/api/v1/profile/crossfit',
+            type: 'PUT',
+            contentType: 'application/json',
+            data: JSON.stringify(crossfitData),
+            success: function(response) {
+                hideLoading();
+                showToast('CrossFit profile saved successfully!', 'success');
+                loadProfile();
+            },
+            error: function(xhr) {
+                hideLoading();
+                const errorMsg = xhr.responseJSON?.detail || 'Failed to save CrossFit profile';
+                showToast(errorMsg, 'error');
+            }
+        });
+    });
+
+    // Delete account
+    $('#delete-account-btn').on('click', function() {
+        if (!confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+            return;
+        }
+
+        if (!confirm('This will permanently delete all your data, workouts, and progress. Continue?')) {
+            return;
+        }
+
+        showLoading();
+
+        $.ajax({
+            url: '/api/v1/profile',
+            type: 'DELETE',
+            success: function() {
+                hideLoading();
+                showToast('Account deleted successfully', 'info');
+                
+                // Clear local storage and redirect
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('user');
+                
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 2000);
+            },
+            error: function(xhr) {
+                hideLoading();
+                const errorMsg = xhr.responseJSON?.detail || 'Failed to delete account';
+                showToast(errorMsg, 'error');
+            }
+        });
+    });
+
+    // Load profile on page load
+    $(document).ready(function() {
+        loadProfile();
+    });
+</script>
+{% endblock %}

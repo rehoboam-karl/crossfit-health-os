@@ -1,0 +1,345 @@
+{% extends "base.html" %}
+
+{% block title %}Weekly Reviews - CrossFit Health OS{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 fw-bold mb-1">Weekly Reviews</h1>
+            <p class="text-muted mb-0">AI-powered analysis and performance insights</p>
+        </div>
+        <button class="btn btn-primary" id="generate-review-btn">
+            <i class="fas fa-chart-line me-2"></i>Generate New Review
+        </button>
+    </div>
+
+    <!-- Current Week Summary -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="text-muted mb-0 small">Sessions Completed</h6>
+                        <i class="fas fa-check-circle text-success"></i>
+                    </div>
+                    <h2 class="fw-bold mb-0" id="sessions-completed">-</h2>
+                    <small class="text-muted">This week</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="text-muted mb-0 small">Average RPE</h6>
+                        <i class="fas fa-heart text-danger"></i>
+                    </div>
+                    <h2 class="fw-bold mb-0" id="avg-rpe">-</h2>
+                    <small class="text-muted">Perceived effort</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="text-muted mb-0 small">Recovery Score</h6>
+                        <i class="fas fa-heartbeat text-info"></i>
+                    </div>
+                    <h2 class="fw-bold mb-0" id="recovery-score">-</h2>
+                    <small class="text-muted">Readiness</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="text-muted mb-0 small">Trend</h6>
+                        <i class="fas fa-arrow-up text-success"></i>
+                    </div>
+                    <h2 class="fw-bold mb-0" id="trend">-</h2>
+                    <small class="text-muted">vs. last week</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Latest Review (if exists) -->
+    <div id="latest-review-container" class="mb-4">
+        <!-- Will be populated by JavaScript -->
+    </div>
+
+    <!-- Past Reviews List -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0 fw-bold">Review History</h5>
+        </div>
+        <div class="card-body">
+            <div id="reviews-list">
+                <div class="text-center py-5">
+                    <i class="fas fa-clipboard-list fa-4x text-muted mb-3"></i>
+                    <h5 class="fw-bold mb-2">No reviews yet</h5>
+                    <p class="text-muted mb-3">Complete your first training week and generate a review</p>
+                    <button class="btn btn-primary" id="generate-first-review-btn">
+                        <i class="fas fa-plus me-2"></i>Generate First Review
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loading-spinner" class="d-none">
+        <div class="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-50 d-flex justify-content-center align-items-center" style="z-index: 9999;">
+            <div class="spinner-border text-light" style="width: 3rem; height: 3rem;" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+        <div id="toast-container"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Show loading spinner
+    function showLoading() {
+        $('#loading-spinner').removeClass('d-none');
+    }
+    
+    // Hide loading spinner
+    function hideLoading() {
+        $('#loading-spinner').addClass('d-none');
+    }
+    
+    // Show toast notification
+    function showToast(message, type = 'info') {
+        const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
+        const toast = `
+            <div class="toast align-items-center text-white ${bgClass} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        `;
+        $('#toast-container').append(toast);
+        const toastEl = $('#toast-container .toast').last()[0];
+        const bsToast = new bootstrap.Toast(toastEl);
+        bsToast.show();
+    }
+
+    // Generate new weekly review
+    function generateReview() {
+        showLoading();
+
+        $.ajax({
+            url: '/api/v1/review/weekly',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({}),
+            success: function(response) {
+                hideLoading();
+                showToast('Weekly review generated successfully!', 'success');
+                displayLatestReview(response);
+                loadReviewsList();
+            },
+            error: function(xhr) {
+                hideLoading();
+                const errorMsg = xhr.responseJSON?.detail || 'Failed to generate review';
+                showToast(errorMsg, 'error');
+            }
+        });
+    }
+
+    // Bind generate review buttons
+    $('#generate-review-btn, #generate-first-review-btn').on('click', generateReview);
+
+    // Display latest review
+    function displayLatestReview(review) {
+        const strengthsHtml = review.strengths?.map(s => 
+            `<li class="mb-1"><i class="fas fa-check-circle text-success me-2"></i>${s}</li>`
+        ).join('') || '';
+
+        const weaknessesHtml = review.weaknesses?.map(w => 
+            `<li class="mb-1"><i class="fas fa-exclamation-circle text-warning me-2"></i>${w}</li>`
+        ).join('') || '';
+
+        const recommendationsHtml = review.recommendations?.map(r => 
+            `<li class="mb-1"><i class="fas fa-lightbulb text-info me-2"></i>${r}</li>`
+        ).join('') || '';
+
+        const recoveryStatus = review.recovery_status || 'good';
+        const recoveryBadge = 
+            recoveryStatus === 'excellent' ? 'bg-success' :
+            recoveryStatus === 'good' ? 'bg-primary' :
+            recoveryStatus === 'fair' ? 'bg-warning' : 'bg-danger';
+
+        const reviewHtml = `
+            <div class="card shadow-sm border-primary">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-star me-2"></i>Latest Review
+                        </h5>
+                        <span class="badge bg-white text-primary">${new Date(review.created_at || Date.now()).toLocaleDateString()}</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <h6 class="fw-bold text-success mb-2">
+                                <i class="fas fa-trophy me-2"></i>Strengths
+                            </h6>
+                            <ul class="list-unstyled mb-0">
+                                ${strengthsHtml || '<li class="text-muted">No strengths identified</li>'}
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="fw-bold text-warning mb-2">
+                                <i class="fas fa-flag me-2"></i>Areas to Improve
+                            </h6>
+                            <ul class="list-unstyled mb-0">
+                                ${weaknessesHtml || '<li class="text-muted">No weaknesses identified</li>'}
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <h6 class="fw-bold mb-2">
+                            <i class="fas fa-heartbeat me-2"></i>Recovery Status
+                        </h6>
+                        <span class="badge ${recoveryBadge} fs-6 text-capitalize">${recoveryStatus}</span>
+                    </div>
+
+                    <div class="mb-3">
+                        <h6 class="fw-bold text-info mb-2">
+                            <i class="fas fa-lightbulb me-2"></i>AI Recommendations
+                        </h6>
+                        <ul class="list-unstyled mb-0">
+                            ${recommendationsHtml || '<li class="text-muted">No specific recommendations</li>'}
+                        </ul>
+                    </div>
+
+                    <div class="d-flex gap-2 mt-3">
+                        <button class="btn btn-success" onclick="applyAdjustments(${review.id})">
+                            <i class="fas fa-check me-2"></i>Apply Auto-Adjustments
+                        </button>
+                        <button class="btn btn-outline-primary" onclick="viewReviewDetails(${review.id})">
+                            <i class="fas fa-eye me-2"></i>View Full Details
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        $('#latest-review-container').html(reviewHtml);
+    }
+
+    // Apply auto-adjustments
+    function applyAdjustments(reviewId) {
+        if (!confirm('Apply AI recommendations to your next week\'s training?')) {
+            return;
+        }
+
+        showLoading();
+
+        $.ajax({
+            url: `/api/v1/review/${reviewId}/apply-adjustments`,
+            type: 'POST',
+            success: function(response) {
+                hideLoading();
+                showToast('Adjustments applied successfully!', 'success');
+            },
+            error: function(xhr) {
+                hideLoading();
+                const errorMsg = xhr.responseJSON?.detail || 'Failed to apply adjustments';
+                showToast(errorMsg, 'error');
+            }
+        });
+    }
+
+    // View review details (placeholder)
+    function viewReviewDetails(reviewId) {
+        showToast('Review details view coming soon...', 'info');
+    }
+
+    // Load reviews list
+    function loadReviewsList() {
+        $.ajax({
+            url: '/api/v1/review/weekly/list',
+            type: 'GET',
+            success: function(reviews) {
+                if (reviews && reviews.length > 0) {
+                    displayReviewsList(reviews);
+                }
+            },
+            error: function(xhr) {
+                console.log('No reviews found or error loading');
+            }
+        });
+    }
+
+    // Display reviews list
+    function displayReviewsList(reviews) {
+        const listHtml = reviews.map(review => {
+            const date = new Date(review.created_at || Date.now()).toLocaleDateString();
+            const recoveryStatus = review.recovery_status || 'good';
+            const recoveryBadge = 
+                recoveryStatus === 'excellent' ? 'bg-success' :
+                recoveryStatus === 'good' ? 'bg-primary' :
+                recoveryStatus === 'fair' ? 'bg-warning' : 'bg-danger';
+
+            return `
+                <div class="card mb-2 shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="fw-bold mb-1">Week ${review.week_number || '-'}</h6>
+                                <p class="text-muted small mb-0">${date}</p>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge ${recoveryBadge} text-capitalize">${recoveryStatus}</span>
+                                <button class="btn btn-sm btn-outline-primary" onclick="viewReviewDetails(${review.id})">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        $('#reviews-list').html(listHtml);
+    }
+
+    // Load data on page load
+    $(document).ready(function() {
+        loadReviewsList();
+        
+        // Load latest review
+        $.ajax({
+            url: '/api/v1/review/weekly/latest',
+            type: 'GET',
+            success: function(review) {
+                if (review && review.id) {
+                    displayLatestReview(review);
+                }
+            },
+            error: function() {
+                console.log('No latest review found');
+            }
+        });
+    });
+</script>
+{% endblock %}

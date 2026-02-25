@@ -3,6 +3,24 @@
 // API base URL
 const API_BASE = window.location.origin;
 
+// Auth middleware - Check authentication on protected pages
+function checkAuth() {
+    const token = localStorage.getItem('access_token');
+    const protectedPaths = ['/dashboard'];
+    const currentPath = window.location.pathname;
+    
+    // Check if current page requires auth
+    const isProtectedPage = protectedPaths.some(path => currentPath.startsWith(path));
+    
+    if (isProtectedPage && !token) {
+        // No token on protected page - redirect to login
+        window.location.href = '/login?redirect=' + encodeURIComponent(currentPath);
+        return false;
+    }
+    
+    return true;
+}
+
 // Setup jQuery AJAX defaults
 $.ajaxSetup({
     beforeSend: function(xhr, settings) {
@@ -15,13 +33,19 @@ $.ajaxSetup({
     error: function(xhr) {
         // Handle 401 Unauthorized globally
         if (xhr.status === 401) {
+            console.log('Unauthorized - clearing auth and redirecting to login');
             localStorage.removeItem('access_token');
             localStorage.removeItem('user');
             if (!window.location.pathname.includes('/login')) {
-                window.location.href = '/login';
+                window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
             }
         }
     }
+});
+
+// Run auth check on page load
+$(document).ready(function() {
+    checkAuth();
 });
 
 // Utility functions

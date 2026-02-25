@@ -43,7 +43,10 @@ async def forgot_password_page(request: Request):
 @router.get("/dashboard")
 async def dashboard_page(request: Request):
     """Main dashboard"""
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "active_page": "dashboard"
+    })
 
 
 @router.get("/dashboard/workouts")
@@ -51,7 +54,9 @@ async def workouts_page(request: Request):
     """Workouts page"""
     context = {
         "request": request,
-        "recent_workouts": []
+        "active_page": "workouts",
+        "recent_workouts": [],
+        "personal_records": []
     }
     return templates.TemplateResponse("training.html", context)
 
@@ -61,9 +66,9 @@ async def schedule_page(request: Request):
     """Schedule page"""
     context = {
         "request": request,
-        "recent_workouts": []
+        "active_page": "schedule"
     }
-    return templates.TemplateResponse("training.html", context)
+    return templates.TemplateResponse("schedule.html", context)
 
 
 @router.get("/dashboard/health")
@@ -71,6 +76,7 @@ async def health_page(request: Request):
     """Health/biometrics page"""
     context = {
         "request": request,
+        "active_page": "health",
         "biomarkers": [],
         "recovery_trend": []
     }
@@ -83,9 +89,11 @@ async def nutrition_page(request: Request):
     # Default context to avoid template errors
     context = {
         "request": request,
+        "active_page": "nutrition",
         "today_macros": {"protein": 0, "carbs": 0, "fat": 0, "calories": 0},
         "targets": {"protein": 150, "carbs": 200, "fat": 70, "calories": 2000},
         "meals": [],
+        "recent_meals": [],
         "protein_pct": 0,
         "carbs_pct": 0,
         "fat_pct": 0
@@ -96,13 +104,19 @@ async def nutrition_page(request: Request):
 @router.get("/dashboard/reviews")
 async def reviews_page(request: Request):
     """Reviews page"""
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    return templates.TemplateResponse("reviews.html", {
+        "request": request,
+        "active_page": "reviews"
+    })
 
 
 @router.get("/dashboard/profile")
 async def profile_page(request: Request):
     """Profile page"""
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    return templates.TemplateResponse("profile.html", {
+        "request": request,
+        "active_page": "profile"
+    })
 
 
 # ============================================
