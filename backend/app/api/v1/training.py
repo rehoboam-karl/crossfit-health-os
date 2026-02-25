@@ -5,7 +5,7 @@ Workout generation, session tracking, PRs
 from fastapi import APIRouter, HTTPException, Depends, status
 from typing import List
 from uuid import UUID
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from app.models.training import (
     WorkoutGenerationRequest,
