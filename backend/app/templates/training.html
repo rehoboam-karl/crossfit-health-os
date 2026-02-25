@@ -186,6 +186,14 @@
 
 {% block extra_js %}
 <script>
+    // Global workout tracking state
+    let currentWorkout = null;
+    let currentSessionId = null;
+    let workoutTimer = null;
+    let restTimer = null;
+    let workoutSeconds = 0;
+    let restSeconds = 0;
+    
     // Show loading spinner
     function showLoading() {
         $('#loading-spinner').removeClass('d-none');
@@ -216,95 +224,509 @@
     }
     
     // Generate adaptive workout
-    $('#generate-workout-btn').on('click', function() {
+    $('#generate-workout-btn').on('click', async function() {
         showLoading();
         
-        // Get recovery metrics from localStorage if available
-        const recoveryMetrics = {
-            readiness_score: 75,
-            hrv: 60,
-            sleep_hours: 7.5,
-            muscle_soreness: 3
-        };
-        
-        $.ajax({
-            url: '/api/v1/training/generate',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify(recoveryMetrics),
-            success: function(response) {
-                hideLoading();
-                showToast('Workout generated successfully!', 'success');
-                
-                // Display the generated workout
-                if (response.workout) {
-                    displayGeneratedWorkout(response.workout);
+        try {
+            // Get latest recovery metrics
+            let recoveryMetrics = {
+                readiness_score: 75,
+                hrv: 60,
+                sleep_hours: 7.5,
+                muscle_soreness: 3
+            };
+            
+            try {
+                const recovery = await CHOS.api.get('/api/v1/health/recovery/latest');
+                if (recovery) {
+                    recoveryMetrics = {
+                        readiness_score: recovery.readiness_score || 75,
+                        hrv: recovery.hrv || 60,
+                        sleep_hours: recovery.sleep_hours || 7.5,
+                        muscle_soreness: recovery.muscle_soreness || 3
+                    };
                 }
-            },
-            error: function(xhr) {
-                hideLoading();
-                const errorMsg = xhr.responseJSON?.detail || 'Failed to generate workout';
-                showToast(errorMsg, 'error');
+            } catch (err) {
+                console.log('Using default recovery metrics');
             }
-        });
+            
+            const response = await CHOS.api.post('/api/v1/training/generate', recoveryMetrics);
+            
+            hideLoading();
+            CHOS.toast.success('Workout generated successfully!');
+            
+            // Display the generated workout
+            if (response.workout) {
+                displayGeneratedWorkout(response.workout, response);
+            }
+        } catch (error) {
+            hideLoading();
+            CHOS.toast.error(error.message || 'Failed to generate workout');
+        }
     });
     
-    // Display generated workout
-    function displayGeneratedWorkout(workout) {
-        // TODO: Implement workout display modal or card
-        console.log('Generated workout:', workout);
+    // Display generated workout with tracking UI
+    function displayGeneratedWorkout(workout, fullResponse) {
+        currentWorkout = fullResponse;
+        
+        // Build movements list HTML
+        let movementsHtml = '';
+        if (workout.movements && workout.movements.length > 0) {
+            movementsHtml = workout.movements.map((mov, idx) => `
+                <div class="movement-item border rounded p-3 mb-3" data-movement-id="${idx}">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <h6 class="fw-bold mb-1">${mov.movement_name || mov.name}</h6>
+                            <small class="text-muted">
+                                ${mov.sets || 1} sets × ${mov.reps || mov.duration || '-'} reps
+                                ${mov.weight_kg ? ` @ ${mov.weight_kg}kg` : ''}
+                            </small>
+                        </div>
+                        <input type="checkbox" class="form-check-input movement-check" style="width: 24px; height: 24px;">
+                    </div>
+                    
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <label class="form-label small">Actual Sets</label>
+                            <input type="number" class="form-control form-control-sm actual-sets" value="${mov.sets || 1}" min="1">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small">Actual Reps</label>
+                            <input type="text" class="form-control form-control-sm actual-reps" value="${mov.reps || '-'}" placeholder="5,5,5">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small">Weight (kg)</label>
+                            <input type="number" class="form-control form-control-sm actual-weight" value="${mov.weight_kg || ''}" step="2.5">
+                        </div>
+                    </div>
+                    
+                    <div class="mt-2">
+                        <label class="form-label small">RPE (1-10)</label>
+                        <div class="rpe-selector d-flex gap-1">
+                            ${[1,2,3,4,5,6,7,8,9,10].map(n => `
+                                <button type="button" class="btn btn-sm btn-outline-primary rpe-btn" data-rpe="${n}">${n}</button>
+                            `).join('')}
+                        </div>
+                        <input type="hidden" class="movement-rpe" value="5">
+                    </div>
+                    
+                    <div class="mt-2">
+                        <label class="form-label small">Notes</label>
+                        <input type="text" class="form-control form-control-sm movement-notes" placeholder="Optional notes">
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            movementsHtml = `<p class="text-muted">No movements specified</p>`;
+        }
+        
+        // Create tracking modal
+        const modalHtml = `
+            <div class="modal fade" id="workoutTrackingModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">${workout.name || 'Adaptive Workout'}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <!-- Workout Info -->
+                            <div class="alert alert-info mb-3">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <strong>Type:</strong> ${workout.workout_type || 'Mixed'}
+                                        <span class="ms-3"><strong>Duration:</strong> ${workout.duration_minutes || 60} min</span>
+                                    </div>
+                                    <div>
+                                        <strong>Readiness:</strong> ${fullResponse.readiness_score || '-'}/100
+                                    </div>
+                                </div>
+                                ${workout.description ? `<p class="mt-2 mb-0">${workout.description}</p>` : ''}
+                            </div>
+                            
+                            <!-- Timers -->
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-6">
+                                    <div class="card bg-primary text-white">
+                                        <div class="card-body text-center">
+                                            <h6 class="mb-2">Total Time</h6>
+                                            <h2 class="mb-2" id="workout-timer-display">00:00</h2>
+                                            <div>
+                                                <button class="btn btn-light btn-sm me-2" id="timer-start">
+                                                    <i class="fas fa-play"></i> Start
+                                                </button>
+                                                <button class="btn btn-light btn-sm me-2" id="timer-pause" style="display:none;">
+                                                    <i class="fas fa-pause"></i> Pause
+                                                </button>
+                                                <button class="btn btn-light btn-sm" id="timer-reset">
+                                                    <i class="fas fa-redo"></i> Reset
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card bg-warning">
+                                        <div class="card-body text-center">
+                                            <h6 class="mb-2">Rest Timer</h6>
+                                            <h2 class="mb-2" id="rest-timer-display">00:00</h2>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-light rest-preset" data-seconds="60">60s</button>
+                                                <button class="btn btn-light rest-preset" data-seconds="90">90s</button>
+                                                <button class="btn btn-light rest-preset" data-seconds="120">2m</button>
+                                                <button class="btn btn-light rest-preset" data-seconds="180">3m</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Exercise Checklist -->
+                            <h6 class="fw-bold mb-3">Movements</h6>
+                            <div id="movements-container">
+                                ${movementsHtml}
+                            </div>
+                            
+                            <!-- Overall Workout RPE -->
+                            <div class="mt-4">
+                                <label class="form-label fw-bold">Overall Workout RPE</label>
+                                <div class="d-flex gap-2 mb-2">
+                                    ${[1,2,3,4,5,6,7,8,9,10].map(n => `
+                                        <button type="button" class="btn btn-outline-primary overall-rpe-btn flex-fill" data-rpe="${n}">${n}</button>
+                                    `).join('')}
+                                </div>
+                                <input type="hidden" id="overall-rpe" value="5">
+                            </div>
+                            
+                            <!-- Workout Notes -->
+                            <div class="mt-3">
+                                <label class="form-label fw-bold">Workout Notes</label>
+                                <textarea class="form-control" id="workout-notes" rows="2" placeholder="How did it feel?"></textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-success" id="complete-workout-btn">
+                                <i class="fas fa-check"></i> Complete Workout
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if any
+        $('#workoutTrackingModal').remove();
+        
+        // Add modal to page
+        $('body').append(modalHtml);
+        
+        // Initialize modal
+        const modal = new bootstrap.Modal(document.getElementById('workoutTrackingModal'));
+        modal.show();
+        
+        // Setup event handlers
+        setupWorkoutTracking();
     }
     
-    // Workout Type Distribution (Donut Chart)
-    var typeOptions = {
-        series: [45, 30, 15, 10],
-        chart: {
-            type: 'donut',
-            height: 300
-        },
-        labels: ['Metcon', 'Strength', 'Skill', 'Hero WODs'],
-        colors: ['#dc3545', '#0d6efd', '#198754', '#8b5cf6'],
-        legend: {
-            position: 'bottom'
-        }
-    };
-    var typeChart = new ApexCharts(document.querySelector("#workout-type-chart"), typeOptions);
-    typeChart.render();
+    // Setup workout tracking event handlers
+    function setupWorkoutTracking() {
+        // Timer controls
+        $('#timer-start').on('click', function() {
+            workoutTimer = setInterval(() => {
+                workoutSeconds++;
+                updateTimerDisplay();
+            }, 1000);
+            $(this).hide();
+            $('#timer-pause').show();
+        });
+        
+        $('#timer-pause').on('click', function() {
+            clearInterval(workoutTimer);
+            $(this).hide();
+            $('#timer-start').show();
+        });
+        
+        $('#timer-reset').on('click', function() {
+            clearInterval(workoutTimer);
+            workoutSeconds = 0;
+            updateTimerDisplay();
+            $('#timer-pause').hide();
+            $('#timer-start').show();
+        });
+        
+        // Rest timer presets
+        $('.rest-preset').on('click', function() {
+            const seconds = parseInt($(this).data('seconds'));
+            startRestTimer(seconds);
+        });
+        
+        // RPE selectors
+        $('.rpe-btn').on('click', function() {
+            const rpe = $(this).data('rpe');
+            $(this).closest('.rpe-selector').find('.rpe-btn').removeClass('active');
+            $(this).addClass('active');
+            $(this).closest('.movement-item').find('.movement-rpe').val(rpe);
+        });
+        
+        $('.overall-rpe-btn').on('click', function() {
+            const rpe = $(this).data('rpe');
+            $('.overall-rpe-btn').removeClass('active');
+            $(this).addClass('active');
+            $('#overall-rpe').val(rpe);
+        });
+        
+        // Complete workout
+        $('#complete-workout-btn').on('click', completeWorkout);
+    }
     
-    // RPE Average Chart
-    var rpeOptions = {
-        series: [{
-            name: 'Average RPE',
-            data: [7, 8, 7, 9, 8, 6, 8]
-        }],
-        chart: {
-            type: 'bar',
-            height: 300,
-            toolbar: {
-                show: false
+    function updateTimerDisplay() {
+        const mins = Math.floor(workoutSeconds / 60);
+        const secs = workoutSeconds % 60;
+        $('#workout-timer-display').text(
+            `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+        );
+    }
+    
+    function startRestTimer(seconds) {
+        clearInterval(restTimer);
+        restSeconds = seconds;
+        updateRestTimerDisplay();
+        
+        restTimer = setInterval(() => {
+            restSeconds--;
+            updateRestTimerDisplay();
+            
+            if (restSeconds <= 0) {
+                clearInterval(restTimer);
+                CHOS.toast.info('Rest period complete!');
             }
-        },
-        plotOptions: {
-            bar: {
-                borderRadius: 8,
-                distributed: true
-            }
-        },
-        dataLabels: {
-            enabled: true,
-            formatter: function(val) {
-                return val + '/10'
-            }
-        },
-        xaxis: {
-            categories: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-        },
-        colors: ['#6366f1'],
-        legend: {
-            show: false
+        }, 1000);
+    }
+    
+    function updateRestTimerDisplay() {
+        const mins = Math.floor(restSeconds / 60);
+        const secs = restSeconds % 60;
+        $('#rest-timer-display').text(
+            `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+        );
+    }
+    
+    async function completeWorkout() {
+        try {
+            showLoading();
+            
+            // Collect movement feedback
+            const movementsFeedback = [];
+            $('.movement-item').each(function() {
+                const movement = currentWorkout.workout.movements[$(this).data('movement-id')];
+                movementsFeedback.push({
+                    movement: movement.movement_name || movement.name,
+                    prescribed_sets: movement.sets || 1,
+                    prescribed_reps: movement.reps,
+                    prescribed_weight_kg: movement.weight_kg,
+                    actual_sets: parseInt($(this).find('.actual-sets').val()) || 1,
+                    actual_reps: $(this).find('.actual-reps').val(),
+                    actual_weight_kg: parseFloat($(this).find('.actual-weight').val()) || null,
+                    technique_quality: parseInt($(this).find('.movement-rpe').val()) || 5,
+                    notes: $(this).find('.movement-notes').val()
+                });
+            });
+            
+            // Create session first
+            const sessionData = {
+                workout_type: currentWorkout.workout.workout_type || 'mixed',
+                duration_minutes: Math.floor(workoutSeconds / 60),
+                rpe_score: parseInt($('#overall-rpe').val()) || 5,
+                notes: $('#workout-notes').val()
+            };
+            
+            const session = await CHOS.api.post('/api/v1/training/sessions', sessionData);
+            currentSessionId = session.id;
+            
+            // Update session as complete
+            await CHOS.api.patch(`/api/v1/training/sessions/${currentSessionId}`, {
+                completed: true,
+                completed_at: new Date().toISOString()
+            });
+            
+            // Submit feedback
+            const feedbackData = {
+                session_id: currentSessionId,
+                date: new Date().toISOString().split('T')[0],
+                rpe_score: parseInt($('#overall-rpe').val()) || 5,
+                difficulty: 'moderate',
+                technique_quality: parseInt($('#overall-rpe').val()) || 5,
+                pacing: 'good',
+                energy_level_pre: 7,
+                energy_level_post: 5,
+                would_repeat: true,
+                notes: $('#workout-notes').val(),
+                movements_feedback: movementsFeedback
+            };
+            
+            await CHOS.api.post('/api/v1/review/feedback', feedbackData);
+            
+            hideLoading();
+            
+            // Show summary
+            const avgRPE = movementsFeedback.reduce((sum, m) => sum + (m.technique_quality || 0), 0) / movementsFeedback.length;
+            const totalVolume = movementsFeedback.reduce((sum, m) => {
+                const sets = m.actual_sets || 0;
+                const reps = parseInt(m.actual_reps) || 0;
+                const weight = m.actual_weight_kg || 0;
+                return sum + (sets * reps * weight);
+            }, 0);
+            
+            alert(`Workout Complete! 🎉\n\nTotal Time: ${Math.floor(workoutSeconds / 60)} minutes\nAverage RPE: ${avgRPE.toFixed(1)}/10\nTotal Volume: ${totalVolume.toFixed(0)}kg`);
+            
+            // Close modal and reload page
+            bootstrap.Modal.getInstance(document.getElementById('workoutTrackingModal')).hide();
+            location.reload();
+            
+        } catch (error) {
+            hideLoading();
+            CHOS.toast.error(error.message || 'Failed to complete workout');
         }
-    };
-    var rpeChart = new ApexCharts(document.querySelector("#rpe-chart"), rpeOptions);
-    rpeChart.render();
+    }
+    
+    // Load real chart data
+    $(document).ready(async function() {
+        await loadWorkoutTypeChart();
+        await loadRPEChart();
+    });
+    
+    async function loadWorkoutTypeChart() {
+        try {
+            const sessions = await CHOS.api.get('/api/v1/training/sessions?limit=100');
+            
+            if (!sessions || sessions.length === 0) {
+                $('#workout-type-chart').html('<div class="text-center text-muted py-4"><p>No workout data yet</p></div>');
+                return;
+            }
+            
+            // Count by type
+            const typeCounts = {};
+            sessions.forEach(s => {
+                const type = s.workout_type || 'other';
+                typeCounts[type] = (typeCounts[type] || 0) + 1;
+            });
+            
+            const labels = Object.keys(typeCounts);
+            const series = Object.values(typeCounts);
+            const colors = {
+                'metcon': '#dc3545',
+                'strength': '#0d6efd',
+                'skill': '#198754',
+                'hero': '#8b5cf6',
+                'other': '#6c757d'
+            };
+            
+            const typeOptions = {
+                series: series,
+                chart: {
+                    type: 'donut',
+                    height: 300
+                },
+                labels: labels.map(l => l.charAt(0).toUpperCase() + l.slice(1)),
+                colors: labels.map(l => colors[l] || '#6c757d'),
+                legend: {
+                    position: 'bottom'
+                },
+                noData: {
+                    text: 'No data available'
+                }
+            };
+            
+            const typeChart = new ApexCharts(document.querySelector("#workout-type-chart"), typeOptions);
+            typeChart.render();
+            
+        } catch (error) {
+            console.error('Error loading workout type chart:', error);
+            $('#workout-type-chart').html('<div class="text-center text-muted py-4"><p>No data yet</p></div>');
+        }
+    }
+    
+    async function loadRPEChart() {
+        try {
+            const sessions = await CHOS.api.get('/api/v1/training/sessions?limit=100');
+            
+            if (!sessions || sessions.length === 0) {
+                $('#rpe-chart').html('<div class="text-center text-muted py-4"><p>No workout data yet</p></div>');
+                return;
+            }
+            
+            // Get last 7 days
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const rpeByDay = {};
+            
+            sessions.forEach(s => {
+                if (s.rpe_score && s.started_at) {
+                    const date = new Date(s.started_at);
+                    const dayName = days[date.getDay()];
+                    if (!rpeByDay[dayName]) {
+                        rpeByDay[dayName] = [];
+                    }
+                    rpeByDay[dayName].push(s.rpe_score);
+                }
+            });
+            
+            // Calculate averages
+            const rpeData = days.map(day => {
+                if (rpeByDay[day] && rpeByDay[day].length > 0) {
+                    const avg = rpeByDay[day].reduce((a, b) => a + b, 0) / rpeByDay[day].length;
+                    return Math.round(avg);
+                }
+                return 0;
+            });
+            
+            const rpeOptions = {
+                series: [{
+                    name: 'Average RPE',
+                    data: rpeData
+                }],
+                chart: {
+                    type: 'bar',
+                    height: 300,
+                    toolbar: {
+                        show: false
+                    }
+                },
+                plotOptions: {
+                    bar: {
+                        borderRadius: 8,
+                        distributed: true
+                    }
+                },
+                dataLabels: {
+                    enabled: true,
+                    formatter: function(val) {
+                        return val > 0 ? val + '/10' : '-';
+                    }
+                },
+                xaxis: {
+                    categories: days
+                },
+                yaxis: {
+                    min: 0,
+                    max: 10
+                },
+                colors: ['#6366f1'],
+                legend: {
+                    show: false
+                },
+                noData: {
+                    text: 'No data available'
+                }
+            };
+            
+            const rpeChart = new ApexCharts(document.querySelector("#rpe-chart"), rpeOptions);
+            rpeChart.render();
+            
+        } catch (error) {
+            console.error('Error loading RPE chart:', error);
+            $('#rpe-chart').html('<div class="text-center text-muted py-4"><p>No data yet</p></div>');
+        }
+    }
 </script>
 {% endblock %}
