@@ -12,6 +12,10 @@ templates_dir = Path(__file__).parent.parent / "templates"
 templates = Jinja2Templates(directory=str(templates_dir))
 
 
+# ============================================
+# Public pages
+# ============================================
+
 @router.get("/")
 async def home(request: Request):
     """Landing page"""
@@ -52,53 +56,47 @@ async def dashboard_page(request: Request):
 @router.get("/dashboard/workouts")
 async def workouts_page(request: Request):
     """Workouts page"""
-    context = {
+    return templates.TemplateResponse("training.html", {
         "request": request,
         "active_page": "workouts",
         "recent_workouts": [],
         "personal_records": []
-    }
-    return templates.TemplateResponse("training.html", context)
+    })
 
 
 @router.get("/dashboard/schedule")
 async def schedule_page(request: Request):
     """Schedule page"""
-    context = {
+    return templates.TemplateResponse("schedule.html", {
         "request": request,
         "active_page": "schedule"
-    }
-    return templates.TemplateResponse("schedule.html", context)
+    })
 
 
 @router.get("/dashboard/health")
 async def health_page(request: Request):
     """Health/biometrics page"""
-    context = {
+    return templates.TemplateResponse("health.html", {
         "request": request,
         "active_page": "health",
         "biomarkers": [],
         "recovery_trend": []
-    }
-    return templates.TemplateResponse("health.html", context)
+    })
 
 
 @router.get("/dashboard/nutrition")
 async def nutrition_page(request: Request):
     """Nutrition page"""
-    # Default context to avoid template errors
-    context = {
+    return templates.TemplateResponse("nutrition.html", {
         "request": request,
         "active_page": "nutrition",
         "today_macros": {"protein": 0, "carbs": 0, "fat": 0, "calories": 0},
         "targets": {"protein": 150, "carbs": 200, "fat": 70, "calories": 2000},
         "meals": [],
-        "recent_meals": [],
         "protein_pct": 0,
         "carbs_pct": 0,
         "fat_pct": 0
-    }
-    return templates.TemplateResponse("nutrition.html", context)
+    })
 
 
 @router.get("/dashboard/reviews")
@@ -130,10 +128,12 @@ async def auth_callback(request: Request):
     type_param = request.query_params.get("type")
     redirect_to = request.query_params.get("redirect_to", "/dashboard")
     
-    return templates.TemplateResponse(
-        "auth_callback.html", 
-        {"request": request, "token": token, "type": type_param, "redirect_to": redirect_to}
-    )
+    return templates.TemplateResponse("auth_callback.html", {
+        "request": request,
+        "token": token,
+        "type": type_param,
+        "redirect_to": redirect_to
+    })
 
 
 @router.get("/auth/verify")
@@ -142,19 +142,18 @@ async def auth_verify(request: Request):
     token = request.query_params.get("token")
     type_param = request.query_params.get("type")
     
-    return templates.TemplateResponse(
-        "auth_callback.html", 
-        {"request": request, "token": token, "type": type_param, "redirect_to": "/dashboard"}
-    )
+    return templates.TemplateResponse("auth_callback.html", {
+        "request": request,
+        "token": token,
+        "type": type_param,
+        "redirect_to": "/dashboard"
+    })
 
 
 @router.get("/auth/handler")
 async def auth_handler(request: Request):
     """Handle auth responses with tokens in URL hash"""
-    return templates.TemplateResponse(
-        "auth_handler.html",
-        {"request": request}
-    )
+    return templates.TemplateResponse("auth_handler.html", {"request": request})
 
 
 @router.get("/update-password")

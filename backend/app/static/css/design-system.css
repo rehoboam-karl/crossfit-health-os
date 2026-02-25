@@ -1,0 +1,627 @@
+/* ============================================
+   CrossFit Health OS - Design System
+   Based on web-design principles + Bootstrap 5
+   ============================================ */
+
+/* ============================================
+   Layer 1: Design Tokens (Primitives)
+   ============================================ */
+:root {
+   /* Color Primitives - Athletic/Energetic palette */
+   --chos-blue-50: #eff6ff;
+   --chos-blue-100: #dbeafe;
+   --chos-blue-500: #3b82f6;
+   --chos-blue-600: #2563eb;
+   --chos-blue-700: #1d4ed8;
+   --chos-blue-900: #1e3a5f;
+   
+   --chos-green-50: #f0fdf4;
+   --chos-green-500: #22c55e;
+   --chos-green-600: #16a34a;
+   
+   --chos-red-50: #fef2f2;
+   --chos-red-500: #ef4444;
+   --chos-red-600: #dc2626;
+   
+   --chos-orange-50: #fff7ed;
+   --chos-orange-500: #f97316;
+   
+   --chos-purple-500: #8b5cf6;
+   
+   --chos-gray-50: #f9fafb;
+   --chos-gray-100: #f3f4f6;
+   --chos-gray-200: #e5e7eb;
+   --chos-gray-300: #d1d5db;
+   --chos-gray-400: #9ca3af;
+   --chos-gray-500: #6b7280;
+   --chos-gray-600: #4b5563;
+   --chos-gray-700: #374151;
+   --chos-gray-800: #1f2937;
+   --chos-gray-900: #111827;
+   
+   /* Spacing (8px base) */
+   --space-1: 0.25rem;   /* 4px */
+   --space-2: 0.5rem;    /* 8px */
+   --space-3: 0.75rem;   /* 12px */
+   --space-4: 1rem;      /* 16px */
+   --space-5: 1.25rem;   /* 20px */
+   --space-6: 1.5rem;    /* 24px */
+   --space-8: 2rem;      /* 32px */
+   --space-10: 2.5rem;   /* 40px */
+   --space-12: 3rem;     /* 48px */
+   --space-16: 4rem;     /* 64px */
+   
+   /* Border Radius */
+   --radius-sm: 0.375rem;
+   --radius-md: 0.5rem;
+   --radius-lg: 0.75rem;
+   --radius-xl: 1rem;
+   --radius-full: 9999px;
+   
+   /* Shadows */
+   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+   --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+   
+   /* Transitions */
+   --transition-fast: 150ms ease-out;
+   --transition-base: 250ms ease-out;
+   --transition-slow: 350ms ease-in-out;
+
+   /* ============================================
+      Layer 2: Semantic Tokens
+      ============================================ */
+   --color-primary: var(--chos-blue-600);
+   --color-primary-hover: var(--chos-blue-700);
+   --color-primary-light: var(--chos-blue-50);
+   --color-primary-dark: var(--chos-blue-900);
+   
+   --color-success: var(--chos-green-500);
+   --color-success-light: var(--chos-green-50);
+   --color-danger: var(--chos-red-500);
+   --color-danger-light: var(--chos-red-50);
+   --color-warning: var(--chos-orange-500);
+   --color-warning-light: var(--chos-orange-50);
+   --color-info: var(--chos-purple-500);
+   
+   --color-text: var(--chos-gray-900);
+   --color-text-secondary: var(--chos-gray-600);
+   --color-text-muted: var(--chos-gray-400);
+   --color-border: var(--chos-gray-200);
+   
+   --surface-0: #ffffff;
+   --surface-1: var(--chos-gray-50);
+   --surface-2: var(--chos-gray-100);
+   --surface-dark: var(--chos-gray-900);
+   
+   /* Typography */
+   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+   --font-display: 'Inter', sans-serif;
+   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* ============================================
+   Google Font Import
+   ============================================ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+/* ============================================
+   Base Styles
+   ============================================ */
+body {
+   font-family: var(--font-sans);
+   color: var(--color-text);
+   background-color: var(--surface-1);
+   line-height: 1.6;
+   -webkit-font-smoothing: antialiased;
+   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Fluid Typography */
+h1, .h1 { font-size: clamp(1.75rem, 1.5rem + 1.5vw, 2.5rem); font-weight: 800; line-height: 1.2; }
+h2, .h2 { font-size: clamp(1.5rem, 1.25rem + 1vw, 2rem); font-weight: 700; line-height: 1.25; }
+h3, .h3 { font-size: clamp(1.25rem, 1rem + 0.5vw, 1.5rem); font-weight: 600; line-height: 1.3; }
+h4, .h4 { font-size: 1.125rem; font-weight: 600; line-height: 1.35; }
+
+/* ============================================
+   Layer 3: Component Styles
+   ============================================ */
+
+/* --- Navbar --- */
+.chos-navbar {
+   background: var(--surface-dark);
+   box-shadow: var(--shadow-md);
+   padding: var(--space-2) 0;
+}
+
+.chos-navbar .navbar-brand {
+   font-weight: 700;
+   font-size: 1.125rem;
+   letter-spacing: -0.025em;
+}
+
+.chos-navbar .nav-link {
+   font-size: 0.875rem;
+   font-weight: 500;
+   padding: var(--space-2) var(--space-3) !important;
+   border-radius: var(--radius-md);
+   transition: background var(--transition-fast);
+}
+
+.chos-navbar .nav-link:hover {
+   background: rgba(255, 255, 255, 0.1);
+}
+
+.chos-navbar .nav-link.active {
+   background: rgba(255, 255, 255, 0.15);
+   color: #fff !important;
+}
+
+/* --- Cards --- */
+.chos-card {
+   background: var(--surface-0);
+   border: 1px solid var(--color-border);
+   border-radius: var(--radius-lg);
+   box-shadow: var(--shadow-sm);
+   transition: box-shadow var(--transition-base), transform var(--transition-base);
+   overflow: hidden;
+}
+
+.chos-card:hover {
+   box-shadow: var(--shadow-md);
+}
+
+.chos-card-interactive:hover {
+   transform: translateY(-2px);
+   box-shadow: var(--shadow-lg);
+}
+
+.chos-card .card-body {
+   padding: var(--space-6);
+}
+
+.chos-card .card-header {
+   background: transparent;
+   border-bottom: 1px solid var(--color-border);
+   padding: var(--space-4) var(--space-6);
+   font-weight: 600;
+}
+
+/* --- Stat Cards --- */
+.chos-stat-card {
+   background: var(--surface-0);
+   border: 1px solid var(--color-border);
+   border-radius: var(--radius-lg);
+   padding: var(--space-5);
+   transition: all var(--transition-base);
+}
+
+.chos-stat-card:hover {
+   border-color: var(--color-primary);
+   box-shadow: var(--shadow-md);
+}
+
+.chos-stat-card .stat-icon {
+   width: 48px;
+   height: 48px;
+   border-radius: var(--radius-md);
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   font-size: 1.25rem;
+}
+
+.chos-stat-card .stat-value {
+   font-size: 1.75rem;
+   font-weight: 800;
+   line-height: 1;
+   letter-spacing: -0.025em;
+}
+
+.chos-stat-card .stat-label {
+   font-size: 0.8125rem;
+   color: var(--color-text-secondary);
+   font-weight: 500;
+}
+
+.chos-stat-card .stat-trend {
+   font-size: 0.75rem;
+   font-weight: 600;
+}
+
+.stat-trend.up { color: var(--color-success); }
+.stat-trend.down { color: var(--color-danger); }
+.stat-trend.neutral { color: var(--color-text-muted); }
+
+/* --- Buttons --- */
+.chos-btn {
+   font-weight: 600;
+   font-size: 0.875rem;
+   padding: var(--space-2) var(--space-4);
+   border-radius: var(--radius-md);
+   transition: all var(--transition-fast);
+   border: none;
+   cursor: pointer;
+   display: inline-flex;
+   align-items: center;
+   gap: var(--space-2);
+   min-height: 44px; /* Touch target */
+}
+
+.chos-btn:active {
+   transform: scale(0.98);
+}
+
+.chos-btn-primary {
+   background: var(--color-primary);
+   color: white;
+}
+
+.chos-btn-primary:hover {
+   background: var(--color-primary-hover);
+   color: white;
+}
+
+.chos-btn-success {
+   background: var(--color-success);
+   color: white;
+}
+
+.chos-btn-danger {
+   background: var(--color-danger);
+   color: white;
+}
+
+.chos-btn-outline {
+   background: transparent;
+   border: 1.5px solid var(--color-border);
+   color: var(--color-text);
+}
+
+.chos-btn-outline:hover {
+   border-color: var(--color-primary);
+   color: var(--color-primary);
+   background: var(--color-primary-light);
+}
+
+.chos-btn-ghost {
+   background: transparent;
+   color: var(--color-text-secondary);
+}
+
+.chos-btn-ghost:hover {
+   background: var(--surface-2);
+   color: var(--color-text);
+}
+
+.chos-btn-lg {
+   padding: var(--space-3) var(--space-6);
+   font-size: 1rem;
+   min-height: 52px;
+}
+
+.chos-btn-sm {
+   padding: var(--space-1) var(--space-3);
+   font-size: 0.8125rem;
+   min-height: 36px;
+}
+
+/* Loading state */
+.chos-btn.loading {
+   opacity: 0.7;
+   pointer-events: none;
+}
+
+.chos-btn.loading .btn-text { display: none; }
+.chos-btn.loading .btn-spinner { display: inline-block; }
+.chos-btn .btn-spinner { display: none; }
+
+/* --- Forms --- */
+.chos-input {
+   font-size: 1rem; /* Prevents iOS zoom */
+   padding: var(--space-3) var(--space-4);
+   border: 1.5px solid var(--color-border);
+   border-radius: var(--radius-md);
+   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+   background: var(--surface-0);
+   min-height: 44px;
+   width: 100%;
+}
+
+.chos-input:focus {
+   outline: none;
+   border-color: var(--color-primary);
+   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.chos-input::placeholder {
+   color: var(--color-text-muted);
+}
+
+.chos-label {
+   font-size: 0.875rem;
+   font-weight: 600;
+   color: var(--color-text);
+   margin-bottom: var(--space-1);
+   display: block;
+}
+
+.chos-form-help {
+   font-size: 0.8125rem;
+   color: var(--color-text-muted);
+   margin-top: var(--space-1);
+}
+
+/* --- Badges --- */
+.chos-badge {
+   font-size: 0.75rem;
+   font-weight: 600;
+   padding: var(--space-1) var(--space-2);
+   border-radius: var(--radius-full);
+   display: inline-flex;
+   align-items: center;
+   gap: var(--space-1);
+}
+
+.chos-badge-primary { background: var(--color-primary-light); color: var(--color-primary); }
+.chos-badge-success { background: var(--color-success-light); color: var(--chos-green-600); }
+.chos-badge-danger { background: var(--color-danger-light); color: var(--chos-red-600); }
+.chos-badge-warning { background: var(--color-warning-light); color: var(--chos-orange-500); }
+
+/* --- Progress Bars --- */
+.chos-progress {
+   height: 8px;
+   background: var(--surface-2);
+   border-radius: var(--radius-full);
+   overflow: hidden;
+}
+
+.chos-progress-fill {
+   height: 100%;
+   border-radius: var(--radius-full);
+   transition: width 0.5s ease;
+}
+
+.chos-progress-fill.primary { background: var(--color-primary); }
+.chos-progress-fill.success { background: var(--color-success); }
+.chos-progress-fill.danger { background: var(--color-danger); }
+.chos-progress-fill.warning { background: var(--color-warning); }
+
+/* --- Workout-specific Components --- */
+.chos-workout-card {
+   background: var(--surface-0);
+   border: 1px solid var(--color-border);
+   border-radius: var(--radius-lg);
+   padding: var(--space-5);
+   transition: all var(--transition-base);
+   border-left: 4px solid transparent;
+}
+
+.chos-workout-card.strength { border-left-color: var(--chos-blue-500); }
+.chos-workout-card.metcon { border-left-color: var(--chos-red-500); }
+.chos-workout-card.skill { border-left-color: var(--chos-green-500); }
+.chos-workout-card.rest { border-left-color: var(--chos-gray-400); }
+
+.chos-workout-card:hover {
+   box-shadow: var(--shadow-md);
+   transform: translateY(-1px);
+}
+
+/* RPE Stars */
+.chos-rpe .star { color: var(--chos-gray-300); }
+.chos-rpe .star.active { color: var(--chos-orange-500); }
+
+/* PR Card */
+.chos-pr-card {
+   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+   border: 2px solid #fbbf24;
+   border-radius: var(--radius-lg);
+   padding: var(--space-5);
+}
+
+.chos-pr-card .pr-value {
+   font-size: 2rem;
+   font-weight: 800;
+   letter-spacing: -0.025em;
+}
+
+/* --- Recovery Score Indicator --- */
+.chos-readiness {
+   width: 80px;
+   height: 80px;
+   border-radius: 50%;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   font-size: 1.5rem;
+   font-weight: 800;
+   position: relative;
+}
+
+.chos-readiness.high {
+   background: var(--color-success-light);
+   color: var(--chos-green-600);
+   border: 3px solid var(--color-success);
+}
+
+.chos-readiness.medium {
+   background: var(--color-warning-light);
+   color: var(--chos-orange-500);
+   border: 3px solid var(--chos-orange-500);
+}
+
+.chos-readiness.low {
+   background: var(--color-danger-light);
+   color: var(--chos-red-600);
+   border: 3px solid var(--color-danger);
+}
+
+/* --- Toast Notifications --- */
+.chos-toast-container {
+   position: fixed;
+   top: var(--space-4);
+   right: var(--space-4);
+   z-index: 9999;
+   display: flex;
+   flex-direction: column;
+   gap: var(--space-2);
+}
+
+.chos-toast {
+   background: var(--surface-0);
+   border: 1px solid var(--color-border);
+   border-radius: var(--radius-lg);
+   padding: var(--space-4);
+   box-shadow: var(--shadow-xl);
+   display: flex;
+   align-items: center;
+   gap: var(--space-3);
+   min-width: 320px;
+   max-width: 420px;
+   animation: slideInRight 0.3s ease-out;
+}
+
+.chos-toast.success { border-left: 4px solid var(--color-success); }
+.chos-toast.error { border-left: 4px solid var(--color-danger); }
+.chos-toast.warning { border-left: 4px solid var(--color-warning); }
+.chos-toast.info { border-left: 4px solid var(--color-primary); }
+
+@keyframes slideInRight {
+   from { transform: translateX(100%); opacity: 0; }
+   to { transform: translateX(0); opacity: 1; }
+}
+
+/* --- Empty States --- */
+.chos-empty-state {
+   text-align: center;
+   padding: var(--space-12) var(--space-8);
+}
+
+.chos-empty-state .empty-icon {
+   font-size: 3.5rem;
+   color: var(--color-text-muted);
+   margin-bottom: var(--space-4);
+}
+
+.chos-empty-state .empty-title {
+   font-weight: 700;
+   margin-bottom: var(--space-2);
+}
+
+.chos-empty-state .empty-desc {
+   color: var(--color-text-secondary);
+   max-width: 400px;
+   margin: 0 auto var(--space-6);
+}
+
+/* --- Loading Skeleton --- */
+.chos-skeleton {
+   background: linear-gradient(90deg, var(--surface-2) 25%, var(--chos-gray-200) 50%, var(--surface-2) 75%);
+   background-size: 200% 100%;
+   animation: shimmer 1.5s infinite;
+   border-radius: var(--radius-md);
+}
+
+@keyframes shimmer {
+   0% { background-position: 200% 0; }
+   100% { background-position: -200% 0; }
+}
+
+.chos-skeleton-text { height: 1rem; margin-bottom: var(--space-2); }
+.chos-skeleton-title { height: 1.5rem; width: 60%; margin-bottom: var(--space-3); }
+.chos-skeleton-card { height: 200px; }
+
+/* --- Stagger Animation --- */
+.chos-stagger > * {
+   opacity: 0;
+   transform: translateY(0.5rem);
+   animation: fadeInUp 0.4s ease-out forwards;
+}
+
+.chos-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.chos-stagger > *:nth-child(2) { animation-delay: 60ms; }
+.chos-stagger > *:nth-child(3) { animation-delay: 120ms; }
+.chos-stagger > *:nth-child(4) { animation-delay: 180ms; }
+.chos-stagger > *:nth-child(5) { animation-delay: 240ms; }
+.chos-stagger > *:nth-child(6) { animation-delay: 300ms; }
+
+@keyframes fadeInUp {
+   to { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================
+   Responsive Overrides
+   ============================================ */
+
+/* Mobile */
+@media (max-width: 767.98px) {
+   .chos-stat-card {
+      padding: var(--space-4);
+   }
+   
+   .chos-stat-card .stat-value {
+      font-size: 1.5rem;
+   }
+   
+   .chos-card .card-body {
+      padding: var(--space-4);
+   }
+   
+   .chos-toast-container {
+      left: var(--space-4);
+      right: var(--space-4);
+   }
+   
+   .chos-toast {
+      min-width: auto;
+      max-width: 100%;
+   }
+   
+   /* Stack quick actions */
+   .chos-quick-actions {
+      flex-direction: column;
+   }
+   
+   /* Mobile nav padding */
+   .chos-navbar .nav-link {
+      padding: var(--space-3) var(--space-4) !important;
+   }
+}
+
+/* Tablet */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+   .chos-stat-card .stat-value {
+      font-size: 1.5rem;
+   }
+}
+
+/* Touch devices */
+@media (hover: none) and (pointer: coarse) {
+   .chos-btn { min-height: 48px; }
+   .chos-input { min-height: 48px; }
+   
+   .chos-card-interactive:hover {
+      transform: none;
+   }
+}
+
+/* Print */
+@media print {
+   .chos-navbar, .chos-toast-container, .chos-btn { display: none !important; }
+   .chos-card { box-shadow: none; border: 1px solid #ccc; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+   *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+   }
+}
+
+/* Focus visibility */
+:focus-visible {
+   outline: 2px solid var(--color-primary);
+   outline-offset: 2px;
+}

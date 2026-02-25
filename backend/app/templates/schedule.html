@@ -1,462 +1,328 @@
 {% extends "base.html" %}
 
-{% block title %}Training Schedule - CrossFit Health OS{% endblock %}
+{% block title %}Schedule - CrossFit Health OS{% endblock %}
+
+{% block navbar %}
+{% include "partials/navbar.html" %}
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">
+    
     <!-- Page Header -->
-    <div class="mb-4">
-        <h1 class="h3 fw-bold mb-1">Training Schedule</h1>
-        <p class="text-muted mb-0">Manage your weekly training program</p>
-    </div>
-
-    <!-- Current Schedule Overview -->
-    <div class="row g-3 mb-4">
-        <div class="col-lg-8">
-            <div class="card shadow-sm">
-                <div class="card-header bg-white border-bottom">
-                    <h5 class="mb-0 fw-bold">Current Schedule</h5>
-                </div>
-                <div class="card-body" id="current-schedule">
-                    <div class="text-center py-5">
-                        <i class="fas fa-calendar-plus fa-4x text-muted mb-3"></i>
-                        <h5 class="fw-bold mb-2">No active schedule</h5>
-                        <p class="text-muted mb-0">Create your first training schedule to get started</p>
-                    </div>
-                </div>
-            </div>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h2 fw-bold mb-1">Training Schedule</h1>
+            <p class="text-muted mb-0">Set up your weekly training plan and generate AI workouts</p>
         </div>
-
-        <div class="col-lg-4">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h6 class="fw-bold mb-3">Schedule Stats</h6>
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between mb-1">
-                            <span class="small text-muted">Training Days</span>
-                            <span class="fw-bold" id="training-days-count">0/7</span>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between mb-1">
-                            <span class="small text-muted">Weekly Volume</span>
-                            <span class="fw-bold" id="weekly-volume">0 min</span>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between mb-1">
-                            <span class="small text-muted">Current Week</span>
-                            <span class="fw-bold" id="current-week">-</span>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="d-flex justify-content-between mb-1">
-                            <span class="small text-muted">Methodology</span>
-                            <span class="fw-bold" id="methodology">-</span>
-                        </div>
-                    </div>
+        <button class="chos-btn chos-btn-primary chos-btn-lg" onclick="showCreateSchedule()">
+            <i class="fas fa-plus"></i>
+            <span class="btn-text">New Schedule</span>
+        </button>
+    </div>
+    
+    <!-- Active Schedule -->
+    <div id="active-schedule-container">
+        <div class="chos-card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0"><i class="fas fa-calendar-check me-2"></i>Active Schedule</h4>
+                <span id="schedule-status" class="chos-badge chos-badge-success">Active</span>
+            </div>
+            <div class="card-body" id="schedule-days">
+                <div class="chos-empty-state">
+                    <i class="fas fa-calendar-plus empty-icon"></i>
+                    <h5 class="empty-title">No active schedule</h5>
+                    <p class="empty-desc">Create a weekly training schedule to get started with AI-powered workouts.</p>
+                    <button class="chos-btn chos-btn-primary" onclick="showCreateSchedule()">
+                        <i class="fas fa-plus me-2"></i>Create Schedule
+                    </button>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- Create/Edit Schedule Form -->
-    <div class="card shadow-sm mb-4">
-        <div class="card-header bg-white border-bottom">
-            <h5 class="mb-0 fw-bold">Create Weekly Schedule</h5>
+    
+    <!-- AI Program Generation -->
+    <div class="chos-card mb-4">
+        <div class="card-header">
+            <h4 class="mb-0"><i class="fas fa-robot me-2"></i>Generate AI Program</h4>
         </div>
         <div class="card-body">
-            <form id="schedule-form">
-                <div class="row g-3 mb-4">
-                    <!-- Training Days Selection -->
-                    <div class="col-12">
-                        <label class="form-label fw-semibold">Training Days</label>
-                        <div class="row g-2">
-                            <div class="col-md-3 col-6">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="training_days" value="monday" id="day-monday">
-                                    <label class="form-check-label" for="day-monday">Monday</label>
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="training_days" value="tuesday" id="day-tuesday">
-                                    <label class="form-check-label" for="day-tuesday">Tuesday</label>
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="training_days" value="wednesday" id="day-wednesday">
-                                    <label class="form-check-label" for="day-wednesday">Wednesday</label>
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="training_days" value="thursday" id="day-thursday">
-                                    <label class="form-check-label" for="day-thursday">Thursday</label>
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="training_days" value="friday" id="day-friday">
-                                    <label class="form-check-label" for="day-friday">Friday</label>
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="training_days" value="saturday" id="day-saturday">
-                                    <label class="form-check-label" for="day-saturday">Saturday</label>
-                                </div>
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="training_days" value="sunday" id="day-sunday">
-                                    <label class="form-check-label" for="day-sunday">Sunday</label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Session Duration -->
-                    <div class="col-md-6">
-                        <label for="session-duration" class="form-label fw-semibold">Session Duration (minutes)</label>
-                        <input type="number" class="form-control" id="session-duration" name="session_duration" 
-                               value="60" min="30" max="180" required>
-                    </div>
-
-                    <!-- Methodology Selection -->
-                    <div class="col-md-6">
-                        <label for="methodology" class="form-label fw-semibold">Methodology</label>
-                        <select class="form-select" id="methodology-select" name="methodology" required>
-                            <option value="">Select methodology...</option>
-                            <option value="hwpo">HWPO (Hard Work Pays Off)</option>
-                            <option value="mayhem">Mayhem Athlete</option>
-                            <option value="comptrain">CompTrain</option>
-                            <option value="custom">Custom</option>
-                        </select>
-                    </div>
-
-                    <!-- Week Number -->
-                    <div class="col-md-6">
-                        <label for="week-number" class="form-label fw-semibold">Program Week (1-8)</label>
-                        <input type="number" class="form-control" id="week-number" name="week_number" 
-                               value="1" min="1" max="8" required>
-                        <small class="text-muted">Week in current training cycle</small>
-                    </div>
-
-                    <!-- Start Date -->
-                    <div class="col-md-6">
-                        <label for="start-date" class="form-label fw-semibold">Start Date</label>
-                        <input type="date" class="form-control" id="start-date" name="start_date" required>
-                    </div>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="chos-label">Methodology</label>
+                    <select id="methodology" class="form-select chos-input">
+                        <option value="hwpo">HWPO (Mat Fraser)</option>
+                        <option value="mayhem">Mayhem (Rich Froning)</option>
+                        <option value="comptrain">CompTrain (Ben Bergeron)</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                    <span class="chos-form-help">Choose your training philosophy</span>
                 </div>
-
-                <div class="d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save me-2"></i>Save Schedule
+                <div class="col-md-3">
+                    <label class="chos-label">Week Number</label>
+                    <select id="week-number" class="form-select chos-input">
+                        <option value="1">Week 1 - Accumulation</option>
+                        <option value="2">Week 2 - Accumulation</option>
+                        <option value="3">Week 3 - Accumulation</option>
+                        <option value="4">Week 4 - Deload</option>
+                        <option value="5">Week 5 - Intensification</option>
+                        <option value="6">Week 6 - Intensification</option>
+                        <option value="7">Week 7 - Intensification</option>
+                        <option value="8">Week 8 - Test</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="chos-label">Focus Movement</label>
+                    <input type="text" id="focus-movement" class="chos-input" placeholder="e.g., Muscle-ups, Snatch">
+                    <span class="chos-form-help">Optional weakness to address</span>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="chos-btn chos-btn-primary w-100" id="btn-generate" onclick="generateAIProgram()">
+                        <i class="fas fa-magic"></i>
+                        <span class="btn-text">Generate</span>
+                        <span class="btn-spinner"><i class="fas fa-spinner fa-spin"></i></span>
                     </button>
-                    <button type="button" class="btn btn-success" id="generate-ai-btn">
-                        <i class="fas fa-robot me-2"></i>Generate AI Workouts
-                    </button>
-                    <button type="reset" class="btn btn-outline-secondary">
-                        <i class="fas fa-redo me-2"></i>Reset
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Weekly Calendar Preview -->
-    <div class="card shadow-sm">
-        <div class="card-header bg-white border-bottom">
-            <h5 class="mb-0 fw-bold">Week Preview</h5>
-        </div>
-        <div class="card-body">
-            <div class="row g-2" id="week-preview">
-                <!-- Days will be populated here -->
-                <div class="col">
-                    <div class="card bg-light text-center">
-                        <div class="card-body p-2">
-                            <div class="fw-bold small">Mon</div>
-                            <div class="small text-muted">Rest</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="card bg-light text-center">
-                        <div class="card-body p-2">
-                            <div class="fw-bold small">Tue</div>
-                            <div class="small text-muted">Rest</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="card bg-light text-center">
-                        <div class="card-body p-2">
-                            <div class="fw-bold small">Wed</div>
-                            <div class="small text-muted">Rest</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="card bg-light text-center">
-                        <div class="card-body p-2">
-                            <div class="fw-bold small">Thu</div>
-                            <div class="small text-muted">Rest</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="card bg-light text-center">
-                        <div class="card-body p-2">
-                            <div class="fw-bold small">Fri</div>
-                            <div class="small text-muted">Rest</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="card bg-light text-center">
-                        <div class="card-body p-2">
-                            <div class="fw-bold small">Sat</div>
-                            <div class="small text-muted">Rest</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="card bg-light text-center">
-                        <div class="card-body p-2">
-                            <div class="fw-bold small">Sun</div>
-                            <div class="small text-muted">Rest</div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- Loading Spinner -->
-    <div id="loading-spinner" class="d-none">
-        <div class="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-50 d-flex justify-content-center align-items-center" style="z-index: 9999;">
-            <div class="spinner-border text-light" style="width: 3rem; height: 3rem;" role="status">
-                <span class="visually-hidden">Loading...</span>
+    
+    <!-- Generated Program -->
+    <div id="generated-program" class="d-none">
+        <div class="chos-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0"><i class="fas fa-clipboard-list me-2"></i>Generated Program</h4>
+                <button class="chos-btn chos-btn-sm chos-btn-success" onclick="saveProgram()">
+                    <i class="fas fa-save me-1"></i>Save Program
+                </button>
+            </div>
+            <div class="card-body" id="program-content">
             </div>
         </div>
     </div>
-
-    <!-- Toast Container -->
-    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
-        <div id="toast-container"></div>
+    
+    <!-- Create Schedule Modal -->
+    <div class="modal fade" id="createScheduleModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Create Weekly Schedule</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="schedule-form">
+                        <!-- Days -->
+                        <div class="row g-3 chos-stagger" id="day-rows">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="chos-btn chos-btn-outline" data-bs-dismiss="modal">Cancel</button>
+                    <button class="chos-btn chos-btn-primary" id="btn-save-schedule" onclick="saveSchedule()">
+                        <i class="fas fa-save me-1"></i>
+                        <span class="btn-text">Save Schedule</span>
+                        <span class="btn-spinner"><i class="fas fa-spinner fa-spin"></i></span>
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // Show loading spinner
-    function showLoading() {
-        $('#loading-spinner').removeClass('d-none');
-    }
-    
-    // Hide loading spinner
-    function hideLoading() {
-        $('#loading-spinner').addClass('d-none');
-    }
-    
-    // Show toast notification
-    function showToast(message, type = 'info') {
-        const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
-        const toast = `
-            <div class="toast align-items-center text-white ${bgClass} border-0" role="alert" aria-live="assertive" aria-atomic="true">
-                <div class="d-flex">
-                    <div class="toast-body">${message}</div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-                </div>
-            </div>
-        `;
-        $('#toast-container').append(toast);
-        const toastEl = $('#toast-container .toast').last()[0];
-        const bsToast = new bootstrap.Toast(toastEl);
-        bsToast.show();
-    }
+$(document).ready(function() {
+    CHOS.initDashboard();
+    loadActiveSchedule();
+});
 
-    // Set default start date to today
-    $(document).ready(function() {
-        const today = new Date().toISOString().split('T')[0];
-        $('#start-date').val(today);
-    });
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const DAY_ICONS = ['💪', '🔥', '⚡', '🏋️', '💥', '🎯', '😴'];
 
-    // Update week preview when days are selected
-    $('input[name="training_days"]').on('change', function() {
-        updateWeekPreview();
-    });
-
-    function updateWeekPreview() {
-        const selectedDays = $('input[name="training_days"]:checked').map(function() {
-            return $(this).val();
-        }).get();
-
-        const dayMap = {
-            'monday': 0,
-            'tuesday': 1,
-            'wednesday': 2,
-            'thursday': 3,
-            'friday': 4,
-            'saturday': 5,
-            'sunday': 6
-        };
-
-        const duration = $('#session-duration').val();
-        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-        
-        $('#week-preview').html('');
-        
-        days.forEach((day, index) => {
-            const dayKey = Object.keys(dayMap).find(k => dayMap[k] === index);
-            const isTrainingDay = selectedDays.includes(dayKey);
-            const bgClass = isTrainingDay ? 'bg-primary text-white' : 'bg-light';
-            
-            const card = `
-                <div class="col">
-                    <div class="card ${bgClass} text-center">
-                        <div class="card-body p-2">
-                            <div class="fw-bold small">${day}</div>
-                            <div class="small ${isTrainingDay ? 'text-white-50' : 'text-muted'}">
-                                ${isTrainingDay ? duration + ' min' : 'Rest'}
+function showCreateSchedule() {
+    let html = '';
+    DAYS.forEach((day, i) => {
+        html += `
+        <div class="col-12">
+            <div class="chos-card">
+                <div class="card-body p-3">
+                    <div class="row align-items-center g-2">
+                        <div class="col-md-2">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="day-${i}" checked onchange="toggleDay(${i})">
+                                <label class="form-check-label fw-bold" for="day-${i}">
+                                    ${DAY_ICONS[i]} ${day}
+                                </label>
                             </div>
+                        </div>
+                        <div class="col-md-3" id="day-${i}-fields">
+                            <select class="form-select form-select-sm" id="day-${i}-time">
+                                <option value="06:00">06:00</option>
+                                <option value="07:00">07:00</option>
+                                <option value="08:00" selected>08:00</option>
+                                <option value="09:00">09:00</option>
+                                <option value="10:00">10:00</option>
+                                <option value="17:00">17:00</option>
+                                <option value="18:00">18:00</option>
+                                <option value="19:00">19:00</option>
+                                <option value="20:00">20:00</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select form-select-sm" id="day-${i}-duration">
+                                <option value="45">45 min</option>
+                                <option value="60" selected>60 min</option>
+                                <option value="75">75 min</option>
+                                <option value="90">90 min</option>
+                                <option value="120">120 min</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <select class="form-select form-select-sm" id="day-${i}-type">
+                                <option value="mixed">Mixed (Strength + Metcon)</option>
+                                <option value="strength">Strength</option>
+                                <option value="metcon">Metcon</option>
+                                <option value="skill">Skill Work</option>
+                                <option value="active_recovery">Active Recovery</option>
+                            </select>
                         </div>
                     </div>
                 </div>
-            `;
-            $('#week-preview').append(card);
-        });
-    }
-
-    // Save schedule
-    $('#schedule-form').on('submit', function(e) {
-        e.preventDefault();
-        
-        const selectedDays = $('input[name="training_days"]:checked').map(function() {
-            return $(this).val();
-        }).get();
-
-        if (selectedDays.length === 0) {
-            showToast('Please select at least one training day', 'error');
-            return;
-        }
-
-        const scheduleData = {
-            training_days: selectedDays,
-            session_duration: parseInt($('#session-duration').val()),
-            methodology: $('#methodology-select').val(),
-            week_number: parseInt($('#week-number').val()),
-            start_date: $('#start-date').val()
-        };
-
-        showLoading();
-
-        $.ajax({
-            url: '/api/v1/schedule/weekly',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify(scheduleData),
-            success: function(response) {
-                hideLoading();
-                showToast('Schedule created successfully!', 'success');
-                loadCurrentSchedule();
-            },
-            error: function(xhr) {
-                hideLoading();
-                const errorMsg = xhr.responseJSON?.detail || 'Failed to create schedule';
-                showToast(errorMsg, 'error');
-            }
-        });
-    });
-
-    // Generate AI workouts
-    $('#generate-ai-btn').on('click', function() {
-        const methodology = $('#methodology-select').val();
-        const weekNumber = $('#week-number').val();
-
-        if (!methodology) {
-            showToast('Please select a methodology first', 'error');
-            return;
-        }
-
-        showLoading();
-
-        $.ajax({
-            url: '/api/v1/schedule/weekly/generate-ai',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({
-                methodology: methodology,
-                week_number: parseInt(weekNumber)
-            }),
-            success: function(response) {
-                hideLoading();
-                showToast('AI workouts generated successfully!', 'success');
-                loadCurrentSchedule();
-            },
-            error: function(xhr) {
-                hideLoading();
-                const errorMsg = xhr.responseJSON?.detail || 'Failed to generate AI workouts';
-                showToast(errorMsg, 'error');
-            }
-        });
-    });
-
-    // Load current schedule on page load
-    function loadCurrentSchedule() {
-        $.ajax({
-            url: '/api/v1/schedule/weekly/current',
-            type: 'GET',
-            success: function(response) {
-                if (response && response.id) {
-                    displayCurrentSchedule(response);
-                }
-            },
-            error: function(xhr) {
-                console.log('No current schedule found');
-            }
-        });
-    }
-
-    function displayCurrentSchedule(schedule) {
-        // Update stats
-        $('#training-days-count').text(schedule.training_days.length + '/7');
-        $('#weekly-volume').text((schedule.training_days.length * schedule.session_duration) + ' min');
-        $('#current-week').text('Week ' + schedule.week_number);
-        $('#methodology').text(schedule.methodology.toUpperCase());
-
-        // Display schedule details
-        const scheduleHtml = `
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Day</th>
-                            <th>Duration</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${schedule.training_days.map(day => `
-                            <tr>
-                                <td class="fw-semibold text-capitalize">${day}</td>
-                                <td>${schedule.session_duration} min</td>
-                                <td><span class="badge bg-success">Scheduled</span></td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
             </div>
-        `;
-        $('#current-schedule').html(scheduleHtml);
-    }
-
-    // Load schedule on page load
-    $(document).ready(function() {
-        loadCurrentSchedule();
+        </div>`;
     });
+    
+    // Sunday default to rest
+    $('#day-rows').html(html);
+    setTimeout(() => {
+        $('#day-6').prop('checked', false);
+        toggleDay(6);
+    }, 100);
+    
+    new bootstrap.Modal('#createScheduleModal').show();
+}
+
+function toggleDay(idx) {
+    const checked = $(`#day-${idx}`).is(':checked');
+    $(`#day-${idx}-fields`).parent().find('select').prop('disabled', !checked);
+    if (!checked) {
+        $(`#day-${idx}`).closest('.chos-card').css('opacity', '0.5');
+    } else {
+        $(`#day-${idx}`).closest('.chos-card').css('opacity', '1');
+    }
+}
+
+function loadActiveSchedule() {
+    CHOS.api.get('/api/v1/schedule/weekly/active')
+        .done(function(data) {
+            if (data && data.days) {
+                renderSchedule(data);
+            }
+        })
+        .fail(function() {
+            // No active schedule - show empty state
+        });
+}
+
+function renderSchedule(schedule) {
+    let html = '<div class="row g-3 chos-stagger">';
+    DAYS.forEach((day, i) => {
+        const dayData = schedule.days ? schedule.days[i] : null;
+        const isRest = !dayData || dayData.is_rest;
+        
+        html += `
+        <div class="col-md-6 col-lg-3">
+            <div class="chos-workout-card ${isRest ? 'rest' : (dayData?.type || 'mixed')}">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="fw-bold mb-0">${DAY_ICONS[i]} ${day}</h6>
+                    ${isRest 
+                        ? '<span class="chos-badge chos-badge-warning">Rest</span>'
+                        : `<span class="chos-badge chos-badge-primary">${dayData?.duration || 60}min</span>`
+                    }
+                </div>
+                ${!isRest ? `
+                    <p class="text-muted mb-1" style="font-size: 0.875rem;">
+                        <i class="fas fa-clock me-1"></i>${dayData?.time || '08:00'}
+                    </p>
+                    <p class="text-muted mb-0" style="font-size: 0.875rem;">
+                        <i class="fas fa-tag me-1"></i>${(dayData?.type || 'mixed').replace('_', ' ')}
+                    </p>
+                ` : '<p class="text-muted mb-0" style="font-size: 0.875rem;">Recovery day</p>'}
+            </div>
+        </div>`;
+    });
+    html += '</div>';
+    $('#schedule-days').html(html);
+}
+
+function saveSchedule() {
+    CHOS.loading.button('#btn-save-schedule', true);
+    
+    const days = [];
+    DAYS.forEach((day, i) => {
+        const active = $(`#day-${i}`).is(':checked');
+        days.push({
+            day_of_week: i,
+            is_rest: !active,
+            sessions: active ? [{
+                time: $(`#day-${i}-time`).val(),
+                duration_minutes: parseInt($(`#day-${i}-duration`).val()),
+                type: $(`#day-${i}-type`).val()
+            }] : []
+        });
+    });
+    
+    CHOS.api.post('/api/v1/schedule/weekly', { days: days })
+        .done(function(data) {
+            CHOS.toast.success('Schedule saved!');
+            bootstrap.Modal.getInstance('#createScheduleModal').hide();
+            loadActiveSchedule();
+        })
+        .always(function() {
+            CHOS.loading.button('#btn-save-schedule', false);
+        });
+}
+
+function generateAIProgram() {
+    CHOS.loading.button('#btn-generate', true);
+    
+    const data = {
+        methodology: $('#methodology').val(),
+        week_number: parseInt($('#week-number').val()),
+        focus_movements: $('#focus-movement').val() ? [$('#focus-movement').val()] : []
+    };
+    
+    CHOS.api.post('/api/v1/schedule/weekly/generate-ai', data)
+        .done(function(response) {
+            renderProgram(response);
+            $('#generated-program').removeClass('d-none');
+            CHOS.toast.success('AI program generated!');
+        })
+        .always(function() {
+            CHOS.loading.button('#btn-generate', false);
+        });
+}
+
+function renderProgram(program) {
+    let html = '<div class="row g-3 chos-stagger">';
+    
+    if (program.days) {
+        program.days.forEach((day, i) => {
+            html += `
+            <div class="col-md-6">
+                <div class="chos-workout-card ${day.type || 'mixed'}">
+                    <h5 class="fw-bold mb-3">${DAYS[i]} ${DAY_ICONS[i]}</h5>
+                    <div style="white-space: pre-wrap; font-size: 0.875rem;">${day.workout || day.description || 'Rest day'}</div>
+                </div>
+            </div>`;
+        });
+    } else if (typeof program === 'string') {
+        html += `<div class="col-12"><div class="chos-card"><div class="card-body"><pre style="white-space: pre-wrap;">${program}</pre></div></div></div>`;
+    }
+    
+    html += '</div>';
+    $('#program-content').html(html);
+}
 </script>
 {% endblock %}

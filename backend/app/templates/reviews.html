@@ -1,345 +1,240 @@
 {% extends "base.html" %}
 
-{% block title %}Weekly Reviews - CrossFit Health OS{% endblock %}
+{% block title %}Reviews - CrossFit Health OS{% endblock %}
+
+{% block navbar %}
+{% include "partials/navbar.html" %}
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">
+    
     <!-- Page Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1 class="h3 fw-bold mb-1">Weekly Reviews</h1>
-            <p class="text-muted mb-0">AI-powered analysis and performance insights</p>
+            <h1 class="h2 fw-bold mb-1">Weekly Reviews</h1>
+            <p class="text-muted mb-0">AI-powered performance analysis and recommendations</p>
         </div>
-        <button class="btn btn-primary" id="generate-review-btn">
-            <i class="fas fa-chart-line me-2"></i>Generate New Review
+        <button class="chos-btn chos-btn-primary chos-btn-lg" id="btn-generate-review" onclick="generateReview()">
+            <i class="fas fa-magic"></i>
+            <span class="btn-text">Generate Review</span>
+            <span class="btn-spinner"><i class="fas fa-spinner fa-spin"></i></span>
         </button>
     </div>
-
-    <!-- Current Week Summary -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-3">
-            <div class="card shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="text-muted mb-0 small">Sessions Completed</h6>
-                        <i class="fas fa-check-circle text-success"></i>
-                    </div>
-                    <h2 class="fw-bold mb-0" id="sessions-completed">-</h2>
-                    <small class="text-muted">This week</small>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="card shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="text-muted mb-0 small">Average RPE</h6>
-                        <i class="fas fa-heart text-danger"></i>
-                    </div>
-                    <h2 class="fw-bold mb-0" id="avg-rpe">-</h2>
-                    <small class="text-muted">Perceived effort</small>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="card shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="text-muted mb-0 small">Recovery Score</h6>
-                        <i class="fas fa-heartbeat text-info"></i>
-                    </div>
-                    <h2 class="fw-bold mb-0" id="recovery-score">-</h2>
-                    <small class="text-muted">Readiness</small>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="card shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="text-muted mb-0 small">Trend</h6>
-                        <i class="fas fa-arrow-up text-success"></i>
-                    </div>
-                    <h2 class="fw-bold mb-0" id="trend">-</h2>
-                    <small class="text-muted">vs. last week</small>
-                </div>
-            </div>
+    
+    <!-- Reviews List -->
+    <div id="reviews-list">
+        <div class="chos-empty-state">
+            <i class="fas fa-chart-line empty-icon"></i>
+            <h5 class="empty-title">No reviews yet</h5>
+            <p class="empty-desc">Complete a week of training and generate your first AI review to get personalized recommendations.</p>
+            <button class="chos-btn chos-btn-primary" onclick="generateReview()">
+                <i class="fas fa-magic me-2"></i>Generate First Review
+            </button>
         </div>
     </div>
+</div>
 
-    <!-- Latest Review (if exists) -->
-    <div id="latest-review-container" class="mb-4">
-        <!-- Will be populated by JavaScript -->
-    </div>
-
-    <!-- Past Reviews List -->
-    <div class="card shadow-sm">
-        <div class="card-header bg-white border-bottom">
-            <h5 class="mb-0 fw-bold">Review History</h5>
-        </div>
-        <div class="card-body">
-            <div id="reviews-list">
-                <div class="text-center py-5">
-                    <i class="fas fa-clipboard-list fa-4x text-muted mb-3"></i>
-                    <h5 class="fw-bold mb-2">No reviews yet</h5>
-                    <p class="text-muted mb-3">Complete your first training week and generate a review</p>
-                    <button class="btn btn-primary" id="generate-first-review-btn">
-                        <i class="fas fa-plus me-2"></i>Generate First Review
-                    </button>
-                </div>
+<!-- Review Detail Modal -->
+<div class="modal fade" id="reviewDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Weekly Review Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="review-detail-content">
+            </div>
+            <div class="modal-footer">
+                <button class="chos-btn chos-btn-outline" data-bs-dismiss="modal">Close</button>
+                <button class="chos-btn chos-btn-success" id="btn-apply-review" onclick="applyReview()">
+                    <i class="fas fa-check me-1"></i>Apply Adjustments
+                </button>
             </div>
         </div>
-    </div>
-
-    <!-- Loading Spinner -->
-    <div id="loading-spinner" class="d-none">
-        <div class="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-50 d-flex justify-content-center align-items-center" style="z-index: 9999;">
-            <div class="spinner-border text-light" style="width: 3rem; height: 3rem;" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Toast Container -->
-    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
-        <div id="toast-container"></div>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // Show loading spinner
-    function showLoading() {
-        $('#loading-spinner').removeClass('d-none');
-    }
-    
-    // Hide loading spinner
-    function hideLoading() {
-        $('#loading-spinner').addClass('d-none');
-    }
-    
-    // Show toast notification
-    function showToast(message, type = 'info') {
-        const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
-        const toast = `
-            <div class="toast align-items-center text-white ${bgClass} border-0" role="alert" aria-live="assertive" aria-atomic="true">
-                <div class="d-flex">
-                    <div class="toast-body">${message}</div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-                </div>
-            </div>
-        `;
-        $('#toast-container').append(toast);
-        const toastEl = $('#toast-container .toast').last()[0];
-        const bsToast = new bootstrap.Toast(toastEl);
-        bsToast.show();
-    }
+let currentReviewId = null;
 
-    // Generate new weekly review
-    function generateReview() {
-        showLoading();
+$(document).ready(function() {
+    CHOS.initDashboard();
+    loadReviews();
+});
 
-        $.ajax({
-            url: '/api/v1/review/weekly',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({}),
-            success: function(response) {
-                hideLoading();
-                showToast('Weekly review generated successfully!', 'success');
-                displayLatestReview(response);
-                loadReviewsList();
-            },
-            error: function(xhr) {
-                hideLoading();
-                const errorMsg = xhr.responseJSON?.detail || 'Failed to generate review';
-                showToast(errorMsg, 'error');
+function loadReviews() {
+    CHOS.loading.skeleton('#reviews-list', 3);
+    
+    CHOS.api.get('/api/v1/review/weekly')
+        .done(function(data) {
+            if (data && data.length > 0) {
+                renderReviews(data);
+            } else {
+                $('#reviews-list').html(`
+                    <div class="chos-empty-state">
+                        <i class="fas fa-chart-line empty-icon"></i>
+                        <h5 class="empty-title">No reviews yet</h5>
+                        <p class="empty-desc">Complete a week of training and generate your first AI review.</p>
+                    </div>
+                `);
             }
-        });
-    }
-
-    // Bind generate review buttons
-    $('#generate-review-btn, #generate-first-review-btn').on('click', generateReview);
-
-    // Display latest review
-    function displayLatestReview(review) {
-        const strengthsHtml = review.strengths?.map(s => 
-            `<li class="mb-1"><i class="fas fa-check-circle text-success me-2"></i>${s}</li>`
-        ).join('') || '';
-
-        const weaknessesHtml = review.weaknesses?.map(w => 
-            `<li class="mb-1"><i class="fas fa-exclamation-circle text-warning me-2"></i>${w}</li>`
-        ).join('') || '';
-
-        const recommendationsHtml = review.recommendations?.map(r => 
-            `<li class="mb-1"><i class="fas fa-lightbulb text-info me-2"></i>${r}</li>`
-        ).join('') || '';
-
-        const recoveryStatus = review.recovery_status || 'good';
-        const recoveryBadge = 
-            recoveryStatus === 'excellent' ? 'bg-success' :
-            recoveryStatus === 'good' ? 'bg-primary' :
-            recoveryStatus === 'fair' ? 'bg-warning' : 'bg-danger';
-
-        const reviewHtml = `
-            <div class="card shadow-sm border-primary">
-                <div class="card-header bg-primary text-white">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">
-                            <i class="fas fa-star me-2"></i>Latest Review
-                        </h5>
-                        <span class="badge bg-white text-primary">${new Date(review.created_at || Date.now()).toLocaleDateString()}</span>
-                    </div>
+        })
+        .fail(function() {
+            $('#reviews-list').html(`
+                <div class="chos-empty-state">
+                    <i class="fas fa-chart-line empty-icon"></i>
+                    <h5 class="empty-title">No reviews yet</h5>
+                    <p class="empty-desc">Generate your first weekly review to get AI-powered insights.</p>
                 </div>
+            `);
+        });
+}
+
+function renderReviews(reviews) {
+    let html = '<div class="row g-3 chos-stagger">';
+    
+    reviews.forEach(review => {
+        const score = review.overall_score || review.readiness_score || '--';
+        const scoreClass = score >= 80 ? 'success' : (score >= 60 ? 'warning' : 'danger');
+        const date = CHOS.format.date(review.created_at || review.week_start);
+        
+        html += `
+        <div class="col-md-6 col-lg-4">
+            <div class="chos-card chos-card-interactive" onclick="showReviewDetail('${review.id}')" style="cursor: pointer;">
                 <div class="card-body">
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-6">
-                            <h6 class="fw-bold text-success mb-2">
-                                <i class="fas fa-trophy me-2"></i>Strengths
-                            </h6>
-                            <ul class="list-unstyled mb-0">
-                                ${strengthsHtml || '<li class="text-muted">No strengths identified</li>'}
-                            </ul>
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <span class="chos-badge chos-badge-primary mb-2">Week ${review.week_number || '?'}</span>
+                            <h5 class="fw-bold mb-1">${date}</h5>
                         </div>
-                        <div class="col-md-6">
-                            <h6 class="fw-bold text-warning mb-2">
-                                <i class="fas fa-flag me-2"></i>Areas to Improve
-                            </h6>
-                            <ul class="list-unstyled mb-0">
-                                ${weaknessesHtml || '<li class="text-muted">No weaknesses identified</li>'}
-                            </ul>
+                        <div class="chos-readiness ${CHOS.format.readinessClass(score)}">
+                            ${score}
                         </div>
                     </div>
-
+                    
+                    ${review.strengths ? `
                     <div class="mb-3">
-                        <h6 class="fw-bold mb-2">
-                            <i class="fas fa-heartbeat me-2"></i>Recovery Status
+                        <h6 class="fw-bold text-success mb-1" style="font-size: 0.8125rem;">
+                            <i class="fas fa-arrow-up me-1"></i>Strengths
                         </h6>
-                        <span class="badge ${recoveryBadge} fs-6 text-capitalize">${recoveryStatus}</span>
-                    </div>
-
-                    <div class="mb-3">
-                        <h6 class="fw-bold text-info mb-2">
-                            <i class="fas fa-lightbulb me-2"></i>AI Recommendations
-                        </h6>
-                        <ul class="list-unstyled mb-0">
-                            ${recommendationsHtml || '<li class="text-muted">No specific recommendations</li>'}
+                        <ul class="list-unstyled mb-0" style="font-size: 0.8125rem;">
+                            ${(Array.isArray(review.strengths) ? review.strengths : [review.strengths]).slice(0, 2).map(s => 
+                                `<li class="text-muted">• ${s}</li>`
+                            ).join('')}
                         </ul>
                     </div>
-
-                    <div class="d-flex gap-2 mt-3">
-                        <button class="btn btn-success" onclick="applyAdjustments(${review.id})">
-                            <i class="fas fa-check me-2"></i>Apply Auto-Adjustments
-                        </button>
-                        <button class="btn btn-outline-primary" onclick="viewReviewDetails(${review.id})">
-                            <i class="fas fa-eye me-2"></i>View Full Details
-                        </button>
+                    ` : ''}
+                    
+                    ${review.weaknesses ? `
+                    <div class="mb-3">
+                        <h6 class="fw-bold text-danger mb-1" style="font-size: 0.8125rem;">
+                            <i class="fas fa-arrow-down me-1"></i>Areas to Improve
+                        </h6>
+                        <ul class="list-unstyled mb-0" style="font-size: 0.8125rem;">
+                            ${(Array.isArray(review.weaknesses) ? review.weaknesses : [review.weaknesses]).slice(0, 2).map(w => 
+                                `<li class="text-muted">• ${w}</li>`
+                            ).join('')}
+                        </ul>
+                    </div>
+                    ` : ''}
+                    
+                    <div class="d-flex justify-content-between align-items-center mt-3 pt-3" style="border-top: 1px solid var(--color-border);">
+                        <span class="text-muted" style="font-size: 0.75rem;">
+                            ${review.applied ? '<i class="fas fa-check text-success me-1"></i>Applied' : '<i class="fas fa-clock text-warning me-1"></i>Pending'}
+                        </span>
+                        <span class="chos-btn chos-btn-sm chos-btn-ghost">
+                            View Details <i class="fas fa-chevron-right ms-1"></i>
+                        </span>
                     </div>
                 </div>
             </div>
-        `;
-
-        $('#latest-review-container').html(reviewHtml);
-    }
-
-    // Apply auto-adjustments
-    function applyAdjustments(reviewId) {
-        if (!confirm('Apply AI recommendations to your next week\'s training?')) {
-            return;
-        }
-
-        showLoading();
-
-        $.ajax({
-            url: `/api/v1/review/${reviewId}/apply-adjustments`,
-            type: 'POST',
-            success: function(response) {
-                hideLoading();
-                showToast('Adjustments applied successfully!', 'success');
-            },
-            error: function(xhr) {
-                hideLoading();
-                const errorMsg = xhr.responseJSON?.detail || 'Failed to apply adjustments';
-                showToast(errorMsg, 'error');
-            }
-        });
-    }
-
-    // View review details (placeholder)
-    function viewReviewDetails(reviewId) {
-        showToast('Review details view coming soon...', 'info');
-    }
-
-    // Load reviews list
-    function loadReviewsList() {
-        $.ajax({
-            url: '/api/v1/review/weekly/list',
-            type: 'GET',
-            success: function(reviews) {
-                if (reviews && reviews.length > 0) {
-                    displayReviewsList(reviews);
-                }
-            },
-            error: function(xhr) {
-                console.log('No reviews found or error loading');
-            }
-        });
-    }
-
-    // Display reviews list
-    function displayReviewsList(reviews) {
-        const listHtml = reviews.map(review => {
-            const date = new Date(review.created_at || Date.now()).toLocaleDateString();
-            const recoveryStatus = review.recovery_status || 'good';
-            const recoveryBadge = 
-                recoveryStatus === 'excellent' ? 'bg-success' :
-                recoveryStatus === 'good' ? 'bg-primary' :
-                recoveryStatus === 'fair' ? 'bg-warning' : 'bg-danger';
-
-            return `
-                <div class="card mb-2 shadow-sm">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="fw-bold mb-1">Week ${review.week_number || '-'}</h6>
-                                <p class="text-muted small mb-0">${date}</p>
-                            </div>
-                            <div class="d-flex align-items-center gap-2">
-                                <span class="badge ${recoveryBadge} text-capitalize">${recoveryStatus}</span>
-                                <button class="btn btn-sm btn-outline-primary" onclick="viewReviewDetails(${review.id})">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-        $('#reviews-list').html(listHtml);
-    }
-
-    // Load data on page load
-    $(document).ready(function() {
-        loadReviewsList();
-        
-        // Load latest review
-        $.ajax({
-            url: '/api/v1/review/weekly/latest',
-            type: 'GET',
-            success: function(review) {
-                if (review && review.id) {
-                    displayLatestReview(review);
-                }
-            },
-            error: function() {
-                console.log('No latest review found');
-            }
-        });
+        </div>`;
     });
+    
+    html += '</div>';
+    $('#reviews-list').html(html);
+}
+
+function generateReview() {
+    CHOS.loading.button('#btn-generate-review', true);
+    
+    CHOS.api.post('/api/v1/review/weekly', {})
+        .done(function(data) {
+            CHOS.toast.success('Weekly review generated!');
+            loadReviews();
+        })
+        .always(function() {
+            CHOS.loading.button('#btn-generate-review', false);
+        });
+}
+
+function showReviewDetail(reviewId) {
+    currentReviewId = reviewId;
+    CHOS.loading.spinner('#review-detail-content');
+    new bootstrap.Modal('#reviewDetailModal').show();
+    
+    CHOS.api.get('/api/v1/review/weekly/' + reviewId)
+        .done(function(review) {
+            let html = `
+            <div class="row g-4">
+                <div class="col-md-8">
+                    <h5 class="fw-bold mb-3">Performance Summary</h5>
+                    <p>${review.summary || 'No summary available'}</p>
+                    
+                    ${review.strengths ? `
+                    <h6 class="fw-bold text-success"><i class="fas fa-arrow-up me-1"></i>Strengths</h6>
+                    <ul>${(Array.isArray(review.strengths) ? review.strengths : [review.strengths]).map(s => `<li>${s}</li>`).join('')}</ul>
+                    ` : ''}
+                    
+                    ${review.weaknesses ? `
+                    <h6 class="fw-bold text-danger"><i class="fas fa-arrow-down me-1"></i>Weaknesses</h6>
+                    <ul>${(Array.isArray(review.weaknesses) ? review.weaknesses : [review.weaknesses]).map(w => `<li>${w}</li>`).join('')}</ul>
+                    ` : ''}
+                    
+                    ${review.recommendations ? `
+                    <h6 class="fw-bold text-primary"><i class="fas fa-lightbulb me-1"></i>Recommendations</h6>
+                    <ul>${(Array.isArray(review.recommendations) ? review.recommendations : [review.recommendations]).map(r => `<li>${r}</li>`).join('')}</ul>
+                    ` : ''}
+                </div>
+                <div class="col-md-4">
+                    <div class="chos-stat-card mb-3">
+                        <div class="stat-label">Recovery Status</div>
+                        <div class="stat-value">${review.recovery_status || '--'}</div>
+                    </div>
+                    <div class="chos-stat-card mb-3">
+                        <div class="stat-label">Volume</div>
+                        <div class="stat-value">${review.volume_assessment || '--'}</div>
+                    </div>
+                    ${review.adjustments ? `
+                    <div class="chos-stat-card">
+                        <div class="stat-label">Suggested Volume Change</div>
+                        <div class="stat-value">${review.adjustments.volume_change || 0}%</div>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>`;
+            
+            $('#review-detail-content').html(html);
+        });
+}
+
+function applyReview() {
+    if (!currentReviewId) return;
+    
+    CHOS.loading.button('#btn-apply-review', true);
+    
+    CHOS.api.post('/api/v1/review/weekly/' + currentReviewId + '/apply', {})
+        .done(function() {
+            CHOS.toast.success('Adjustments applied to next week!');
+            bootstrap.Modal.getInstance('#reviewDetailModal').hide();
+            loadReviews();
+        })
+        .always(function() {
+            CHOS.loading.button('#btn-apply-review', false);
+        });
+}
 </script>
 {% endblock %}
