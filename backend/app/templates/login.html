@@ -70,8 +70,12 @@
 
 {% block extra_js %}
 <script src="/static/js/auth.js"></script>
+<script src="/static/js/validation.js"></script>
 <script>
 $(document).ready(function() {
+    // Setup real-time validation
+    FormValidator.setupRealtimeValidation($('#login-form'));
+
     // Check for success query parameters
     const urlParams = new URLSearchParams(window.location.search);
     
@@ -97,7 +101,13 @@ $(document).ready(function() {
     
     $('#login-form').on('submit', function(e) {
         e.preventDefault();
-        
+
+        // Validate form
+        const validation = FormValidator.validateForm($(this));
+        if (!validation.valid) {
+            return false;
+        }
+
         const email = $('#email').val();
         const password = $('#password').val();
         const $btn = $('#login-btn');
