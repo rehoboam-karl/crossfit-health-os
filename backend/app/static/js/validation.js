@@ -57,7 +57,7 @@ const FormValidator = {
     },
 
     /**
-     * Validate password strength
+     * Validate password strength (for registration/password creation only)
      */
     validatePassword: function(password) {
         if (!password || password.trim() === '') {
@@ -70,6 +70,17 @@ const FormValidator = {
 
         if (!this.rules.password.pattern.test(password)) {
             return { valid: false, message: this.rules.password.message };
+        }
+
+        return { valid: true };
+    },
+
+    /**
+     * Validate password for login (just check if not empty)
+     */
+    validatePasswordLogin: function(password) {
+        if (!password || password.trim() === '') {
+            return { valid: false, message: 'Password is required' };
         }
 
         return { valid: true };
@@ -260,7 +271,13 @@ const FormValidator = {
                     const password = $form.find('#password').val();
                     result = this.validatePasswordConfirm(password, value);
                 } else {
-                    result = this.validatePassword(value);
+                    // Check if this is a login form (don't validate password strength)
+                    const isLoginForm = $form.attr('id') === 'login-form';
+                    if (isLoginForm) {
+                        result = this.validatePasswordLogin(value);
+                    } else {
+                        result = this.validatePassword(value);
+                    }
                 }
             } else if ($input.attr('name') === 'name' || $input.attr('id') === 'name') {
                 result = this.validateName(value);
@@ -317,8 +334,16 @@ const FormValidator = {
         // Password validation
         $form.find('input[type="password"]#password').on('blur', function() {
             const $input = $(this);
-            const result = self.validatePassword($input.val());
-            self.showFeedback($input, result);
+            const isLoginForm = $form.attr('id') === 'login-form';
+
+            // Don't validate password strength on login form
+            if (isLoginForm) {
+                const result = self.validatePasswordLogin($input.val());
+                self.showFeedback($input, result);
+            } else {
+                const result = self.validatePassword($input.val());
+                self.showFeedback($input, result);
+            }
         });
 
         // Confirm password validation
