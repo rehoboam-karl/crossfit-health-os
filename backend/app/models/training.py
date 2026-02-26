@@ -1,7 +1,7 @@
 """
 Pydantic models for Training domain
 """
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date, time as dt_time
 from enum import Enum
@@ -118,13 +118,33 @@ class WorkoutSessionCreate(WorkoutSessionBase):
     """Create workout session"""
     template_id: Optional[UUID] = None
     scheduled_at: Optional[datetime] = None
-    
+    allow_retroactive: bool = False  # Allow logging past workouts
+
     @field_validator('scheduled_at')
     @classmethod
-    def validate_future_date(cls, v):
-        """Ensure scheduled_at is not in the past"""
-        if v and v < datetime.utcnow():
-            raise ValueError('scheduled_at must be in the future or present')
+    def validate_future_date(cls, v, info):
+        """
+        Validate scheduled_at date
+
+        - For scheduled workouts (future planning): must be in future
+        - For retroactive logging: can be in past if allow_retroactive=True
+        """
+        if not v:
+            return v
+
+        # Allow retroactive logging if flag is set
+        allow_retroactive = info.data.get('allow_retroactive', False)
+        if allow_retroactive:
+            # For retroactive logging, allow past dates up to 30 days back
+            thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+            if v < thirty_days_ago:
+                raise ValueError('Retroactive workouts must be within the last 30 days')
+            return v
+
+        # For scheduled workouts, ensure future date
+        if v < datetime.utcnow():
+            raise ValueError('Scheduled workouts must be in the future. Use allow_retroactive=True to log past workouts.')
+
         return v
 
 
@@ -265,14 +285,13 @@ class DailyTrainingSchedule(BaseModel):
     day: DayOfWeek
     sessions: List[TrainingSessionSlot] = Field(..., min_length=0, max_length=3, description="Max 3 sessions per day")
     rest_day: bool = Field(False, description="Mark as rest day")
-    
-    @field_validator('sessions')
-    @classmethod
-    def validate_no_sessions_on_rest_day(cls, v, info):
+
+    @model_validator(mode='after')
+    def validate_no_sessions_on_rest_day(self):
         """Ensure no sessions if rest_day=True"""
-        if info.data.get('rest_day') and len(v) > 0:
+        if self.rest_day and len(self.sessions) > 0:
             raise ValueError('Rest days cannot have training sessions')
-        return v
+        return self
 
 
 class WeeklyScheduleCreate(BaseModel):
