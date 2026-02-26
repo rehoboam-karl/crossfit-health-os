@@ -49,7 +49,10 @@ class Settings(BaseSettings):
     # JWT
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_HOURS: int = 24
-    
+
+    # Default timezone for calendar events
+    DEFAULT_TIMEZONE: str = "America/Sao_Paulo"
+
     class Config:
         env_file = ".env"
         case_sensitive = True

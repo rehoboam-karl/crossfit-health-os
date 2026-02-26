@@ -86,14 +86,18 @@ async def create_calendar_event(
     description: str,
     start: datetime,
     end: datetime,
+    timezone: str = None,
     color_id: str = "9",  # blueberry
 ) -> dict:
     """Create a single Google Calendar event."""
+    # Use provided timezone or default
+    tz = timezone or settings.DEFAULT_TIMEZONE
+
     event = {
         "summary": summary,
         "description": description,
-        "start": {"dateTime": start.isoformat(), "timeZone": "America/Sao_Paulo"},
-        "end": {"dateTime": end.isoformat(), "timeZone": "America/Sao_Paulo"},
+        "start": {"dateTime": start.isoformat(), "timeZone": tz},
+        "end": {"dateTime": end.isoformat(), "timeZone": tz},
         "colorId": color_id,
         "reminders": {
             "useDefault": False,
@@ -123,6 +127,18 @@ async def sync_calendar_events(user_id: UUID) -> dict:
     access_token = await _get_user_token(user_id)
     if not access_token:
         return {"created": 0, "status": "not_connected", "message": "Google Calendar not connected. Please authorize first."}
+
+    # Fetch user profile to get timezone preference
+    user_resp = supabase_client.table("users").select("preferences, timezone").eq(
+        "id", str(user_id)
+    ).single().execute()
+
+    user_timezone = settings.DEFAULT_TIMEZONE  # Default
+    if user_resp.data:
+        # Check for timezone in profile (direct field or in preferences)
+        user_timezone = user_resp.data.get("timezone") or \
+                       user_resp.data.get("preferences", {}).get("timezone") or \
+                       settings.DEFAULT_TIMEZONE
 
     # Fetch active schedule
     schedule_resp = supabase_client.table("weekly_schedules").select("*").eq(
@@ -192,7 +208,7 @@ async def sync_calendar_events(user_id: UUID) -> dict:
             try:
                 await create_calendar_event(
                     access_token, summary, description,
-                    start_dt, end_dt, color_id,
+                    start_dt, end_dt, user_timezone, color_id,
                 )
                 created += 1
             except Exception as e:

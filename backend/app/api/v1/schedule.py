@@ -430,25 +430,58 @@ async def generate_meal_plan(
                     notes=f"After {session.time} session"
                 ))
             
-            # Add standard meals (avoiding workout times)
-            # TODO: Implement smart meal spacing logic
-            meals.append(MealWindow(
-                meal_type=MealType.BREAKFAST,
-                time=time(7, 0),
-                duration_minutes=30
-            ))
-            
-            meals.append(MealWindow(
-                meal_type=MealType.LUNCH,
-                time=time(12, 0),
-                duration_minutes=45
-            ))
-            
-            meals.append(MealWindow(
-                meal_type=MealType.DINNER,
-                time=time(19, 0),
-                duration_minutes=45
-            ))
+            # Add standard meals (smart spacing to avoid workout meal conflicts)
+            standard_meal_times = {
+                MealType.BREAKFAST: time(7, 0),
+                MealType.LUNCH: time(12, 0),
+                MealType.DINNER: time(19, 0)
+            }
+
+            # Calculate workout meal time ranges (pre + workout + post)
+            workout_meal_ranges = []
+            for session in day_schedule.sessions:
+                # Pre-workout starts 60min before workout
+                range_start = (
+                    datetime.combine(date.today(), session.time) +
+                    timedelta(minutes=pre_workout_offset_minutes)
+                ).time()
+
+                # Post-workout ends 30min after workout + duration
+                range_end = (
+                    datetime.combine(date.today(), session.time) +
+                    timedelta(minutes=session.duration_minutes + post_workout_offset_minutes + 30)
+                ).time()
+
+                workout_meal_ranges.append((range_start, range_end))
+
+            # Add standard meals only if they don't conflict with workout meals
+            for meal_type, meal_time in standard_meal_times.items():
+                # Check if this meal time conflicts with any workout meal range
+                conflicts = False
+                for range_start, range_end in workout_meal_ranges:
+                    # Convert times to minutes for easier comparison
+                    meal_minutes = meal_time.hour * 60 + meal_time.minute
+                    start_minutes = range_start.hour * 60 + range_start.minute
+                    end_minutes = range_end.hour * 60 + range_end.minute
+
+                    # Handle day wrap-around
+                    if end_minutes < start_minutes:
+                        end_minutes += 24 * 60
+                        if meal_minutes < start_minutes:
+                            meal_minutes += 24 * 60
+
+                    # Check if meal falls within workout range (with 30min buffer)
+                    if start_minutes - 30 <= meal_minutes <= end_minutes + 30:
+                        conflicts = True
+                        break
+
+                # Only add meal if it doesn't conflict
+                if not conflicts:
+                    meals.append(MealWindow(
+                        meal_type=meal_type,
+                        time=meal_time,
+                        duration_minutes=30 if meal_type == MealType.BREAKFAST else 45
+                    ))
         
         # Sort meals by time
         meals.sort(key=lambda m: m.time)
