@@ -5,6 +5,7 @@ Training schedule management and meal plan generation
 from fastapi import APIRouter, HTTPException, Depends, status
 from typing import List
 from uuid import UUID
+from pydantic import BaseModel, Field
 from datetime import date, datetime, time, timedelta
 
 from app.models.training import (
@@ -21,6 +22,17 @@ from app.db.supabase import supabase_client
 from app.db.helpers import handle_supabase_response, handle_supabase_single
 from app.core.auth import get_current_user
 from app.core.engine.ai_programmer import ai_programmer
+
+class AIWeeklyProgramRequest(BaseModel):
+    """Request to generate weekly program via AI"""
+    methodology: str = Field("hwpo", description="Programming methodology: hwpo, mayhem, comptrain, custom")
+    week_number: int = Field(1, ge=1, le=52, description="Week number in mesocycle (1-52)")
+    focus_movements: list[str] = Field(default_factory=list, description="Movements to emphasize (e.g., ['squat', 'snatch'])")
+    include_previous_week: bool = Field(False, description="Use previous week data for progression")
+
+
+
+
 import logging
 
 router = APIRouter()
@@ -108,6 +120,146 @@ async def get_active_schedule(
         raise HTTPException(status_code=404, detail="No active schedule found")
     
     return WeeklySchedule(**data[0])
+
+
+@router.post("/weekly/generate-ai", status_code=status.HTTP_201_CREATED)
+async def generate_weekly_program_ai(
+    request: AIWeeklyProgramRequest,
+    schedule_id: UUID = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Generate weekly training program using AI
+    
+    This endpoint creates an intelligent, progressive training program based on:
+    - User's fitness level, goals, and weaknesses
+    - Selected methodology (HWPO, Mayhem, CompTrain)
+    - Week number in mesocycle (for progression)
+    - Optional focus on specific movements
+    - Previous week performance (for progressive overload)
+    
+    Example:
+    ```json
+    {
+        "methodology": "hwpo",
+        "week_number": 3,
+        "focus_movements": ["snatch", "handstand_walk"],
+        "include_previous_week": true
+    }
+    ```
+    
+    If schedule_id provided, it will use that schedule's training days and durations.
+    Otherwise, uses user's active schedule.
+    """
+    user_id = UUID(current_user["id"])
+    
+    # Get user profile
+    user_response = supabase_client.table("users").select("*").eq(
+        "id", str(user_id)
+    ).single().execute()
+    
+    user_profile = handle_supabase_single(user_response, "User not found")
+    
+    # Get training schedule
+    if schedule_id:
+        schedule_response = supabase_client.table("weekly_schedules").select("*").eq(
+            "id", str(schedule_id)
+        ).single().execute()
+        schedule_data = handle_supabase_single(schedule_response, "Schedule not found")
+    else:
+        # Use active schedule
+        schedule_response = supabase_client.table("weekly_schedules").select("*").eq(
+            "user_id", str(user_id)
+        ).eq("active", True).order("created_at", desc=True).limit(1).execute()
+        
+        data = handle_supabase_response(schedule_response, "Failed to fetch schedule")
+        if not data:
+            raise HTTPException(
+                status_code=404,
+                detail="No active schedule found. Create one first with POST /weekly"
+            )
+        schedule_data = data[0]
+    
+    training_schedule = WeeklySchedule(**schedule_data)
+    
+    # Extract training days and durations from schedule
+    training_days = []
+    session_durations = {}
+    
+    for day_key, day_schedule in training_schedule.schedule.items():
+        if not day_schedule.rest_day and day_schedule.sessions:
+            day_enum = DayOfWeek(day_key.value if isinstance(day_key, DayOfWeek) else day_key)
+            training_days.append(day_enum)
+            
+            # Use duration of first session (can be enhanced)
+            total_duration = sum(s.duration_minutes for s in day_schedule.sessions)
+            session_durations[day_enum] = total_duration
+    
+    # Get previous week data if requested
+    previous_week_data = None
+    if request.include_previous_week and request.week_number > 1:
+        # TODO: Fetch actual previous week performance
+        previous_week_data = {
+            "note": "Previous week data integration coming soon",
+            "completed_workouts": 5,
+            "avg_rpe": 7.5
+        }
+    
+    # Generate program via AI
+    try:
+        from app.models.training import Methodology as MethodEnum
+        methodology_enum = MethodEnum(request.methodology.lower())
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid methodology. Choose: hwpo, mayhem, comptrain, custom"
+        )
+    
+    weekly_program = await ai_programmer.generate_weekly_program(
+        user_profile=user_profile,
+        methodology=methodology_enum,
+        training_days=training_days,
+        session_durations=session_durations,
+        week_number=request.week_number,
+        focus_movements=request.focus_movements,
+        previous_week_data=previous_week_data
+    )
+    
+    # Save generated workouts to database
+    saved_templates = []
+    for day, template in weekly_program.items():
+        template_data = {
+            "name": template.name,
+            "description": template.description,
+            "methodology": template.methodology.value,
+            "difficulty_level": template.difficulty_level,
+            "workout_type": template.workout_type.value,
+            "duration_minutes": template.duration_minutes,
+            "movements": [m.model_dump(mode='json') for m in template.movements],
+            "target_stimulus": template.target_stimulus,
+            "tags": template.tags + [f"week_{request.week_number}", f"ai_{request.methodology}"],
+            "equipment_required": template.equipment_required,
+            "is_public": False,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        
+        response = supabase_client.table("workout_templates").insert(
+            template_data
+        ).execute()
+        
+        data = handle_supabase_response(response, f"Failed to save {day.value} workout")
+        if data:
+            saved_templates.append(data[0])
+    
+    return {
+        "status": "success",
+        "message": f"Generated {len(saved_templates)} AI-powered workouts for week {request.week_number}",
+        "methodology": request.methodology,
+        "week_number": request.week_number,
+        "training_days": [d.value for d in training_days],
+        "workouts": saved_templates,
+        "note": "Workouts saved to workout_templates. You can now schedule them in your weekly calendar."
+    }
 
 
 @router.get("/weekly", response_model=List[WeeklySchedule])
@@ -353,152 +505,3 @@ async def get_meal_plan(
 # ============================================
 # AI-Powered Program Generation
 # ============================================
-
-from pydantic import BaseModel, Field
-
-class AIWeeklyProgramRequest(BaseModel):
-    """Request to generate weekly program via AI"""
-    methodology: str = Field("hwpo", description="Programming methodology: hwpo, mayhem, comptrain, custom")
-    week_number: int = Field(1, ge=1, le=52, description="Week number in mesocycle (1-52)")
-    focus_movements: list[str] = Field(default_factory=list, description="Movements to emphasize (e.g., ['squat', 'snatch'])")
-    include_previous_week: bool = Field(False, description="Use previous week data for progression")
-
-
-@router.post("/weekly/generate-ai", status_code=status.HTTP_201_CREATED)
-async def generate_weekly_program_ai(
-    request: AIWeeklyProgramRequest,
-    schedule_id: UUID = None,
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Generate weekly training program using AI
-    
-    This endpoint creates an intelligent, progressive training program based on:
-    - User's fitness level, goals, and weaknesses
-    - Selected methodology (HWPO, Mayhem, CompTrain)
-    - Week number in mesocycle (for progression)
-    - Optional focus on specific movements
-    - Previous week performance (for progressive overload)
-    
-    Example:
-    ```json
-    {
-        "methodology": "hwpo",
-        "week_number": 3,
-        "focus_movements": ["snatch", "handstand_walk"],
-        "include_previous_week": true
-    }
-    ```
-    
-    If schedule_id provided, it will use that schedule's training days and durations.
-    Otherwise, uses user's active schedule.
-    """
-    user_id = UUID(current_user["id"])
-    
-    # Get user profile
-    user_response = supabase_client.table("users").select("*").eq(
-        "id", str(user_id)
-    ).single().execute()
-    
-    user_profile = handle_supabase_single(user_response, "User not found")
-    
-    # Get training schedule
-    if schedule_id:
-        schedule_response = supabase_client.table("weekly_schedules").select("*").eq(
-            "id", str(schedule_id)
-        ).single().execute()
-        schedule_data = handle_supabase_single(schedule_response, "Schedule not found")
-    else:
-        # Use active schedule
-        schedule_response = supabase_client.table("weekly_schedules").select("*").eq(
-            "user_id", str(user_id)
-        ).eq("active", True).order("created_at", desc=True).limit(1).execute()
-        
-        data = handle_supabase_response(schedule_response, "Failed to fetch schedule")
-        if not data:
-            raise HTTPException(
-                status_code=404,
-                detail="No active schedule found. Create one first with POST /weekly"
-            )
-        schedule_data = data[0]
-    
-    training_schedule = WeeklySchedule(**schedule_data)
-    
-    # Extract training days and durations from schedule
-    training_days = []
-    session_durations = {}
-    
-    for day_key, day_schedule in training_schedule.schedule.items():
-        if not day_schedule.rest_day and day_schedule.sessions:
-            day_enum = DayOfWeek(day_key.value if isinstance(day_key, DayOfWeek) else day_key)
-            training_days.append(day_enum)
-            
-            # Use duration of first session (can be enhanced)
-            total_duration = sum(s.duration_minutes for s in day_schedule.sessions)
-            session_durations[day_enum] = total_duration
-    
-    # Get previous week data if requested
-    previous_week_data = None
-    if request.include_previous_week and request.week_number > 1:
-        # TODO: Fetch actual previous week performance
-        previous_week_data = {
-            "note": "Previous week data integration coming soon",
-            "completed_workouts": 5,
-            "avg_rpe": 7.5
-        }
-    
-    # Generate program via AI
-    try:
-        from app.models.training import Methodology as MethodEnum
-        methodology_enum = MethodEnum(request.methodology.lower())
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid methodology. Choose: hwpo, mayhem, comptrain, custom"
-        )
-    
-    weekly_program = await ai_programmer.generate_weekly_program(
-        user_profile=user_profile,
-        methodology=methodology_enum,
-        training_days=training_days,
-        session_durations=session_durations,
-        week_number=request.week_number,
-        focus_movements=request.focus_movements,
-        previous_week_data=previous_week_data
-    )
-    
-    # Save generated workouts to database
-    saved_templates = []
-    for day, template in weekly_program.items():
-        template_data = {
-            "name": template.name,
-            "description": template.description,
-            "methodology": template.methodology.value,
-            "difficulty_level": template.difficulty_level,
-            "workout_type": template.workout_type.value,
-            "duration_minutes": template.duration_minutes,
-            "movements": [m.model_dump(mode='json') for m in template.movements],
-            "target_stimulus": template.target_stimulus,
-            "tags": template.tags + [f"week_{request.week_number}", f"ai_{request.methodology}"],
-            "equipment_required": template.equipment_required,
-            "is_public": False,
-            "created_at": datetime.utcnow().isoformat()
-        }
-        
-        response = supabase_client.table("workout_templates").insert(
-            template_data
-        ).execute()
-        
-        data = handle_supabase_response(response, f"Failed to save {day.value} workout")
-        if data:
-            saved_templates.append(data[0])
-    
-    return {
-        "status": "success",
-        "message": f"Generated {len(saved_templates)} AI-powered workouts for week {request.week_number}",
-        "methodology": request.methodology,
-        "week_number": request.week_number,
-        "training_days": [d.value for d in training_days],
-        "workouts": saved_templates,
-        "note": "Workouts saved to workout_templates. You can now schedule them in your weekly calendar."
-    }

@@ -96,27 +96,82 @@ class AdaptiveTrainingEngine:
             reasoning=reasoning
         )
     
+    async def _calculate_hrv_baseline(self, user_id: UUID, lookback_days: int = 30) -> float:
+        """
+        Calculate user's HRV baseline (rolling average)
+
+        Args:
+            user_id: User ID
+            lookback_days: Number of days to average (default 30)
+
+        Returns:
+            Baseline HRV in milliseconds (RMSSD)
+        """
+        from_date = (datetime.utcnow() - timedelta(days=lookback_days)).date()
+
+        response = self.supabase.table("recovery_metrics").select("hrv_ms").eq(
+            "user_id", str(user_id)
+        ).gte("date", from_date.isoformat()).execute()
+
+        data = handle_supabase_response(response, "Failed to fetch HRV history")
+
+        if not data or len(data) < 5:  # Need at least 5 days of data
+            logger.warning(f"Insufficient HRV data for user {user_id}, using default baseline of 50ms")
+            return 50.0  # Default baseline for new users
+
+        # Calculate average HRV
+        hrv_values = [m.get("hrv_ms") for m in data if m.get("hrv_ms") is not None]
+
+        if not hrv_values:
+            return 50.0
+
+        baseline = sum(hrv_values) / len(hrv_values)
+        logger.info(f"User {user_id} HRV baseline: {baseline:.1f}ms (from {len(hrv_values)} days)")
+        return baseline
+
     async def _get_recovery_metrics(
         self,
         user_id: UUID,
         target_date: date
     ) -> dict:
-        """Get recovery metrics for user on date"""
+        """
+        Get recovery metrics for user on date and calculate HRV ratio
+
+        Returns dict with:
+        - hrv_ratio: Current HRV / Baseline HRV
+        - sleep_quality: 1-10 scale
+        - stress_level: 1-10 scale
+        - muscle_soreness: 1-10 scale
+        - energy_level: 1-10 scale
+        """
         response = self.supabase.table("recovery_metrics").select("*").eq(
             "user_id", str(user_id)
         ).eq("date", target_date.isoformat()).execute()
-        
+
         # ✅ Check for errors
         data = handle_supabase_response(response, "Failed to fetch recovery metrics")
-        
+
         if data:
-            return data[0]
-        
+            metric = data[0]
+
+            # Calculate HRV ratio if raw HRV is present
+            if metric.get("hrv_ms"):
+                baseline_hrv = await self._calculate_hrv_baseline(user_id)
+                hrv_ratio = metric["hrv_ms"] / baseline_hrv
+                metric["hrv_ratio"] = hrv_ratio
+                logger.info(f"HRV ratio for {target_date}: {hrv_ratio:.2f} ({metric['hrv_ms']}ms / {baseline_hrv:.1f}ms)")
+            else:
+                metric["hrv_ratio"] = 1.0
+                logger.warning(f"No HRV data for {target_date}, defaulting ratio to 1.0")
+
+            return metric
+
         # If no data, return default "unknown" state
         logger.warning(f"No recovery data for user {user_id} on {target_date}, using defaults")
         return {
             "hrv_ratio": 1.0,
-            "sleep_quality_score": 70,
+            "hrv_ms": 50,
+            "sleep_quality": 7,
             "stress_level": 5,
             "muscle_soreness": 5,
             "energy_level": 7,
@@ -136,27 +191,44 @@ class AdaptiveTrainingEngine:
     def _calculate_readiness_score(self, recovery: dict) -> int:
         """
         Calculate readiness score (0-100) from recovery metrics
-        
+
         Weighted formula:
         - HRV ratio: 40%
         - Sleep quality: 30%
         - Stress (inverted): 20%
         - Soreness (inverted): 10%
+
+        All metrics normalized to 0-1 before applying weights.
         """
+        # Get raw values with defaults
         hrv_ratio = recovery.get("hrv_ratio", 1.0)
-        sleep_quality = recovery.get("sleep_quality_score", 70)
-        stress = recovery.get("stress_level", 5)
-        soreness = recovery.get("muscle_soreness", 5)
-        
+        sleep_quality = recovery.get("sleep_quality", 7)  # 1-10 scale
+        stress = recovery.get("stress_level", 5)  # 1-10 scale
+        soreness = recovery.get("muscle_soreness", 5)  # 1-10 scale
+
+        # Normalize HRV ratio (typically 0.7-1.3, with 1.0 = baseline)
+        # Clamp between 0.5 and 1.5 for safety
+        hrv_normalized = max(0, min(1, (hrv_ratio - 0.5) / 1.0))
+
+        # Normalize sleep quality from 1-10 scale to 0-1
+        sleep_normalized = (sleep_quality - 1) / 9
+
+        # Normalize stress (inverted: low stress = high readiness)
+        stress_normalized = 1 - ((stress - 1) / 9)
+
+        # Normalize soreness (inverted: low soreness = high readiness)
+        soreness_normalized = 1 - ((soreness - 1) / 9)
+
+        # Apply weighted formula
         readiness = (
-            (hrv_ratio * 40) +           # HRV = 40%
-            (sleep_quality * 0.3) +      # Sleep = 30%
-            ((10 - stress) * 2) +        # Stress = 20%
-            ((10 - soreness) * 1)        # Soreness = 10%
-        )
-        
+            (hrv_normalized * 0.4) +      # HRV = 40%
+            (sleep_normalized * 0.3) +    # Sleep = 30%
+            (stress_normalized * 0.2) +   # Stress = 20%
+            (soreness_normalized * 0.1)   # Soreness = 10%
+        ) * 100
+
         # Clamp to 0-100
-        return max(0, min(100, int(readiness)))
+        return max(0, min(100, int(round(readiness))))
     
     def _determine_volume_adjustment(
         self,
@@ -258,14 +330,14 @@ class AdaptiveTrainingEngine:
         
         for movement in movements:
             adjusted_movement = movement.model_copy(deep=True)
-            
-            # Adjust sets
+
+            # Adjust sets (use round for fair rounding)
             if adjusted_movement.sets:
-                adjusted_movement.sets = max(1, int(adjusted_movement.sets * volume_multiplier))
-            
-            # Adjust reps (if numeric)
+                adjusted_movement.sets = max(1, round(adjusted_movement.sets * volume_multiplier))
+
+            # Adjust reps (if numeric, use round for fair rounding)
             if isinstance(adjusted_movement.reps, int):
-                adjusted_movement.reps = max(1, int(adjusted_movement.reps * volume_multiplier))
+                adjusted_movement.reps = max(1, round(adjusted_movement.reps * volume_multiplier))
             
             # Adjust weight for low readiness
             if readiness_score < 50 and adjusted_movement.weight_kg:

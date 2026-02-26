@@ -127,13 +127,15 @@ async def sync_calendar_events(user_id: UUID) -> dict:
     # Fetch active schedule
     schedule_resp = supabase_client.table("weekly_schedules").select("*").eq(
         "user_id", str(user_id)
-    ).eq("is_active", True).single().execute()
+    ).eq("active", True).order("created_at", desc=True).limit(1).execute()
 
-    schedule = schedule_resp.data
-    if not schedule:
+    if not schedule_resp.data:
         return {"created": 0, "status": "no_schedule", "message": "No active training schedule found."}
 
-    days_config = schedule.get("days", [])
+    schedule = schedule_resp.data[0]
+
+    # Parse schedule data structure (it's a Dict[DayOfWeek, DailyTrainingSchedule])
+    schedule_dict = schedule.get("schedule", {})
     today = datetime.now(timezone.utc).date()
     created = 0
 
@@ -141,19 +143,30 @@ async def sync_calendar_events(user_id: UUID) -> dict:
         target_date = today + timedelta(days=offset)
         weekday = target_date.strftime("%A").lower()  # monday, tuesday, ...
 
-        # Find matching day in schedule
-        day_cfg = next((d for d in days_config if d.get("day", "").lower() == weekday), None)
-        if not day_cfg or day_cfg.get("is_rest", False):
+        # Find matching day in schedule dictionary
+        day_schedule = schedule_dict.get(weekday)
+        if not day_schedule:
             continue
 
-        sessions = day_cfg.get("sessions", [])
+        # Check if it's a rest day
+        if day_schedule.get("rest_day", False):
+            continue
+
+        sessions = day_schedule.get("sessions", [])
         for session in sessions:
-            session_type = session.get("type", "training").capitalize()
+            # Session structure: {time: "06:00", duration_minutes: 60, workout_type: "strength", notes: "..."}
+            workout_type = session.get("workout_type", "training")
+            session_type = workout_type.capitalize() if workout_type else "Training"
             duration_min = session.get("duration_minutes", 60)
             time_str = session.get("time", "06:00")
 
-            # Build datetime
-            hour, minute = map(int, time_str.split(":"))
+            # Handle time string (could be "HH:MM" or time object)
+            if isinstance(time_str, str):
+                hour, minute = map(int, time_str.split(":"))
+            else:
+                # It's already a time object
+                hour = time_str.hour
+                minute = time_str.minute
             start_dt = datetime(
                 target_date.year, target_date.month, target_date.day,
                 hour, minute, tzinfo=timezone.utc
@@ -168,12 +181,13 @@ async def sync_calendar_events(user_id: UUID) -> dict:
             )
 
             color_map = {
-                "strength": "9",    # blueberry
-                "metcon": "11",     # tomato
-                "skill": "2",       # sage
-                "recovery": "7",    # peacock
+                "strength": "9",      # blueberry
+                "metcon": "11",       # tomato
+                "skill": "2",         # sage
+                "conditioning": "7",  # peacock
+                "mixed": "5",         # banana
             }
-            color_id = color_map.get(session.get("type", "").lower(), "9")
+            color_id = color_map.get(workout_type.lower() if workout_type else "", "9")
 
             try:
                 await create_calendar_event(

@@ -116,12 +116,12 @@ async def complete_workout_session(
     if session_response.data["user_id"] != str(user_id):
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    # Update session
+    # Update session with authorization check
     update_data = update.model_dump(exclude_unset=True)
-    
+
     response = supabase_client.table("workout_sessions").update(
         update_data
-    ).eq("id", str(session_id)).execute()
+    ).eq("id", str(session_id)).eq("user_id", str(user_id)).execute()
     
     if response.data:
         return WorkoutSession(**response.data[0])

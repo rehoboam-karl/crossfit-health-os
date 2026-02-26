@@ -42,20 +42,52 @@ async def create_recovery_metric(
     raise HTTPException(status_code=500, detail="Failed to record metrics")
 
 
+@router.get("/recovery", response_model=List[RecoveryMetric])
+async def list_recovery_metrics(
+    start_date: date = None,
+    end_date: date = None,
+    limit: int = 30,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get recovery metrics for date range
+
+    Query params:
+    - start_date: Start date (YYYY-MM-DD)
+    - end_date: End date (YYYY-MM-DD)
+    - limit: Max results (default 30)
+    """
+    user_id = UUID(current_user["id"])
+
+    query = supabase_client.table("recovery_metrics").select("*").eq(
+        "user_id", str(user_id)
+    )
+
+    if start_date:
+        query = query.gte("date", start_date.isoformat())
+
+    if end_date:
+        query = query.lte("date", end_date.isoformat())
+
+    response = query.order("date", desc=True).limit(limit).execute()
+
+    return [RecoveryMetric(**m) for m in response.data]
+
+
 @router.get("/recovery/latest", response_model=RecoveryMetric)
 async def get_latest_recovery(
     current_user: dict = Depends(get_current_user)
 ):
     """Get today's recovery metrics"""
     user_id = UUID(current_user["id"])
-    
+
     response = supabase_client.table("recovery_metrics").select("*").eq(
         "user_id", str(user_id)
     ).order("date", desc=True).limit(1).execute()
-    
+
     if response.data:
         return RecoveryMetric(**response.data[0])
-    
+
     raise HTTPException(status_code=404, detail="No recovery data found")
 
 
