@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from uuid import UUID
 
 from app.db.supabase import supabase_client
+from app.db.helpers import handle_supabase_response
 from app.core.auth import get_current_user
 
 router = APIRouter()
@@ -30,11 +31,9 @@ async def update_user_profile(
     response = supabase_client.table("users").update(updates).eq(
         "id", str(user_id)
     ).execute()
-    
-    if response.data:
-        return response.data[0]
-    
-    raise HTTPException(status_code=500, detail="Failed to update profile")
+
+    data = handle_supabase_response(response, "Failed to update user profile")
+    return data[0]
 
 
 @router.get("/stats")

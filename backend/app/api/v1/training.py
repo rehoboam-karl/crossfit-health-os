@@ -19,6 +19,7 @@ from app.models.training import (
 )
 from app.core.engine.adaptive import adaptive_engine
 from app.db.supabase import supabase_client
+from app.db.helpers import handle_supabase_response, handle_supabase_single
 from app.core.auth import get_current_user
 
 router = APIRouter()
@@ -86,11 +87,9 @@ async def create_workout_session(
     response = supabase_client.table("workout_sessions").insert(
         session_data
     ).execute()
-    
-    if response.data:
-        return WorkoutSession(**response.data[0])
-    
-    raise HTTPException(status_code=500, detail="Failed to create session")
+
+    data = handle_supabase_response(response, "Failed to create workout session")
+    return WorkoutSession(**data[0])
 
 
 @router.patch("/sessions/{session_id}", response_model=WorkoutSession)
@@ -109,24 +108,21 @@ async def complete_workout_session(
     session_response = supabase_client.table("workout_sessions").select("*").eq(
         "id", str(session_id)
     ).single().execute()
-    
-    if not session_response.data:
-        raise HTTPException(status_code=404, detail="Session not found")
-    
-    if session_response.data["user_id"] != str(user_id):
+
+    session_data = handle_supabase_single(session_response, "Session not found")
+
+    if session_data["user_id"] != str(user_id):
         raise HTTPException(status_code=403, detail="Not authorized")
-    
+
     # Update session with authorization check
     update_data = update.model_dump(exclude_unset=True)
 
     response = supabase_client.table("workout_sessions").update(
         update_data
     ).eq("id", str(session_id)).eq("user_id", str(user_id)).execute()
-    
-    if response.data:
-        return WorkoutSession(**response.data[0])
-    
-    raise HTTPException(status_code=500, detail="Failed to update session")
+
+    data = handle_supabase_response(response, "Failed to update workout session")
+    return WorkoutSession(**data[0])
 
 
 @router.get("/sessions", response_model=List[WorkoutSession])
@@ -156,14 +152,13 @@ async def get_workout_session(
     response = supabase_client.table("workout_sessions").select("*").eq(
         "id", str(session_id)
     ).single().execute()
-    
-    if not response.data:
-        raise HTTPException(status_code=404, detail="Session not found")
-    
-    if response.data["user_id"] != str(user_id):
+
+    session_data = handle_supabase_single(response, "Session not found")
+
+    if session_data["user_id"] != str(user_id):
         raise HTTPException(status_code=403, detail="Not authorized")
-    
-    return WorkoutSession(**response.data)
+
+    return WorkoutSession(**session_data)
 
 
 @router.post("/prs", response_model=PersonalRecord, status_code=status.HTTP_201_CREATED)
@@ -182,11 +177,9 @@ async def create_personal_record(
         pr_data,
         on_conflict="user_id,movement_name,record_type"
     ).execute()
-    
-    if response.data:
-        return PersonalRecord(**response.data[0])
-    
-    raise HTTPException(status_code=500, detail="Failed to record PR")
+
+    data = handle_supabase_response(response, "Failed to record personal record")
+    return PersonalRecord(**data[0])
 
 
 @router.get("/prs", response_model=List[PersonalRecord])

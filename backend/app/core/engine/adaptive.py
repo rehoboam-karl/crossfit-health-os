@@ -30,7 +30,19 @@ class AdaptiveTrainingEngine:
     NORMAL_THRESHOLD = 60   # readiness >= 60 → maintain
     REDUCED_THRESHOLD = 40  # readiness >= 40 → reduce volume
     # Below 40 → active recovery only
-    
+
+    # Default values for new users (no data yet)
+    DEFAULT_HRV_MS = 50.0  # Default HRV baseline in milliseconds
+    DEFAULT_READINESS_SCORE = 70  # Default readiness when no metrics available
+    DEFAULT_SLEEP_QUALITY = 7  # Default sleep quality (1-10 scale)
+    DEFAULT_STRESS_LEVEL = 5   # Default stress level (1-10 scale)
+    DEFAULT_MUSCLE_SORENESS = 5  # Default muscle soreness (1-10 scale)
+    DEFAULT_ENERGY_LEVEL = 7   # Default energy level (1-10 scale)
+
+    # HRV calculation constants
+    MIN_HRV_DATA_POINTS = 5  # Minimum days of HRV data for baseline calculation
+    HRV_BASELINE_LOOKBACK_DAYS = 30  # Days to look back for HRV baseline
+
     def __init__(self):
         self.supabase = supabase_client
     
@@ -115,15 +127,15 @@ class AdaptiveTrainingEngine:
 
         data = handle_supabase_response(response, "Failed to fetch HRV history")
 
-        if not data or len(data) < 5:  # Need at least 5 days of data
-            logger.warning(f"Insufficient HRV data for user {user_id}, using default baseline of 50ms")
-            return 50.0  # Default baseline for new users
+        if not data or len(data) < self.MIN_HRV_DATA_POINTS:
+            logger.warning(f"Insufficient HRV data for user {user_id}, using default baseline of {self.DEFAULT_HRV_MS}ms")
+            return self.DEFAULT_HRV_MS
 
         # Calculate average HRV
         hrv_values = [m.get("hrv_ms") for m in data if m.get("hrv_ms") is not None]
 
         if not hrv_values:
-            return 50.0
+            return self.DEFAULT_HRV_MS
 
         baseline = sum(hrv_values) / len(hrv_values)
         logger.info(f"User {user_id} HRV baseline: {baseline:.1f}ms (from {len(hrv_values)} days)")
@@ -170,12 +182,12 @@ class AdaptiveTrainingEngine:
         logger.warning(f"No recovery data for user {user_id} on {target_date}, using defaults")
         return {
             "hrv_ratio": 1.0,
-            "hrv_ms": 50,
-            "sleep_quality": 7,
-            "stress_level": 5,
-            "muscle_soreness": 5,
-            "energy_level": 7,
-            "readiness_score": 70
+            "hrv_ms": self.DEFAULT_HRV_MS,
+            "sleep_quality": self.DEFAULT_SLEEP_QUALITY,
+            "stress_level": self.DEFAULT_STRESS_LEVEL,
+            "muscle_soreness": self.DEFAULT_MUSCLE_SORENESS,
+            "energy_level": self.DEFAULT_ENERGY_LEVEL,
+            "readiness_score": self.DEFAULT_READINESS_SCORE
         }
     
     async def _get_user_profile(self, user_id: UUID) -> dict:

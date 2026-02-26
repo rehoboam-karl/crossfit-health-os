@@ -4,6 +4,47 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 
+// HRV normalization constants (30-100ms typical range)
+const HRV_MIN_MS = 30;
+const HRV_RANGE_MS = 70; // 100 - 30
+
+// Default values for new users
+const DEFAULT_HRV_MS = 50;
+const DEFAULT_READINESS_SCORE = 70;
+
+// Scale constants
+const SLEEP_QUALITY_MAX = 10;
+const STRESS_LEVEL_MAX = 10;
+const MUSCLE_SORENESS_MAX = 10;
+
+// Readiness score weights
+const WEIGHT_HRV = 0.4;
+const WEIGHT_SLEEP = 0.3;
+const WEIGHT_STRESS = 0.2;
+const WEIGHT_SORENESS = 0.1;
+
+// JWT validation helper
+function isTokenExpired(token: string): boolean {
+  // Check token structure
+  if (!token || token.split('.').length !== 3) {
+    return true;
+  }
+
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+
+    // Check if exp field exists
+    if (!payload.exp) {
+      return true;
+    }
+
+    const exp = payload.exp * 1000;
+    return Date.now() > exp;
+  } catch {
+    return true;
+  }
+}
+
 interface RecoveryMetric {
   id: string;
   user_id: string;
@@ -32,7 +73,7 @@ export default function RecoveryPage() {
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
-    hrv_ms: 50,
+    hrv_ms: DEFAULT_HRV_MS,
     resting_hr_bpm: 60,
     sleep_hours: 7.5,
     sleep_quality: 7,
@@ -50,7 +91,7 @@ export default function RecoveryPage() {
   const fetchMetrics = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) {
+      if (!token || isTokenExpired(token)) {
         router.push('/login');
         return;
       }
@@ -80,26 +121,26 @@ export default function RecoveryPage() {
   };
 
   const calculateReadinessScore = (data: any) => {
-    // Normalize HRV (assume 30-100ms range)
-    const hrvNorm = Math.min(Math.max((data.hrv_ms - 30) / 70, 0), 1);
-    
-    // Normalize sleep (0-10 scale)
-    const sleepNorm = data.sleep_quality / 10;
-    
-    // Normalize stress (inverted, 0-10 scale)
-    const stressNorm = 1 - (data.stress_level / 10);
-    
-    // Normalize soreness (inverted, 0-10 scale)
-    const sorenessNorm = 1 - (data.muscle_soreness / 10);
-    
-    // Weighted average
+    // Normalize HRV to 0-1 range
+    const hrvNorm = Math.min(Math.max((data.hrv_ms - HRV_MIN_MS) / HRV_RANGE_MS, 0), 1);
+
+    // Normalize sleep quality to 0-1 range
+    const sleepNorm = data.sleep_quality / SLEEP_QUALITY_MAX;
+
+    // Normalize stress (inverted, lower stress = better)
+    const stressNorm = 1 - (data.stress_level / STRESS_LEVEL_MAX);
+
+    // Normalize soreness (inverted, lower soreness = better)
+    const sorenessNorm = 1 - (data.muscle_soreness / MUSCLE_SORENESS_MAX);
+
+    // Calculate weighted average readiness score
     const readiness = (
-      hrvNorm * 0.4 +
-      sleepNorm * 0.3 +
-      stressNorm * 0.2 +
-      sorenessNorm * 0.1
+      hrvNorm * WEIGHT_HRV +
+      sleepNorm * WEIGHT_SLEEP +
+      stressNorm * WEIGHT_STRESS +
+      sorenessNorm * WEIGHT_SORENESS
     ) * 100;
-    
+
     return Math.round(readiness);
   };
 
@@ -112,7 +153,7 @@ export default function RecoveryPage() {
       setSuccess('');
 
       const token = localStorage.getItem('token');
-      if (!token) {
+      if (!token || isTokenExpired(token)) {
         router.push('/login');
         return;
       }
