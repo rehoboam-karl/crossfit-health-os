@@ -151,14 +151,32 @@ app.include_router(
 )
 
 
-# Custom 404 handler
+# Custom 404 handler - only for HTML requests
 @app.exception_handler(404)
 async def custom_404_handler(request: Request, exc):
-    """Custom 404 error page"""
+    """Custom 404 error page for HTML requests only"""
     from fastapi.templating import Jinja2Templates
     
-    templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
-    return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+    # For API requests, preserve the original HTTPException detail
+    if request.url.path.startswith("/api/"):
+        detail = getattr(exc, "detail", "Not Found")
+        return JSONResponse(
+            status_code=404,
+            content={"detail": detail}
+        )
+
+    # Return HTML for browser requests
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept:
+        templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+
+    # Fallback JSON
+    detail = getattr(exc, "detail", "Not Found")
+    return JSONResponse(
+        status_code=404,
+        content={"detail": detail}
+    )
 
 
 if __name__ == "__main__":
