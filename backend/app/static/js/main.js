@@ -76,9 +76,27 @@ const Utils = {
         });
     },
     
+    // JWT validation helper
+    isTokenExpired: function(token) {
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            const exp = payload.exp * 1000;
+            return Date.now() > exp;
+        } catch {
+            return true;
+        }
+    },
+
     // Check if user is authenticated
     isAuthenticated: function() {
-        return !!localStorage.getItem('access_token');
+        const token = localStorage.getItem('access_token');
+        if (!token) return false;
+        if (this.isTokenExpired(token)) {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('user');
+            return false;
+        }
+        return true;
     },
     
     // Get current user
