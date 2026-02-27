@@ -373,7 +373,10 @@ function renderProgram(program) {
                 w.movements.forEach(m => {
                     let parts = [];
                     if (m.sets) parts.push(m.sets + ' sets');
-                    if (m.reps) parts.push(m.reps + ' reps');
+                    if (m.reps) {
+                        const unit = m.reps_unit || 'reps';
+                        parts.push(m.reps + ' ' + unit);
+                    }
                     if (m.weight_kg) parts.push(m.weight_kg + 'kg');
                     if (m.distance_meters) parts.push(m.distance_meters + 'm');
                     if (m.duration_seconds) {

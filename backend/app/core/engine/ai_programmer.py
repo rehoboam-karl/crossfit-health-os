@@ -75,7 +75,7 @@ class AITrainingProgrammer:
         
         try:
             response = await self.client.chat.completions.create(
-                model="gpt-4-turbo-preview",
+                model="gpt-4o",
                 messages=[
                     {
                         "role": "system",
@@ -147,6 +147,13 @@ Intensity Guidelines:
 - MetCon: 75-85% max effort
 - Conditioning: 60-75% (Zone 2-3)
 - Skill: Focus on quality, not fatigue
+
+Ergometer / Monostructural Movement Rules:
+- For calorie-based work (cal_row, cal_bike, cal_ski_erg): use "reps" field with the number of calories, and set "reps_unit" to "cal"
+- For distance-based work (run, row_meters, ski_meters, sled_push): use "distance_meters" field (e.g., 400 for a 400m run)
+- For time-based work (bike, row for time, assault bike): use "duration_seconds" field (e.g., 60 for 1 minute)
+- NEVER put meters or calories in the "reps" field without specifying the unit
+- Always include "reps_unit" when reps means something other than repetitions. Valid values: "reps" (default), "cal", "m"
 
 You must return a valid JSON object with workout details for each training day."""
     
@@ -290,7 +297,13 @@ Return a JSON object with this structure:
             {{
               "movement": "cal_row",
               "reps": 15,
-              "notes": "Damper 10, hold pace"
+              "reps_unit": "cal",
+              "notes": "Damper 5-7, hold steady pace"
+            }},
+            {{
+              "movement": "run",
+              "distance_meters": 400,
+              "notes": "Moderate pace, recover on the row"
             }}
           ]
         }}
@@ -315,6 +328,31 @@ Generate the complete weekly program now."""
         
         return prompt
     
+    def _normalize_workout_type(self, raw_type: str) -> WorkoutType:
+        """Map GPT's free-form workout type strings to valid enum values"""
+        raw = raw_type.lower().strip()
+
+        # Direct match
+        for wt in WorkoutType:
+            if wt.value == raw:
+                return wt
+
+        # Keyword mapping
+        if any(k in raw for k in ["strength", "squat", "deadlift", "press", "heavy"]):
+            if any(k in raw for k in ["metcon", "wod", "amrap", "emom", "+"]):
+                return WorkoutType.MIXED
+            return WorkoutType.STRENGTH
+        if any(k in raw for k in ["metcon", "wod", "amrap", "emom", "chipper", "for time"]):
+            return WorkoutType.METCON
+        if any(k in raw for k in ["skill", "gymnastic", "handstand", "muscle-up"]):
+            return WorkoutType.SKILL
+        if any(k in raw for k in ["conditioning", "cardio", "aerobic", "run", "row", "bike"]):
+            return WorkoutType.CONDITIONING
+        if any(k in raw for k in ["mixed", "hybrid", "combo"]):
+            return WorkoutType.MIXED
+
+        return WorkoutType.MIXED
+
     def _parse_ai_response(
         self,
         program_json: dict,
@@ -324,17 +362,17 @@ Generate the complete weekly program now."""
         Parse AI-generated JSON into WorkoutTemplate objects
         """
         weekly_program = {}
-        
+
         workouts = program_json.get("workouts", {})
-        
+
         for day in training_days:
             day_key = day.value
             if day_key not in workouts:
                 logger.warning(f"AI response missing workout for {day_key}")
                 continue
-            
+
             workout_data = workouts[day_key]
-            
+
             # Parse movements from all parts
             all_movements = []
             for part in workout_data.get("parts", []):
@@ -343,21 +381,28 @@ Generate the complete weekly program now."""
                         movement=mov.get("movement"),
                         sets=mov.get("sets"),
                         reps=mov.get("reps"),
+                        reps_unit=mov.get("reps_unit", "reps"),
                         weight_kg=mov.get("weight_kg"),
+                        distance_meters=mov.get("distance_meters"),
+                        duration_seconds=mov.get("duration_seconds"),
                         intensity=mov.get("intensity"),
                         rest=mov.get("rest"),
                         notes=mov.get("notes")
                     )
                     all_movements.append(movement)
-            
+
             # Create WorkoutTemplate
+            workout_type = self._normalize_workout_type(
+                workout_data.get("workout_type", "mixed")
+            )
+
             template = WorkoutTemplate(
                 id=UUID("00000000-0000-0000-0000-000000000000"),  # Will be replaced on save
                 name=workout_data.get("name", f"{day_key.title()} Workout"),
                 description=workout_data.get("description", ""),
                 methodology=Methodology.CUSTOM,  # AI-generated is custom
                 difficulty_level="rx",
-                workout_type=WorkoutType(workout_data.get("workout_type", "mixed")),
+                workout_type=workout_type,
                 duration_minutes=workout_data.get("duration_minutes"),
                 movements=all_movements,
                 target_stimulus=workout_data.get("target_stimulus"),
@@ -366,9 +411,9 @@ Generate the complete weekly program now."""
                 created_at=date.today(),
                 is_public=False
             )
-            
+
             weekly_program[day] = template
-        
+
         return weekly_program
     
     def _generate_fallback_program(

@@ -225,7 +225,10 @@
                 // Build prescription summary
                 let prescriptionParts = [];
                 if (mov.sets) prescriptionParts.push(mov.sets + ' sets');
-                if (mov.reps) prescriptionParts.push(mov.reps + ' reps');
+                if (mov.reps) {
+                    const unit = mov.reps_unit || 'reps';
+                    prescriptionParts.push(mov.reps + ' ' + unit);
+                }
                 if (mov.weight_kg) prescriptionParts.push(mov.weight_kg + 'kg');
                 if (mov.distance_meters) prescriptionParts.push(mov.distance_meters + 'm');
                 if (mov.duration_seconds) {

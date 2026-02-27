@@ -44,6 +44,7 @@ class Movement(BaseModel):
     movement: str = Field(..., description="Movement name (e.g., 'back_squat', 'thruster')")
     sets: Optional[int] = None
     reps: Optional[int | str] = None  # Can be '21-15-9' or int
+    reps_unit: Optional[str] = Field("reps", description="Unit for reps: 'reps', 'cal', 'm'")
     weight_kg: Optional[float] = None
     distance_meters: Optional[float] = None
     duration_seconds: Optional[float] = None
