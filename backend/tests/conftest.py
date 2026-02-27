@@ -228,6 +228,16 @@ class MockSupabaseAuth:
             user=Mock(id=str(uuid4()), email="test@example.com"),
             expires_in=3600
         )
+
+    def refresh_session(self, refresh_token):
+        return Mock(
+            session=Mock(
+                access_token="mock_refreshed_token_" + str(uuid4())[:8],
+                refresh_token="mock_new_refresh_token",
+                user=Mock(id=str(uuid4()), email="test@example.com"),
+                expires_in=3600
+            )
+        )
     
     def reset_password_email(self, email, **kwargs):
         return Mock()

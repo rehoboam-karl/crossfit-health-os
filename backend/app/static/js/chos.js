@@ -3,26 +3,57 @@
  * Toast notifications, loading states, auth middleware, API helpers
  */
 
+// JWT validation helper
+function isTokenExpired(token) {
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const exp = payload.exp * 1000;
+        return Date.now() > exp;
+    } catch {
+        return true;
+    }
+}
+
 const CHOS = {
    
    // ============================================
    // Auth Middleware
    // ============================================
    auth: {
+      _refreshing: null,
+
       getToken() {
          return localStorage.getItem('access_token');
       },
-      
+
+      getRefreshToken() {
+         return localStorage.getItem('refresh_token');
+      },
+
+      isTokenExpired(token) {
+         return isTokenExpired(token);
+      },
+
       getUser() {
          try {
             return JSON.parse(localStorage.getItem('user') || '{}');
          } catch { return {}; }
       },
-      
+
       isAuthenticated() {
-         return !!this.getToken();
+         const token = this.getToken();
+         if (!token) return false;
+         if (isTokenExpired(token)) {
+            // Token expired but we may have a refresh token
+            if (this.getRefreshToken()) return true;
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('user');
+            localStorage.removeItem('refresh_token');
+            return false;
+         }
+         return true;
       },
-      
+
       requireAuth() {
          if (!this.isAuthenticated()) {
             window.location.href = '/login';
@@ -30,7 +61,46 @@ const CHOS = {
          }
          return true;
       },
-      
+
+      /**
+       * Attempt to refresh the access token using the stored refresh token.
+       * Returns a promise that resolves with the new access token or rejects.
+       * Deduplicates concurrent refresh requests.
+       */
+      refreshAccessToken() {
+         if (this._refreshing) return this._refreshing;
+
+         const refreshToken = this.getRefreshToken();
+         if (!refreshToken) {
+            return Promise.reject(new Error('No refresh token'));
+         }
+
+         this._refreshing = $.ajax({
+            url: '/api/v1/auth/refresh',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ refresh_token: refreshToken }),
+            dataType: 'json'
+         }).then(function(response) {
+            localStorage.setItem('access_token', response.access_token);
+            if (response.refresh_token) {
+               localStorage.setItem('refresh_token', response.refresh_token);
+            }
+            if (response.user) {
+               localStorage.setItem('user', JSON.stringify(response.user));
+            }
+            CHOS.auth._refreshing = null;
+            return response.access_token;
+         }).fail(function() {
+            CHOS.auth._refreshing = null;
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('user');
+         });
+
+         return this._refreshing;
+      },
+
       logout() {
          const token = this.getToken();
          $.ajax({
@@ -39,6 +109,7 @@ const CHOS = {
             headers: { 'Authorization': 'Bearer ' + token },
             complete: function() {
                localStorage.removeItem('access_token');
+               localStorage.removeItem('refresh_token');
                localStorage.removeItem('user');
                window.location.href = '/';
             }
@@ -163,49 +234,62 @@ const CHOS = {
          if (token) headers['Authorization'] = 'Bearer ' + token;
          return headers;
       },
-      
+
+      /**
+       * Make an API request with automatic token refresh on 401.
+       * If a 401 is received and a refresh token exists, attempts to
+       * refresh the access token and retry the original request once.
+       */
+      _request(method, url, data) {
+         const self = this;
+         const doRequest = () => {
+            const opts = {
+               url: url,
+               type: method,
+               headers: self._baseHeaders(),
+               dataType: 'json'
+            };
+            if (data !== undefined) {
+               opts.data = JSON.stringify(data);
+            }
+            return $.ajax(opts);
+         };
+
+         return doRequest().then(null, function(xhr) {
+            // On 401, try to refresh the token and retry once
+            if (xhr.status === 401 && CHOS.auth.getRefreshToken()) {
+               return CHOS.auth.refreshAccessToken().then(function() {
+                  return doRequest();
+               }).then(null, function() {
+                  CHOS.toast.error('Session expired. Please login again.');
+                  setTimeout(() => { window.location.href = '/login'; }, 1500);
+                  return $.Deferred().reject(xhr);
+               });
+            }
+            // For non-401 errors, use standard handler
+            self._handleNon401Error(xhr);
+            return $.Deferred().reject(xhr);
+         });
+      },
+
       get(url) {
-         return $.ajax({
-            url: url,
-            type: 'GET',
-            headers: this._baseHeaders(),
-            dataType: 'json'
-         }).fail(this._handleError);
+         return this._request('GET', url);
       },
-      
+
       post(url, data) {
-         return $.ajax({
-            url: url,
-            type: 'POST',
-            headers: this._baseHeaders(),
-            data: JSON.stringify(data),
-            dataType: 'json'
-         }).fail(this._handleError);
+         return this._request('POST', url, data);
       },
-      
+
       patch(url, data) {
-         return $.ajax({
-            url: url,
-            type: 'PATCH',
-            headers: this._baseHeaders(),
-            data: JSON.stringify(data),
-            dataType: 'json'
-         }).fail(this._handleError);
+         return this._request('PATCH', url, data);
       },
-      
+
       delete(url) {
-         return $.ajax({
-            url: url,
-            type: 'DELETE',
-            headers: this._baseHeaders()
-         }).fail(this._handleError);
+         return this._request('DELETE', url);
       },
-      
-      _handleError(xhr) {
-         if (xhr.status === 401) {
-            CHOS.toast.error('Session expired. Please login again.');
-            setTimeout(() => { window.location.href = '/login'; }, 1500);
-         } else if (xhr.status === 422) {
+
+      _handleNon401Error(xhr) {
+         if (xhr.status === 422) {
             const errors = xhr.responseJSON?.detail;
             if (Array.isArray(errors)) {
                errors.forEach(e => CHOS.toast.error(e.msg));
@@ -267,20 +351,35 @@ const CHOS = {
    // Dashboard Init
    // ============================================
    initDashboard() {
+      const token = this.auth.getToken();
+
+      // If token is expired but we have a refresh token, try refreshing
+      if (token && isTokenExpired(token) && this.auth.getRefreshToken()) {
+         this.auth.refreshAccessToken().then(function() {
+            CHOS._setupDashboardUI();
+         }).fail(function() {
+            window.location.href = '/login';
+         });
+         return;
+      }
+
       if (!this.auth.requireAuth()) return;
-      
+      this._setupDashboardUI();
+   },
+
+   _setupDashboardUI() {
       const user = this.auth.getUser();
       if (user.name) {
          $('#user-name').text(user.name);
          $('#welcome-name').text(user.name.split(' ')[0]);
       }
-      
+
       // Setup logout
       $('#logout-btn').on('click', function(e) {
          e.preventDefault();
          CHOS.auth.logout();
       });
-      
+
       // Set today's date
       const today = new Date().toLocaleDateString('pt-BR', {
          weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'

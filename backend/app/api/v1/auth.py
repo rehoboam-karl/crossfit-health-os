@@ -78,9 +78,15 @@ class ResetPasswordRequest(BaseModel):
 class AuthResponse(BaseModel):
     """Authentication response"""
     access_token: str
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
     user: dict
     expires_in: int = 3600
+
+
+class RefreshRequest(BaseModel):
+    """Token refresh request"""
+    refresh_token: str
 
 
 class MessageResponse(BaseModel):
@@ -243,6 +249,7 @@ async def login(request: LoginRequest):
         
         return AuthResponse(
             access_token=auth_response.session.access_token,
+            refresh_token=str(auth_response.session.refresh_token) if hasattr(auth_response.session, 'refresh_token') and auth_response.session.refresh_token else None,
             user={
                 "id": user_profile["id"],
                 "email": user_profile["email"],
@@ -399,26 +406,28 @@ async def logout():
 # ============================================
 
 @router.post("/refresh", response_model=AuthResponse)
-async def refresh_token():
+async def refresh_token(request: RefreshRequest):
     """
-    Refresh access token
-    
-    Use when access_token is about to expire.
-    Supabase SDK handles this automatically on client-side.
+    Refresh access token using a refresh token
+
+    Use when access_token has expired or is about to expire.
+    Send the refresh_token received at login to get a new access_token.
     """
     try:
-        session = supabase_client.auth.get_session()
-        
-        if not session:
+        session = supabase_client.auth.refresh_session(request.refresh_token)
+
+        if not session or not session.session:
             raise HTTPException(status_code=401, detail="No active session")
-        
-        # Supabase auto-refreshes tokens
+
         return AuthResponse(
-            access_token=session.access_token,
-            user={"id": session.user.id, "email": session.user.email},
-            expires_in=session.expires_in or 3600
+            access_token=session.session.access_token,
+            refresh_token=getattr(session.session, 'refresh_token', None),
+            user={"id": session.session.user.id, "email": session.session.user.email},
+            expires_in=session.session.expires_in or 3600
         )
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Token refresh failed: {e}", exc_info=True)
         raise HTTPException(status_code=401, detail="Failed to refresh token")

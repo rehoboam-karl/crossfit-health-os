@@ -220,8 +220,11 @@ class TestTokenRefresh:
     @pytest.mark.asyncio
     async def test_refresh_token(self, async_client: AsyncClient, mock_supabase):
         """Test token refresh"""
-        response = await async_client.post("/api/v1/auth/refresh")
-        
+        response = await async_client.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": "mock_refresh_token_123"}
+        )
+
         # Should return new token
         assert response.status_code == 200
         data = response.json()

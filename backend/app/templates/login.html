@@ -124,8 +124,11 @@ $(document).ready(function() {
             contentType: 'application/json',
             data: JSON.stringify({ email, password }),
             success: function(response) {
-                // Store token
+                // Store tokens
                 localStorage.setItem('access_token', response.access_token);
+                if (response.refresh_token) {
+                    localStorage.setItem('refresh_token', response.refresh_token);
+                }
                 localStorage.setItem('user', JSON.stringify(response.user));
                 
                 // Redirect to dashboard
