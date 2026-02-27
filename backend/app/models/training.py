@@ -149,9 +149,9 @@ class WorkoutSessionCreate(WorkoutSessionBase):
 
 
 class WorkoutSessionUpdate(BaseModel):
-    """Update workout session (after completion)"""
-    completed_at: datetime
-    duration_minutes: float
+    """Update workout session (after completion or to mark incomplete)"""
+    completed_at: Optional[datetime] = None
+    duration_minutes: Optional[float] = None
     actual_weight_kg: Optional[Dict[str, float]] = None
     actual_reps: Optional[Dict[str, int]] = None
     score: Optional[float] = None

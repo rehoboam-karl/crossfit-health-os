@@ -59,7 +59,6 @@ async def workouts_page(request: Request):
     return templates.TemplateResponse("training.html", {
         "request": request,
         "active_page": "workouts",
-        "recent_workouts": [],
         "personal_records": []
     })
 
