@@ -40,9 +40,12 @@ async def generate_adaptive_workout(
     4. Returns customized workout
     """
     try:
+        user_id = request.user_id or UUID(current_user["id"])
+        target_date = request.date or date.today()
+
         workout = await adaptive_engine.generate_workout(
-            user_id=request.user_id,
-            target_date=request.date,
+            user_id=user_id,
+            target_date=target_date,
             force_rest=request.force_rest
         )
         return workout

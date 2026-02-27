@@ -3,6 +3,7 @@ Pydantic models for Training domain
 """
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 from typing import Optional, List, Dict, Any
+import datetime as dt_module
 from datetime import datetime, date, time as dt_time
 from enum import Enum
 from uuid import UUID
@@ -208,8 +209,8 @@ class WorkoutSession(WorkoutSessionBase):
 
 class WorkoutGenerationRequest(BaseModel):
     """Request to generate adaptive workout"""
-    user_id: UUID
-    date: date
+    user_id: Optional[UUID] = None  # Filled from authenticated user if not provided
+    date: Optional[dt_module.date] = None  # Defaults to today if not provided
     force_rest: bool = False  # Override and force rest day
 
 
