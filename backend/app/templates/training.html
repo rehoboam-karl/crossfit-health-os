@@ -193,11 +193,19 @@
             
             hideLoading();
             CHOS.toast.success('Workout generated successfully!');
-            
-            // Display the generated workout
-            if (response.workout) {
-                displayGeneratedWorkout(response.workout, response);
-            }
+
+            // Map API response to the format displayGeneratedWorkout expects
+            // API returns: { template: {...}, adjusted_movements: [...], readiness_score, ... }
+            const workout = {
+                name: response.template?.name || 'Adaptive Workout',
+                workout_type: response.template?.workout_type || 'mixed',
+                duration_minutes: response.template?.duration_minutes || 60,
+                description: response.recommendation || response.template?.description || '',
+                movements: response.adjusted_movements || response.template?.movements || []
+            };
+            // Attach workout to response for completeWorkout handler
+            response.workout = workout;
+            displayGeneratedWorkout(workout, response);
         } catch (error) {
             hideLoading();
             CHOS.toast.error(error.message || 'Failed to generate workout');
@@ -215,7 +223,7 @@
                 <div class="movement-item border rounded p-3 mb-3" data-movement-id="${idx}">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <div>
-                            <h6 class="fw-bold mb-1">${mov.movement_name || mov.name}</h6>
+                            <h6 class="fw-bold mb-1">${mov.movement || mov.movement_name || mov.name}</h6>
                             <small class="text-muted">
                                 ${mov.sets || 1} sets × ${mov.reps || mov.duration || '-'} reps
                                 ${mov.weight_kg ? ` @ ${mov.weight_kg}kg` : ''}
@@ -460,7 +468,7 @@
             $('.movement-item').each(function() {
                 const movement = currentWorkout.workout.movements[$(this).data('movement-id')];
                 movementsFeedback.push({
-                    movement: movement.movement_name || movement.name,
+                    movement: movement.movement || movement.movement_name || movement.name,
                     prescribed_sets: movement.sets || 1,
                     prescribed_reps: movement.reps,
                     prescribed_weight_kg: movement.weight_kg,
