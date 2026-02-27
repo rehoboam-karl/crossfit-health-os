@@ -111,6 +111,22 @@
                 </div>
                 <div class="modal-body">
                     <div id="schedule-form">
+                        <!-- Name & Methodology -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="chos-label">Schedule Name</label>
+                                <input type="text" id="schedule-name" class="chos-input" placeholder="e.g., HWPO 5x per week" value="My Training Schedule">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="chos-label">Methodology</label>
+                                <select id="schedule-methodology" class="form-select chos-input">
+                                    <option value="hwpo">HWPO</option>
+                                    <option value="mayhem">Mayhem</option>
+                                    <option value="comptrain">CompTrain</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                            </div>
+                        </div>
                         <!-- Days -->
                         <div class="row g-3 chos-stagger" id="day-rows">
                         </div>
@@ -216,7 +232,7 @@ function toggleDay(idx) {
 function loadActiveSchedule() {
     CHOS.api.get('/api/v1/schedule/weekly/active')
         .done(function(data) {
-            if (data && data.days) {
+            if (data && data.schedule) {
                 renderSchedule(data);
             }
         })
@@ -225,28 +241,31 @@ function loadActiveSchedule() {
         });
 }
 
-function renderSchedule(schedule) {
+function renderSchedule(scheduleData) {
+    const dayKeys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
     let html = '<div class="row g-3 chos-stagger">';
     DAYS.forEach((day, i) => {
-        const dayData = schedule.days ? schedule.days[i] : null;
-        const isRest = !dayData || dayData.is_rest;
-        
+        const key = dayKeys[i];
+        const dayData = scheduleData.schedule ? scheduleData.schedule[key] : null;
+        const isRest = !dayData || dayData.rest_day;
+        const session = (!isRest && dayData.sessions && dayData.sessions.length > 0) ? dayData.sessions[0] : null;
+
         html += `
         <div class="col-md-6 col-lg-3">
-            <div class="chos-workout-card ${isRest ? 'rest' : (dayData?.type || 'mixed')}">
+            <div class="chos-workout-card ${isRest ? 'rest' : (session?.workout_type || 'mixed')}">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h6 class="fw-bold mb-0">${DAY_ICONS[i]} ${day}</h6>
-                    ${isRest 
+                    ${isRest
                         ? '<span class="chos-badge chos-badge-warning">Rest</span>'
-                        : `<span class="chos-badge chos-badge-primary">${dayData?.duration || 60}min</span>`
+                        : `<span class="chos-badge chos-badge-primary">${session?.duration_minutes || 60}min</span>`
                     }
                 </div>
                 ${!isRest ? `
                     <p class="text-muted mb-1" style="font-size: 0.875rem;">
-                        <i class="fas fa-clock me-1"></i>${dayData?.time || '08:00'}
+                        <i class="fas fa-clock me-1"></i>${session?.time || '08:00'}
                     </p>
                     <p class="text-muted mb-0" style="font-size: 0.875rem;">
-                        <i class="fas fa-tag me-1"></i>${(dayData?.type || 'mixed').replace('_', ' ')}
+                        <i class="fas fa-tag me-1"></i>${(session?.workout_type || 'mixed').replace('_', ' ')}
                     </p>
                 ` : '<p class="text-muted mb-0" style="font-size: 0.875rem;">Recovery day</p>'}
             </div>
@@ -258,22 +277,40 @@ function renderSchedule(schedule) {
 
 function saveSchedule() {
     CHOS.loading.button('#btn-save-schedule', true);
-    
-    const days = [];
+
+    const dayKeys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    const schedule = {};
     DAYS.forEach((day, i) => {
         const active = $(`#day-${i}`).is(':checked');
-        days.push({
-            day_of_week: i,
-            is_rest: !active,
+        const key = dayKeys[i];
+        schedule[key] = {
+            day: key,
+            rest_day: !active,
             sessions: active ? [{
                 time: $(`#day-${i}-time`).val(),
                 duration_minutes: parseInt($(`#day-${i}-duration`).val()),
-                type: $(`#day-${i}-type`).val()
+                workout_type: $(`#day-${i}-type`).val()
             }] : []
-        });
+        };
     });
-    
-    CHOS.api.post('/api/v1/schedule/weekly', { days: days })
+
+    // Calculate next Monday as start_date
+    const today = new Date();
+    const dow = today.getDay();
+    const daysUntilMonday = dow === 0 ? 1 : 8 - dow;
+    const nextMonday = new Date(today);
+    nextMonday.setDate(today.getDate() + daysUntilMonday);
+    const startDate = nextMonday.toISOString().split('T')[0];
+
+    const payload = {
+        name: $('#schedule-name').val() || 'My Training Schedule',
+        methodology: $('#schedule-methodology').val() || 'custom',
+        schedule: schedule,
+        start_date: startDate,
+        active: true
+    };
+
+    CHOS.api.post('/api/v1/schedule/weekly', payload)
         .done(function(data) {
             CHOS.toast.success('Schedule saved!');
             bootstrap.Modal.getInstance('#createScheduleModal').hide();
@@ -305,9 +342,86 @@ function generateAIProgram() {
 }
 
 function renderProgram(program) {
-    let html = '<div class="row g-3 chos-stagger">';
-    
-    if (program.days) {
+    let html = '';
+
+    // API returns { workouts: [...], training_days: [...], methodology, week_number, ... }
+    if (program.workouts && program.workouts.length > 0) {
+        // Header info
+        html += `<div class="alert alert-info mb-3">
+            <strong>${program.methodology ? program.methodology.toUpperCase() : 'Custom'}</strong> &middot;
+            Week ${program.week_number || '?'} &middot;
+            ${program.workouts.length} workouts &middot;
+            ${(program.training_days || []).length} training days
+            ${program.note ? `<div class="mt-1 small text-muted">${program.note}</div>` : ''}
+        </div>`;
+
+        html += '<div class="row g-3 chos-stagger">';
+        program.workouts.forEach((w, i) => {
+            const typeColors = {
+                'strength': 'border-primary',
+                'metcon': 'border-danger',
+                'conditioning': 'border-info',
+                'skill': 'border-success',
+                'mixed': 'border-warning'
+            };
+            const borderClass = typeColors[w.workout_type] || 'border-secondary';
+
+            // Build movements list
+            let movHtml = '';
+            if (w.movements && w.movements.length > 0) {
+                movHtml = '<ul class="list-unstyled mb-0 mt-2">';
+                w.movements.forEach(m => {
+                    let parts = [];
+                    if (m.sets) parts.push(m.sets + ' sets');
+                    if (m.reps) parts.push(m.reps + ' reps');
+                    if (m.weight_kg) parts.push(m.weight_kg + 'kg');
+                    if (m.distance_meters) parts.push(m.distance_meters + 'm');
+                    if (m.duration_seconds) {
+                        const mins = Math.floor(m.duration_seconds / 60);
+                        const secs = m.duration_seconds % 60;
+                        parts.push(mins > 0 ? mins + ':' + String(secs).padStart(2, '0') : secs + 's');
+                    }
+                    if (m.intensity) parts.push(m.intensity);
+                    if (m.rest) parts.push('rest ' + m.rest);
+                    const detail = parts.join(' &middot; ') || '';
+
+                    const movName = (m.movement || '').replace(/_/g, ' ');
+                    movHtml += `<li class="mb-1">
+                        <strong>${movName}</strong>
+                        ${detail ? '<br><small class="text-muted">' + detail + '</small>' : ''}
+                        ${m.notes ? '<br><small class="fst-italic text-muted">' + m.notes + '</small>' : ''}
+                    </li>`;
+                });
+                movHtml += '</ul>';
+            }
+
+            html += `
+            <div class="col-md-6">
+                <div class="card shadow-sm h-100 border-start border-4 ${borderClass}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <h6 class="fw-bold mb-0">${w.name || 'Workout ' + (i + 1)}</h6>
+                                <small class="text-muted">${w.description || ''}</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-${w.workout_type === 'strength' ? 'primary' : w.workout_type === 'metcon' ? 'danger' : w.workout_type === 'conditioning' ? 'info' : w.workout_type === 'skill' ? 'success' : 'secondary'}">
+                                    ${(w.workout_type || 'mixed').toUpperCase()}
+                                </span>
+                                <br><small class="text-muted">${w.duration_minutes || 60} min</small>
+                            </div>
+                        </div>
+                        ${w.target_stimulus ? '<div class="mb-2"><span class="badge bg-light text-dark"><i class="fas fa-bullseye me-1"></i>' + w.target_stimulus + '</span></div>' : ''}
+                        ${movHtml}
+                        ${w.equipment_required && w.equipment_required.length > 0 ? '<div class="mt-2"><small class="text-muted"><i class="fas fa-tools me-1"></i>' + w.equipment_required.join(', ').replace(/_/g, ' ') + '</small></div>' : ''}
+                    </div>
+                </div>
+            </div>`;
+        });
+        html += '</div>';
+    } else if (program.days) {
+        // Legacy format
+        html += '<div class="row g-3 chos-stagger">';
         program.days.forEach((day, i) => {
             html += `
             <div class="col-md-6">
@@ -317,12 +431,18 @@ function renderProgram(program) {
                 </div>
             </div>`;
         });
-    } else if (typeof program === 'string') {
-        html += `<div class="col-12"><div class="chos-card"><div class="card-body"><pre style="white-space: pre-wrap;">${program}</pre></div></div></div>`;
+        html += '</div>';
+    } else {
+        html = '<div class="text-center text-muted py-4"><p>No program data to display</p></div>';
     }
-    
-    html += '</div>';
+
     $('#program-content').html(html);
+}
+
+function saveProgram() {
+    // Workouts are already saved to workout_templates by the generate-ai endpoint
+    CHOS.toast.success('Program saved to your workout templates!');
+    $('#generated-program').addClass('d-none');
 }
 </script>
 {% endblock %}

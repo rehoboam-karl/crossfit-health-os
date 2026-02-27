@@ -219,34 +219,63 @@
         // Build movements list HTML
         let movementsHtml = '';
         if (workout.movements && workout.movements.length > 0) {
-            movementsHtml = workout.movements.map((mov, idx) => `
+            movementsHtml = workout.movements.map((mov, idx) => {
+                const movName = mov.movement || mov.movement_name || mov.name || 'Movement';
+
+                // Build prescription summary
+                let prescriptionParts = [];
+                if (mov.sets) prescriptionParts.push(mov.sets + ' sets');
+                if (mov.reps) prescriptionParts.push(mov.reps + ' reps');
+                if (mov.weight_kg) prescriptionParts.push(mov.weight_kg + 'kg');
+                if (mov.distance_meters) prescriptionParts.push(mov.distance_meters + 'm');
+                if (mov.duration_seconds) {
+                    const mins = Math.floor(mov.duration_seconds / 60);
+                    const secs = mov.duration_seconds % 60;
+                    prescriptionParts.push(mins > 0 ? mins + ':' + String(secs).padStart(2, '0') : secs + 's');
+                }
+                if (mov.intensity) prescriptionParts.push(mov.intensity);
+                const prescription = prescriptionParts.join(' &middot; ') || 'As prescribed';
+
+                // Build detail tags (rest, notes)
+                let detailsHtml = '';
+                if (mov.rest) detailsHtml += `<span class="badge bg-secondary me-1">Rest: ${mov.rest}</span>`;
+                if (mov.intensity) detailsHtml += `<span class="badge bg-info me-1">Intensity: ${mov.intensity}</span>`;
+                if (mov.notes) detailsHtml += `<div class="text-muted small fst-italic mt-1">${mov.notes}</div>`;
+
+                return `
                 <div class="movement-item border rounded p-3 mb-3" data-movement-id="${idx}">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <div>
-                            <h6 class="fw-bold mb-1">${mov.movement || mov.movement_name || mov.name}</h6>
-                            <small class="text-muted">
-                                ${mov.sets || 1} sets × ${mov.reps || mov.duration || '-'} reps
-                                ${mov.weight_kg ? ` @ ${mov.weight_kg}kg` : ''}
-                            </small>
+                            <h6 class="fw-bold mb-1">${movName}</h6>
+                            <small class="text-muted">${prescription}</small>
+                            ${detailsHtml ? '<div class="mt-1">' + detailsHtml + '</div>' : ''}
                         </div>
                         <input type="checkbox" class="form-check-input movement-check" style="width: 24px; height: 24px;">
                     </div>
-                    
+
                     <div class="row g-2">
-                        <div class="col-4">
+                        ${mov.sets != null ? `<div class="col">
                             <label class="form-label small">Actual Sets</label>
                             <input type="number" class="form-control form-control-sm actual-sets" value="${mov.sets || 1}" min="1">
-                        </div>
-                        <div class="col-4">
+                        </div>` : ''}
+                        ${mov.reps != null ? `<div class="col">
                             <label class="form-label small">Actual Reps</label>
                             <input type="text" class="form-control form-control-sm actual-reps" value="${mov.reps || '-'}" placeholder="5,5,5">
-                        </div>
-                        <div class="col-4">
+                        </div>` : ''}
+                        ${mov.weight_kg != null ? `<div class="col">
                             <label class="form-label small">Weight (kg)</label>
                             <input type="number" class="form-control form-control-sm actual-weight" value="${mov.weight_kg || ''}" step="2.5">
-                        </div>
+                        </div>` : ''}
+                        ${mov.distance_meters != null ? `<div class="col">
+                            <label class="form-label small">Distance (m)</label>
+                            <input type="number" class="form-control form-control-sm actual-distance" value="${mov.distance_meters || ''}" step="10">
+                        </div>` : ''}
+                        ${mov.duration_seconds != null ? `<div class="col">
+                            <label class="form-label small">Time (sec)</label>
+                            <input type="number" class="form-control form-control-sm actual-duration" value="${mov.duration_seconds || ''}" step="1">
+                        </div>` : ''}
                     </div>
-                    
+
                     <div class="mt-2">
                         <label class="form-label small">RPE (1-10)</label>
                         <div class="rpe-selector d-flex gap-1">
@@ -256,13 +285,14 @@
                         </div>
                         <input type="hidden" class="movement-rpe" value="5">
                     </div>
-                    
+
                     <div class="mt-2">
                         <label class="form-label small">Notes</label>
-                        <input type="text" class="form-control form-control-sm movement-notes" placeholder="Optional notes">
+                        <input type="text" class="form-control form-control-sm movement-notes" placeholder="Optional notes" value="${mov.notes || ''}">
                     </div>
                 </div>
-            `).join('');
+                `;
+            }).join('');
         } else {
             movementsHtml = `<p class="text-muted">No movements specified</p>`;
         }
@@ -469,12 +499,16 @@
                 const movement = currentWorkout.workout.movements[$(this).data('movement-id')];
                 movementsFeedback.push({
                     movement: movement.movement || movement.movement_name || movement.name,
-                    prescribed_sets: movement.sets || 1,
-                    prescribed_reps: movement.reps,
-                    prescribed_weight_kg: movement.weight_kg,
-                    actual_sets: parseInt($(this).find('.actual-sets').val()) || 1,
-                    actual_reps: $(this).find('.actual-reps').val(),
+                    prescribed_sets: movement.sets || null,
+                    prescribed_reps: movement.reps || null,
+                    prescribed_weight_kg: movement.weight_kg || null,
+                    prescribed_distance_meters: movement.distance_meters || null,
+                    prescribed_duration_seconds: movement.duration_seconds || null,
+                    actual_sets: parseInt($(this).find('.actual-sets').val()) || null,
+                    actual_reps: $(this).find('.actual-reps').val() || null,
                     actual_weight_kg: parseFloat($(this).find('.actual-weight').val()) || null,
+                    actual_distance_meters: parseFloat($(this).find('.actual-distance').val()) || null,
+                    actual_duration_seconds: parseFloat($(this).find('.actual-duration').val()) || null,
                     technique_quality: parseInt($(this).find('.movement-rpe').val()) || 5,
                     notes: $(this).find('.movement-notes').val()
                 });

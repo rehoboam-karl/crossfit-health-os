@@ -1,11 +1,24 @@
 // CrossFit Health OS - Dashboard JavaScript
 
+// JWT validation helper
+function isTokenExpired(token) {
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const exp = payload.exp * 1000;
+        return Date.now() > exp;
+    } catch {
+        return true;
+    }
+}
+
 // Check authentication on dashboard pages
 $(document).ready(function() {
     const token = localStorage.getItem('access_token');
     
     if (window.location.pathname.startsWith('/dashboard')) {
-        if (!token) {
+        if (!token || isTokenExpired(token)) {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('user');
             window.location.href = '/login';
             return;
         }
