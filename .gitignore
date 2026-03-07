@@ -4,3 +4,10 @@ backend/__pycache__/
 backend/.coverage
 backend/.env
 backend/.env.test
+
+# Supabase credentials backup
+.env.backup
+
+# Environment files with credentials
+.env
+backend/.env
