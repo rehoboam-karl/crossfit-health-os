@@ -271,14 +271,17 @@ def mock_supabase():
     with patch("app.db.supabase.supabase_client", mock_client):
         # Also patch imports in other modules
         with patch("app.core.auth.supabase_client", mock_client):
-            with patch("app.api.v1.auth.supabase_client", mock_client):
-                with patch("app.api.v1.training.supabase_client", mock_client):
-                    with patch("app.api.v1.health.supabase_client", mock_client):
-                        with patch("app.api.v1.nutrition.supabase_client", mock_client):
-                            with patch("app.api.v1.schedule.supabase_client", mock_client):
-                                with patch("app.api.v1.review.supabase_client", mock_client):
+            with patch("app.api.v1.training.supabase_client", mock_client):
+                with patch("app.api.v1.health.supabase_client", mock_client):
+                    with patch("app.api.v1.nutrition.supabase_client", mock_client):
+                        with patch("app.api.v1.schedule.supabase_client", mock_client):
+                            with patch("app.api.v1.review.supabase_client", mock_client):
+                                with patch("app.api.v1.users.supabase_client", mock_client):
                                     with patch("app.core.engine.adaptive.supabase_client", mock_client):
-                                        yield mock_client
+                                        with patch("app.core.engine.weekly_reviewer.supabase_client", mock_client):
+                                            with patch("app.core.integrations.calendar.supabase_client", mock_client):
+                                                with patch("app.core.integrations.healthkit.supabase_client", mock_client):
+                                                    yield mock_client
 
 
 # ============================================
