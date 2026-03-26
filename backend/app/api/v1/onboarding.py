@@ -39,6 +39,9 @@ class OnboardingData(BaseModel):
     has_barbell: bool = False
     has_rings: bool = False
     has_pullup_bar: bool = False
+    # NEW: App focus - determines if nutrition features are enabled
+    app_focus: str = Field("full", description="training|full|custom")
+    nutrition_enabled: bool = Field(True, description="Whether to enable nutrition features")
 
 
 class OnboardingProgress(BaseModel):
@@ -101,7 +104,10 @@ async def complete_onboarding(
             "has_barbell": data.has_barbell,
             "has_rings": data.has_rings,
             "has_pullup_bar": data.has_pullup_bar,
-            "baseline_readiness": calculate_readiness_from_age(data.birth_date)
+            "baseline_readiness": calculate_readiness_from_age(data.birth_date),
+            # App focus settings
+            "app_focus": data.app_focus,
+            "nutrition_enabled": data.nutrition_enabled
         }
         
         supabase_client.table("users").update(profile_data).eq(

@@ -29,11 +29,83 @@
                     <button class="btn btn-primary btn-lg px-5" onclick="nextStep(1)">
                         Let's Get Started <i class="fas fa-arrow-right ms-2"></i>
                     </button>
+                    <div class="mt-4">
+                        <small class="text-muted">
+                            Already have an account? <a href="/login" class="text-primary">Sign in here</a>
+                        </small>
+                    </div>
                 </div>
             </div>
             
-            <!-- Step 2: Name & Goals -->
+            <!-- Step 2: Training Focus -->
             <div class="card shadow step-card d-none" id="step-2">
+                <div class="card-body p-5">
+                    <h3 class="fw-bold mb-2">What do you want?</h3>
+                    <p class="text-muted mb-4">Choose what you want from the app</p>
+                    
+                    <div class="d-flex flex-column gap-3">
+                        <div class="card focus-card selectable" id="focus-training" onclick="selectFocus('training')">
+                            <div class="card-body p-4">
+                                <div class="d-flex align-items-center">
+                                    <div class="me-3">
+                                        <span style="font-size: 40px;">🏋️</span>
+                                    </div>
+                                    <div>
+                                        <h5 class="fw-bold mb-1">Training Only</h5>
+                                        <p class="text-muted mb-0">
+                                            Just workouts and programming. No nutrition features.
+                                            <strong class="text-success">Recommended if you have your own diet.</strong>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card focus-card selectable" id="focus-full" onclick="selectFocus('full')">
+                            <div class="card-body p-4">
+                                <div class="d-flex align-items-center">
+                                    <div class="me-3">
+                                        <span style="font-size: 40px;">🎯</span>
+                                    </div>
+                                    <div>
+                                        <h5 class="fw-bold mb-1">Full Experience</h5>
+                                        <p class="text-muted mb-0">
+                                            Training + Nutrition. Get personalized meal plans and macro targets.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card focus-card selectable" id="focus-custom" onclick="selectFocus('custom')">
+                            <div class="card-body p-4">
+                                <div class="d-flex align-items-center">
+                                    <div class="me-3">
+                                        <span style="font-size: 40px;">📄</span>
+                                    </div>
+                                    <div>
+                                        <h5 class="fw-bold mb-1">Custom Plan</h5>
+                                        <p class="text-muted mb-0">
+                                            I'll provide my own diet plan (PDF). Just send me reminders to stick with it.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <input type="hidden" id="app-focus" value="full">
+                    
+                    <div class="d-flex justify-content-end mt-4">
+                        <button class="btn btn-primary" onclick="nextStep(2)">
+                            Next <i class="fas fa-arrow-right ms-2"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Step 3: Name & Goals -->
+            <div class="card shadow step-card d-none" id="step-3">
                 <div class="card-body p-5">
                     <h3 class="fw-bold mb-4">Tell us about yourself</h3>
                     
@@ -87,18 +159,18 @@
                     <input type="hidden" id="primary-goal" value="both">
                     
                     <div class="d-flex justify-content-between">
-                        <button class="btn btn-outline-secondary" onclick="prevStep(2)">
+                        <button class="btn btn-outline-secondary" onclick="prevStep(3)">
                             <i class="fas fa-arrow-left me-2"></i>Back
                         </button>
-                        <button class="btn btn-primary" onclick="nextStep(2)">
+                        <button class="btn btn-primary" onclick="nextStep(3)">
                             Next <i class="fas fa-arrow-right ms-2"></i>
                         </button>
                     </div>
                 </div>
             </div>
             
-            <!-- Step 3: Fitness Level -->
-            <div class="card shadow step-card d-none" id="step-3">
+            <!-- Step 4: Fitness Level -->
+            <div class="card shadow step-card d-none" id="step-4">
                 <div class="card-body p-5">
                     <h3 class="fw-bold mb-4">Your Fitness Level</h3>
                     
@@ -151,21 +223,21 @@
                     <input type="hidden" id="fitness-level" value="intermediate">
                     
                     <div class="d-flex justify-content-between mt-4">
-                        <button class="btn btn-outline-secondary" onclick="prevStep(3)">
+                        <button class="btn btn-outline-secondary" onclick="prevStep(4)">
                             <i class="fas fa-arrow-left me-2"></i>Back
                         </button>
-                        <button class="btn btn-primary" onclick="nextStep(3)">
+                        <button class="btn btn-primary" onclick="nextStep(4)">
                             Next <i class="fas fa-arrow-right ms-2"></i>
                         </button>
                     </div>
                 </div>
             </div>
             
-            <!-- Step 4: Training Days & Schedule -->
-            <div class="card shadow step-card d-none" id="step-4">
+            <!-- Step 5: Training Schedule -->
+            <div class="card shadow step-card d-none" id="step-5">
                 <div class="card-body p-5">
                     <h3 class="fw-bold mb-2">Your Training Schedule</h3>
-                    <p class="text-muted mb-4">Select the days you can train consistently</p>
+                    <p class="text-muted mb-4">Select the days you can train</p>
                     
                     <div class="row g-2 mb-4">
                         {% set days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
@@ -220,105 +292,6 @@
                     <input type="hidden" id="preferred-time" value="morning">
                     
                     <div class="d-flex justify-content-between">
-                        <button class="btn btn-outline-secondary" onclick="prevStep(4)">
-                            <i class="fas fa-arrow-left me-2"></i>Back
-                        </button>
-                        <button class="btn btn-primary" onclick="nextStep(4)">
-                            Next <i class="fas fa-arrow-right ms-2"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Step 5: Nutrition & Diet -->
-            <div class="card shadow step-card d-none" id="step-5">
-                <div class="card-body p-5">
-                    <h3 class="fw-bold mb-2">Nutrition Preferences</h3>
-                    <p class="text-muted mb-4">Help us customize your meal recommendations</p>
-                    
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">Diet Type</label>
-                        <div class="row g-2">
-                            <div class="col-6 col-md-3">
-                                <div class="card diet-card selectable" id="diet-omnivore" onclick="selectDiet('omnivore')">
-                                    <div class="card-body text-center py-3">
-                                        <div class="mb-2">🍖</div>
-                                        <h6 class="mb-0">Omnivore</h6>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-6 col-md-3">
-                                <div class="card diet-card selectable" id="diet-vegetarian" onclick="selectDiet('vegetarian')">
-                                    <div class="card-body text-center py-3">
-                                        <div class="mb-2">🥚</div>
-                                        <h6 class="mb-0">Vegetarian</h6>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-6 col-md-3">
-                                <div class="card diet-card selectable" id="diet-vegan" onclick="selectDiet('vegan')">
-                                    <div class="card-body text-center py-3">
-                                        <div class="mb-2">🥬</div>
-                                        <h6 class="mb-0">Vegan</h6>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-6 col-md-3">
-                                <div class="card diet-card selectable" id="diet-pescatarian" onclick="selectDiet('pescatarian')">
-                                    <div class="card-body text-center py-3">
-                                        <div class="mb-2">🐟</div>
-                                        <h6 class="mb-0">Pescatarian</h6>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <input type="hidden" id="diet-type" value="omnivore">
-                    
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">Any Food Allergies?</label>
-                        <div class="row g-2">
-                            <div class="col-4 col-md-2">
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" id="allergy-gluten" value="gluten">
-                                    <label class="form-check-label" for="allergy-gluten">Gluten</label>
-                                </div>
-                            </div>
-                            <div class="col-4 col-md-2">
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" id="allergy-dairy" value="dairy">
-                                    <label class="form-check-label" for="allergy-dairy">Dairy</label>
-                                </div>
-                            </div>
-                            <div class="col-4 col-md-2">
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" id="allergy-nuts" value="nuts">
-                                    <label class="form-check-label" for="allergy-nuts">Nuts</label>
-                                </div>
-                            </div>
-                            <div class="col-4 col-md-2">
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" id="allergy-eggs" value="eggs">
-                                    <label class="form-check-label" for="allergy-eggs">Eggs</label>
-                                </div>
-                            </div>
-                            <div class="col-4 col-md-2">
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" id="allergy-soy" value="soy">
-                                    <label class="form-check-label" for="allergy-soy">Soy</label>
-                                </div>
-                            </div>
-                            <div class="col-4 col-md-2">
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" id="allergy-none" value="none" checked>
-                                    <label class="form-check-label" for="allergy-none">None</label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="d-flex justify-content-between">
                         <button class="btn btn-outline-secondary" onclick="prevStep(5)">
                             <i class="fas fa-arrow-left me-2"></i>Back
                         </button>
@@ -358,16 +331,15 @@
                                     <p class="mb-1"><strong>Preferred Time</strong></p>
                                     <p class="text-muted mb-3" id="review-time">-</p>
                                     
-                                    <p class="mb-1"><strong>Diet</strong></p>
-                                    <p class="text-muted" id="review-diet">-</p>
+                                    <p class="mb-1"><strong>App Focus</strong></p>
+                                    <p class="text-muted" id="review-focus">-</p>
                                 </div>
                             </div>
                         </div>
                     </div>
                     
-                    <div class="alert alert-info">
-                        <i class="fas fa-lightbulb me-2"></i>
-                        <strong>What happens next:</strong> Your AI coach will create a personalized training program based on your profile. You'll earn XP for completing workouts!
+                    <div class="alert" id="focus-alert">
+                        <!-- Dynamic based on focus -->
                     </div>
                     
                     <div class="d-flex justify-content-between">
@@ -385,18 +357,22 @@
 </div>
 
 <style>
-.goal-card, .day-card, .time-card, .diet-card {
+.focus-card, .goal-card, .day-card, .time-card {
     cursor: pointer;
     transition: all 0.2s;
     border: 2px solid transparent;
 }
-.goal-card:hover, .day-card:hover, .time-card:hover, .diet-card:hover {
+.focus-card:hover, .goal-card:hover, .day-card:hover, .time-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
-.goal-card.selected, .day-card.selected, .time-card.selected, .diet-card.selected {
+.focus-card.selected, .goal-card.selected, .day-card.selected, .time-card.selected {
     border-color: var(--bs-primary);
     background-color: rgba(var(--bs-primary-rgb), 0.1);
+}
+.focus-card.selected {
+    border-color: var(--bs-success);
+    background-color: rgba(25, 135, 84, 0.1);
 }
 .step-card {
     animation: fadeIn 0.3s ease;
@@ -412,17 +388,16 @@ let currentStep = 1;
 const totalSteps = 6;
 let onboardingData = {
     name: '',
+    app_focus: 'full', // 'training', 'full', 'custom'
     primary_goal: 'both',
     fitness_level: 'intermediate',
     available_days: [],
     preferred_time: 'morning',
     methodologies: ['hwpo'],
-    diet_type: 'omnivore',
-    allergies: []
+    nutrition_enabled: true
 };
 
 $(document).ready(function() {
-    // Check if already completed
     CHOS.api.get('/api/v1/onboarding/progress')
         .done(function(data) {
             if (data.completed) {
@@ -466,6 +441,21 @@ function prevStep(step) {
     showStep(currentStep);
 }
 
+function selectFocus(focus) {
+    $('.focus-card').removeClass('selected');
+    $('#focus-' + focus).addClass('selected');
+    onboardingData.app_focus = focus;
+    
+    if (focus === 'training') {
+        onboardingData.nutrition_enabled = false;
+    } else if (focus === 'custom') {
+        onboardingData.nutrition_enabled = true;
+        // For custom, user provides their own diet
+    } else {
+        onboardingData.nutrition_enabled = true;
+    }
+}
+
 function selectGoal(goal) {
     $('.goal-card').removeClass('selected');
     event.currentTarget.classList.add('selected');
@@ -502,37 +492,40 @@ function selectTime(time) {
     onboardingData.preferred_time = time;
 }
 
-function selectDiet(diet) {
-    $('.diet-card').removeClass('selected');
-    $('#diet-' + diet).addClass('selected');
-    onboardingData.diet_type = diet;
-}
-
 function updateReview() {
     $('#review-name').text(onboardingData.name);
     $('#review-goal').text(onboardingData.primary_goal.charAt(0).toUpperCase() + onboardingData.primary_goal.slice(1));
     $('#review-fitness').text(onboardingData.fitness_level.charAt(0).toUpperCase() + onboardingData.fitness_level.slice(1));
-    $('#review-days').text(onboardingData.available_days.length + ' days/week (' + onboardingData.available_days.map(d => d.slice(0,3).toUpperCase()).join(', ') + ')');
+    $('#review-days').text(onboardingData.available_days.length + ' days/week');
     $('#review-time').text(onboardingData.preferred_time.charAt(0).toUpperCase() + onboardingData.preferred_time.slice(1));
-    $('#review-diet').text(onboardingData.diet_type.charAt(0).toUpperCase() + onboardingData.diet_type.slice(1));
+    
+    const focusMap = {
+        'training': '🏋️ Training Only',
+        'full': '🎯 Full Experience',
+        'custom': '📄 Custom Diet Plan'
+    };
+    $('#review-focus').text(focusMap[onboardingData.app_focus]);
+    
+    // Update alert based on focus
+    if (onboardingData.app_focus === 'training') {
+        $('#focus-alert').removeClass('alert-info').addClass('alert-success');
+        $('#focus-alert').html('<i class="fas fa-check-circle me-2"></i><strong>Training Only Mode:</strong> You\'ll get AI-generated workouts. Nutrition features are disabled - we respect your existing diet.');
+    } else if (onboardingData.app_focus === 'custom') {
+        $('#focus-alert').removeClass('alert-info').addClass('alert-warning');
+        $('#focus-alert').html('<i class="fas fa-file-pdf me-2"></i><strong>Custom Diet Mode:</strong> After setup, go to Settings > Diet to upload your meal plan PDF. We\'ll send reminders based on your plan.');
+    } else {
+        $('#focus-alert').removeClass('alert-warning alert-success').addClass('alert-info');
+        $('#focus-alert').html('<i class="fas fa-lightbulb me-2"></i><strong>Full Experience:</strong> You\'ll get AI-generated workouts + personalized nutrition recommendations.');
+    }
 }
 
 function completeOnboarding() {
-    // Collect allergies
-    onboardingData.allergies = [];
-    if ($('#allergy-gluten').is(':checked')) onboardingData.allergies.push('gluten');
-    if ($('#allergy-dairy').is(':checked')) onboardingData.allergies.push('dairy');
-    if ($('#allergy-nuts').is(':checked')) onboardingData.allergies.push('nuts');
-    if ($('#allergy-eggs').is(':checked')) onboardingData.allergies.push('eggs');
-    if ($('#allergy-soy').is(':checked')) onboardingData.allergies.push('soy');
-    
     CHOS.loading.button('.btn-success', true);
     
     CHOS.api.post('/api/v1/onboarding/complete', onboardingData)
         .done(function(response) {
             CHOS.toast.success('Profile created! +300 XP earned!');
             
-            // Update local storage with user data
             if (response.profile) {
                 localStorage.setItem('user', JSON.stringify(response.profile));
             }
@@ -546,18 +539,5 @@ function completeOnboarding() {
             CHOS.toast.error('Error creating profile. Please try again.');
         });
 }
-
-// Allergy toggle logic
-$('#allergy-none').change(function() {
-    if ($(this).is(':checked')) {
-        $('#allergy-gluten, #allergy-dairy, #allergy-nuts, #allergy-eggs, #allergy-soy').prop('checked', false);
-    }
-});
-
-$('#allergy-gluten, #allergy-dairy, #allergy-nuts, #allergy-eggs, #allergy-soy').change(function() {
-    if ($(this).is(':checked')) {
-        $('#allergy-none').prop('checked', false);
-    }
-});
 </script>
 {% endblock %}
