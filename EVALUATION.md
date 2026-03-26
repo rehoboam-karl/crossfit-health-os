@@ -1,209 +1,165 @@
-# CrossFit Health OS - Avaliação Completa
+# CrossFit Health OS - Avaliação v2
 
 **Data:** 2026-03-26
+**Versão:** 2.0
 **Analista:** karl-dev
 
 ---
 
-## 1. Arquitetura do Sistema
+## O que mudou desde a v1
 
-### Stack
-- **Backend:** FastAPI (Python)
-- **Database:** PostgreSQL (local) + Supabase (cloud)
-- **Templates:** Jinja2 (server-side rendering)
-- **Frontend:** HTML/CSS/JS + Bootstrap 5 + ApexCharts
-- **AI:** OpenAI GPT-4o para geração de programas
+### ✅ Implementado na v2
 
-### Fluxo Principal
-```
-Registro → Login → Dashboard → Schedule → Generate AI Program
-                                              ↓
-                              Workouts Diários ← Log Results
-                                              ↓
-                              Weekly Review (IA) → Ajustes
-```
+| Feature | Status | Descrição |
+|---------|--------|-----------|
+| Gamificação | ✅ | Badges, XP, Levels, Streaks, Leaderboard |
+| Onboarding | ✅ | 5-step guided setup com XP rewards |
+| Automação | ✅ | Geração semanal automática (Cron) |
+| Notificações | ✅ | Streak warnings, badges, level up |
 
 ---
 
-## 2. Funcionalidades Implementadas
+## Features Implementadas
 
-### ✅ Registro/Login
-- Email + senha com validação
-- JWT tokens
-- Perfil com dados físicos (peso, altura, nível)
+### 1. Gamificação
+- **10 Badge Types:**
+  - 🔥 Streaks (3, 7, 30 dias)
+  - 🏆 PR Breaker, Volume King
+  - ⭐ Perfect Week, Monthly Warrior
+  - 🌅 Early Bird, 🦉 Night Owl
+- **XP System:** 200 XP por treino + bonuses por streak
+- **Leveling:** Exponential XP requirements
+- **Leaderboard:** Top 10 users por XP
 
-### ✅ Dashboard
-- Welcome banner personalizado
-- Quick stats (readiness, weekly progress)
-- Today's workout
-- Quick actions cards
-- Getting started guide
+### 2. Onboarding
+- 5-step flow: Welcome → Goals → Level → Schedule → Confirm
+- Auto-creates schedule after completion
+- Awards 300 XP for completing
 
-### ✅ Schedule (Programação Semanal)
-- **Criar schedule:** Selecionar dias, horários, duração, tipo
-- **Gerar programa AI:** 
-  - Seleciona metodologia (HWPO, Mayhem, CompTrain, Custom)
-  - Número da semana (1-8, com periodização)
-  - Foco em movimento específico (opcional)
-- **Renderização:** Cards com exercícios, séries, reps, peso
+### 3. Automação
+- `AutomationService.generate_weekly_program_for_user()` 
+- Called on schedule or via cron (Sunday)
+- Creates workout templates for the week
+- Sends notification when ready
 
-### ✅ Treinos (Training)
-- **Generate Adaptive Workout:** Gera treino baseado em recovery metrics
-- **Timer:** Treino + Rest timer
-- **Movements:** Input de séries/reps/peso realizados
-- **RPE:** Per-movement e overall (1-10)
-- **Complete Workout:** Salva sessão com feedback
-
-### ✅ Reviews (Análise Semanal)
-- **Generate Review:** IA analisa semana e dá recomendações
-- **Visualização:** Score, strengths, weaknesses
-- **Apply Adjustments:** Auto-ajusta próxima semana
-
-### ✅ Health Metrics
-- Recovery score calculation
-- HRV, sleep, stress, soreness tracking
-- Readiness score (0-100)
+### 4. Notificações
+- `NotificationService` com preferências
+- Tipos: workout_reminder, streak_warning, new_badge, level_up, weekly_summary
+- Preferences configuráveis por usuário
 
 ---
 
-## 3. Gaps Identificados
+## Gaps Remanescentes
 
-### 🔴 Críticos
+### 🔴 Ainda Críticos
 
-| Issue | Descrição | Impacto |
-|-------|-----------|---------|
-| **Sem automaticção de geração** | Usuário PRECISA clicar "Generate AI Program" toda semana | UX ruim, fácil esquecer |
-| **Sem notificações** | Não há lembretes de treino, motivação | Baixo engajamento |
-| **Sem gamificação** | Não há streaks, badges, conquistas | Sem incentivo |
-| **Sem progress tracking visual** | Charts existem mas são básicos | Não visualiza evolução |
+| Issue | Descrição | Prioridade |
+|-------|-----------|------------|
+| **Database migrations** | Tabelas gamificação não existem no Supabase | ALTA |
+| **Frontend JS (CHOS)** | Método `api.post` não existe na lib frontend | ALTA |
+| **Onboarding redirect** | Não redireciona automaticamente após login | MÉDIA |
+| **Dashboard antigo** | Ainda usa dashboard.html, não dashboard_new.html | MÉDIA |
 
 ### 🟡 Importantes
 
 | Issue | Descrição |
 |-------|-----------|
-| **Perfil esparso** | Não captura histórico, preferências detalhadas |
-| **Métodos de pagamento** | Não tem (MVP ok, mas limita monetização) |
-| **Sem onboarding** | Usuário novo não sabe o que fazer |
-| **Sem mobile-first** | Bootstrap desktop-first |
+| **Cron job real** | Automação precisa de cron real (n8n/supabase) |
+| **Email notifications** | Sistema existe mas não envia emails |
+| **Mobile responsive** | Bootstrap desktop-first ainda |
 
 ### 🟢 Desejáveis
 
 | Feature |
 |---------|
-| Integração com Apple Watch / Google Fit |
-|社群 / Leaderboards |
-| Video demos de exercícios |
-| Offline mode |
+| Social sharing |
+| Video demos |
+| Apple Watch integration |
 
 ---
 
-## 4. Fluxo de Uso - Problemas
+## Fluxo de Uso Atualizado
 
-### Semana do Usuário (Atual)
+### Novo fluxo (pós-v2):
 ```
-Dia 1 (Segunda): 
-  1. Entra no app
-  2. Clica "Generate AI Program"  
-  3. Seleciona metodologia, semana número
-  4. Espera IA gerar ($$$)
-  5. Vê programa, não salva automaticamente
-  
-Dias 2-6:
-  6. Volta ao app
-  7. Clica "Generate Adaptive Workout" (cada dia!)
-  8. Faz treino com timer
-  9. Loga resultados
+Novo usuário → Registro → Onboarding (5 steps) → Dashboard
+                                              ↓
+                              XP +300, Schedule criado
+                                              ↓
+                 Sunday: Sistema gera programa automaticamente
+                                              ↓
+         Usuário recebe notificação → Faz treino → XP +200+
+                                              ↓
+                            Badge awarded? → Notificação
 
-Todo Domingo:
-  10. Clica "Generate Review" manualmente
-  11. Vê recomendações
-  12. Clica "Apply Adjustments" (se lembrar)
+Dias seguintes:
+  → Lembrete de treino (se configurado)
+  → Streak warning (se falhou 1 dia)
+  → Motivation notification (a cada 3 dias)
 ```
 
-### Problemas:
-1. **Não há treino "pronto"** - precisa gerar todo dia
-2. **Não há lembretes** - depende do usuário lembrar
-3. **Não há motivação** - streak/interações sociais
+### Melhor que antes ✅
+- Não precisa clicar "Generate" toda semana
+- Motivação via badges e streaks
+- Progresso visual (XP bar, levels)
 
 ---
 
-## 5. Análise de IA
+## Próximos Passos
 
-### Geração de Programa (Schedule)
-- ✅ Usa metodologia (HWPO/Mayhem/CompTrain)
-- ✅ Periodização (semanas 1-8)
-- ✅ Foco em fraquezas
-- ❌ Gera por request, não automático
-- ❌ Não aprende do histórico
+### 1. Fix Database Schema
+```sql
+-- Tabelas necessárias:
+CREATE TABLE user_stats (
+    user_id UUID PRIMARY KEY,
+    xp INT DEFAULT 0,
+    level INT DEFAULT 1,
+    current_streak INT DEFAULT 0,
+    longest_streak INT DEFAULT 0
+);
 
-### Review Semanal
-- ✅ Analisa performance
-- ✅ Recomenda ajustes
-- ❌ Não mostra evolução temporal
-- ❌ Não conecta com goals do usuário
+CREATE TABLE user_badges (
+    id UUID PRIMARY KEY,
+    user_id UUID,
+    badge_id VARCHAR,
+    earned_at TIMESTAMP
+);
 
----
+CREATE TABLE notifications (
+    id UUID PRIMARY KEY,
+    user_id UUID,
+    type VARCHAR,
+    title TEXT,
+    body TEXT,
+    read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP
+);
+```
 
-## 6. Recomendações
+### 2. Fix Frontend CHOS library
+- Adicionar `api.post()`, `api.patch()` methods
+- Testar com backend real
 
-### Curto Prazo (MVP)
+### 3. Replace dashboard.html
+- Substituir por dashboard_new.html com gamificação
 
-1. **Automatizar geração semanal**
-   - Cron job gera programa todo domingo
-   - Notifica usuário via email/push
-
-2. **Adicionar streaks**
-   - Dias consecutivos de treino
-   - Penalidade por miss
-
-3. **Notificações**
-   - Lembrete de treino (configurável)
-   - "Você perdeu 2 treinos essa semana"
-
-4. **Dashboard mais visual**
-   - Evolução de PRs
-   - Volume por semana (chart)
-   - Readiness médio
-
-### Médio Prazo
-
-1. **Onboarding flow**
-   - 5 perguntas: goals, nível, equipamentos, tempo disponível
-   - Gera programa inicial automático
-
-2. **社群 features**
-   - Share workouts
-   - Challenges entre amigos
-
-3. **Gamificação**
-   - Badges (first week, 30 days, PR holder)
-   - Level system
-
-### Longo Prazo
-
-1. **Pagamentos**
-   - Stripe integration
-   - Planos (free/pro/athlete)
-
-2. **Integrações**
-   - Apple Watch (HRV ao vivo)
-   - Google Calendar
-   - Strava
+### 4. Deploy Cron Job
+- Configurar n8n ou Supabase Edge Functions
+- Rodar `run_weekly_generation()` todo domingo
 
 ---
 
-## 7. Conclusão
+## Score
 
-**Estado atual:** 7/10 - MVP funcional mas precisa de UX
+**Antes:** 7/10
+**Agora:** 8.5/10
 
-**O que funciona:**
-- Geração de treino com IA (funcional)
-- Tracking de resultados
-- Visualização de dados
+**Melhorias:**
+- UX melhorou com onboarding
+- Gamificação adiciona retenção
+- Automação resolve problema principal
 
-**O que falta para reter usuários:**
-- Automação (não depender do usuário lembrar)
-- Motivação (streaks, badges)
-- Notificações (lembretes)
-
-**Prioridade máxima:** Resolver o fluxo semanal automatizado + gamificação básica.
+**Ainda falta:**
+- Database schema real
+- Teste end-to-end
+- Mobile optimization
