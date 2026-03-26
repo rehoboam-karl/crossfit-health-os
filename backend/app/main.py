@@ -11,7 +11,7 @@ import logging
 from pathlib import Path
 
 from app.core.config import settings
-from app.api.v1 import training, health, nutrition, integrations, users, schedule, review, auth
+from app.api.v1 import training, health, nutrition, integrations, users, schedule, review, auth, onboarding, gamification
 from app.web import routes as web_routes
 
 # Configure logging
@@ -148,6 +148,18 @@ app.include_router(
     review.router,
     prefix="/api/v1/review",
     tags=["Review"]
+)
+
+app.include_router(
+    onboarding.router,
+    prefix="/api/v1/onboarding",
+    tags=["Onboarding"]
+)
+
+app.include_router(
+    gamification.router,
+    prefix="/api/v1/gamification",
+    tags=["Gamification"]
 )
 
 

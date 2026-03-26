@@ -116,6 +116,21 @@ async def profile_page(request: Request):
     })
 
 
+@router.get("/dashboard/badges")
+async def badges_page(request: Request):
+    """Badges/Achievements page"""
+    return templates.TemplateResponse("badges.html", {
+        "request": request,
+        "active_page": "badges"
+    })
+
+
+@router.get("/onboarding")
+async def onboarding_page(request: Request):
+    """Onboarding page for new users"""
+    return templates.TemplateResponse("onboarding.html", {"request": request})
+
+
 # ============================================
 # Auth Verification Routes (Supabase callbacks)
 # ============================================
