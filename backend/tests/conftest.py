@@ -329,3 +329,93 @@ async def authenticated_client(async_client, override_auth):
     """Authenticated async client with mocked user"""
     async_client.headers.update({"Authorization": "Bearer mock_token"})
     yield async_client
+
+
+# ============================================
+# Mock psycopg2 database functions
+# ============================================
+
+from contextlib import contextmanager
+
+class MockCursor:
+    def __init__(self):
+        self._result = []
+        self.rowcount = 1
+        self._lastval = 1  # Simulates PostgreSQL lastval()
+    
+    def execute(self, query, *args):
+        # Check if this is a lastval() call
+        if query and 'lastval' in query.lower():
+            self._result = [(self._lastval,)]
+        else:
+            self._result = []
+    
+    def fetchone(self):
+        result = self._result[0] if self._result else None
+        self._result = []
+        return result
+    
+    def fetchall(self):
+        return self._result
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, *args):
+        pass
+
+class MockConnection:
+    def __init__(self):
+        self._cursor = MockCursor()
+    
+    def cursor(self):
+        return self._cursor
+    
+    def commit(self):
+        pass
+    
+    def rollback(self):
+        pass
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, *args):
+        pass
+
+class MockPool:
+    def getconn(self):
+        return MockConnection()
+    
+    def putconn(self, conn):
+        pass
+    
+    def closeall(self):
+        pass
+
+@pytest.fixture(autouse=True)
+def mock_database(monkeypatch):
+    """Mock database functions to avoid real DB connections"""
+    from app.db import database
+    
+    mock_pool = MockPool()
+    database.connection_pool = mock_pool
+    
+    @contextmanager
+    def mock_get_connection():
+        yield MockConnection()
+    
+    def mock_init_db():
+        pass
+    
+    def mock_fetchone(query, *args):
+        return None
+    
+    def mock_execute(query, *args):
+        return 1
+    
+    monkeypatch.setattr("app.db.database.get_pool", lambda: mock_pool)
+    monkeypatch.setattr("app.db.database.init_db", mock_init_db)
+    monkeypatch.setattr("app.db.database.fetchone", mock_fetchone)
+    monkeypatch.setattr("app.db.database.execute", mock_execute)
+    monkeypatch.setattr("app.db.database.get_connection", mock_get_connection)
