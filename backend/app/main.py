@@ -150,23 +150,10 @@ app.include_router(
     tags=["Review"]
 )
 
-app.include_router(
-    onboarding.router,
-    prefix="/api/v1/onboarding",
-    tags=["Onboarding"]
-)
-
-app.include_router(
-    gamification.router,
-    prefix="/api/v1/gamification",
-    tags=["Gamification"]
-)
-
-app.include_router(
-    diet.router,
-    prefix="/api/v1/diet",
-    tags=["Custom Diet"]
-)
+# These routers have their own prefix defined
+app.include_router(onboarding.router)
+app.include_router(gamification.router)
+app.include_router(diet.router)
 
 
 # Custom 404 handler - only for HTML requests
