@@ -5,7 +5,7 @@
 {% block navbar %}{% endblock %}
 
 {% block content %}
-<div class="container py-5">
+<div class="container py-4">
     <div class="row justify-content-center">
         <div class="col-lg-8">
             <!-- Progress -->
@@ -13,7 +13,7 @@
                 <div class="progress" style="height: 8px;">
                     <div class="progress-bar bg-primary" id="progress-bar" style="width: 0%"></div>
                 </div>
-                <p class="text-muted mt-2 mb-0">Step <span id="current-step">1</span> of <span id="total-steps">5</span></p>
+                <p class="text-muted mt-2 mb-0">Step <span id="current-step">1</span> of <span id="total-steps">6</span></p>
             </div>
             
             <!-- Step 1: Welcome -->
@@ -24,7 +24,7 @@
                     </div>
                     <h1 class="display-6 fw-bold mb-3">Welcome to CrossFit Health OS</h1>
                     <p class="lead text-muted mb-4">
-                        Your AI-powered training coach. Let's set up your profile in under 2 minutes.
+                        Your AI-powered training coach. Let's set up your profile in under 3 minutes.
                     </p>
                     <button class="btn btn-primary btn-lg px-5" onclick="nextStep(1)">
                         Let's Get Started <i class="fas fa-arrow-right ms-2"></i>
@@ -37,7 +37,7 @@
                 <div class="card-body p-5">
                     <h3 class="fw-bold mb-4">Tell us about yourself</h3>
                     
-                    <div class="mb-3">
+                    <div class="mb-4">
                         <label class="form-label fw-bold">Your Name</label>
                         <input type="text" id="user-name" class="form-control form-control-lg" placeholder="What should we call you?">
                     </div>
@@ -47,43 +47,44 @@
                         <div class="row g-2">
                             <div class="col-6">
                                 <div class="card goal-card" onclick="selectGoal('strength')">
-                                    <div class="card-body text-center py-4">
+                                    <div class="card-body text-center py-3">
                                         <i class="fas fa-dumbbell fa-2x mb-2 text-primary"></i>
-                                        <h6>Strength</h6>
-                                        <small class="text-muted">Get stronger</small>
+                                        <h6>Get Stronger</h6>
+                                        <small class="text-muted">Build maximal strength</small>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-6">
                                 <div class="card goal-card" onclick="selectGoal('conditioning')">
-                                    <div class="card-body text-center py-4">
+                                    <div class="card-body text-center py-3">
                                         <i class="fas fa-heartbeat fa-2x mb-2 text-danger"></i>
-                                        <h6>Conditioning</h6>
-                                        <small class="text-muted">Build endurance</small>
+                                        <h6>Build Endurance</h6>
+                                        <small class="text-muted">Improve conditioning</small>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-6">
                                 <div class="card goal-card" onclick="selectGoal('both')">
-                                    <div class="card-body text-center py-4">
+                                    <div class="card-body text-center py-3">
                                         <i class="fas fa-fire fa-2x mb-2 text-warning"></i>
                                         <h6>Both</h6>
-                                        <small class="text-muted">Well-rounded</small>
+                                        <small class="text-muted">Well-rounded fitness</small>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-6">
                                 <div class="card goal-card" onclick="selectGoal('health')">
-                                    <div class="card-body text-center py-4">
+                                    <div class="card-body text-center py-3">
                                         <i class="fas fa-leaf fa-2x mb-2 text-success"></i>
-                                        <h6>Health</h6>
-                                        <small class="text-muted">Feel better</small>
+                                        <h6>General Health</h6>
+                                        <small class="text-muted">Feel better daily</small>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <input type="hidden" id="primary-goal" value="both">
                     </div>
+                    
+                    <input type="hidden" id="primary-goal" value="both">
                     
                     <div class="d-flex justify-content-between">
                         <button class="btn btn-outline-secondary" onclick="prevStep(2)">
@@ -142,7 +143,7 @@
                                 </div>
                                 <div>
                                     <h6 class="mb-0">Competitive Athlete</h6>
-                                    <small class="text-muted">Compete in CrossFit or similar sports</small>
+                                    <small class="text-muted">Compete in CrossFit or sports</small>
                                 </div>
                             </div>
                         </div>
@@ -160,22 +161,22 @@
                 </div>
             </div>
             
-            <!-- Step 4: Schedule -->
+            <!-- Step 4: Training Days & Schedule -->
             <div class="card shadow step-card d-none" id="step-4">
                 <div class="card-body p-5">
-                    <h3 class="fw-bold mb-4">Your Training Days</h3>
+                    <h3 class="fw-bold mb-2">Your Training Schedule</h3>
                     <p class="text-muted mb-4">Select the days you can train consistently</p>
                     
-                    <div class="row g-2">
+                    <div class="row g-2 mb-4">
                         {% set days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
                         {% set icons = ['💪', '🔥', '⚡', '🏋️', '💥', '🎯', '😴'] %}
                         {% for day in days %}
-                        <div class="col-6 col-md-4 col-lg-3">
+                        <div class="col-6 col-md-3">
                             <div class="card day-card selectable" id="day-{{ loop.index0 }}" onclick="toggleDay({{ loop.index0 }})">
                                 <div class="card-body text-center py-3">
                                     <div class="mb-2">{{ icons[loop.index0] }}</div>
                                     <h6 class="mb-0">{{ day }}</h6>
-                                    <small class="text-muted">Rest</small>
+                                    <small class="text-muted day-status">Rest</small>
                                 </div>
                             </div>
                         </div>
@@ -184,12 +185,41 @@
                     
                     <input type="hidden" id="selected-days" value="">
                     
-                    <div class="alert alert-info mt-4">
-                        <i class="fas fa-info-circle me-2"></i>
-                        You can change this later. Consistency matters more than frequency.
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Preferred Training Time</label>
+                        <div class="row g-2">
+                            <div class="col-4">
+                                <div class="card time-card selectable" id="time-morning" onclick="selectTime('morning')">
+                                    <div class="card-body text-center py-3">
+                                        <div class="mb-2">🌅</div>
+                                        <h6 class="mb-0">Morning</h6>
+                                        <small class="text-muted">5-9 AM</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="card time-card selectable" id="time-afternoon" onclick="selectTime('afternoon')">
+                                    <div class="card-body text-center py-3">
+                                        <div class="mb-2">☀️</div>
+                                        <h6 class="mb-0">Afternoon</h6>
+                                        <small class="text-muted">12-5 PM</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="card time-card selectable" id="time-evening" onclick="selectTime('evening')">
+                                    <div class="card-body text-center py-3">
+                                        <div class="mb-2">🌙</div>
+                                        <h6 class="mb-0">Evening</h6>
+                                        <small class="text-muted">6-9 PM</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+                    <input type="hidden" id="preferred-time" value="morning">
                     
-                    <div class="d-flex justify-content-between mt-4">
+                    <div class="d-flex justify-content-between">
                         <button class="btn btn-outline-secondary" onclick="prevStep(4)">
                             <i class="fas fa-arrow-left me-2"></i>Back
                         </button>
@@ -200,8 +230,107 @@
                 </div>
             </div>
             
-            <!-- Step 5: Confirm -->
+            <!-- Step 5: Nutrition & Diet -->
             <div class="card shadow step-card d-none" id="step-5">
+                <div class="card-body p-5">
+                    <h3 class="fw-bold mb-2">Nutrition Preferences</h3>
+                    <p class="text-muted mb-4">Help us customize your meal recommendations</p>
+                    
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Diet Type</label>
+                        <div class="row g-2">
+                            <div class="col-6 col-md-3">
+                                <div class="card diet-card selectable" id="diet-omnivore" onclick="selectDiet('omnivore')">
+                                    <div class="card-body text-center py-3">
+                                        <div class="mb-2">🍖</div>
+                                        <h6 class="mb-0">Omnivore</h6>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="card diet-card selectable" id="diet-vegetarian" onclick="selectDiet('vegetarian')">
+                                    <div class="card-body text-center py-3">
+                                        <div class="mb-2">🥚</div>
+                                        <h6 class="mb-0">Vegetarian</h6>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="card diet-card selectable" id="diet-vegan" onclick="selectDiet('vegan')">
+                                    <div class="card-body text-center py-3">
+                                        <div class="mb-2">🥬</div>
+                                        <h6 class="mb-0">Vegan</h6>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="card diet-card selectable" id="diet-pescatarian" onclick="selectDiet('pescatarian')">
+                                    <div class="card-body text-center py-3">
+                                        <div class="mb-2">🐟</div>
+                                        <h6 class="mb-0">Pescatarian</h6>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <input type="hidden" id="diet-type" value="omnivore">
+                    
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Any Food Allergies?</label>
+                        <div class="row g-2">
+                            <div class="col-4 col-md-2">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="allergy-gluten" value="gluten">
+                                    <label class="form-check-label" for="allergy-gluten">Gluten</label>
+                                </div>
+                            </div>
+                            <div class="col-4 col-md-2">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="allergy-dairy" value="dairy">
+                                    <label class="form-check-label" for="allergy-dairy">Dairy</label>
+                                </div>
+                            </div>
+                            <div class="col-4 col-md-2">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="allergy-nuts" value="nuts">
+                                    <label class="form-check-label" for="allergy-nuts">Nuts</label>
+                                </div>
+                            </div>
+                            <div class="col-4 col-md-2">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="allergy-eggs" value="eggs">
+                                    <label class="form-check-label" for="allergy-eggs">Eggs</label>
+                                </div>
+                            </div>
+                            <div class="col-4 col-md-2">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="allergy-soy" value="soy">
+                                    <label class="form-check-label" for="allergy-soy">Soy</label>
+                                </div>
+                            </div>
+                            <div class="col-4 col-md-2">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="allergy-none" value="none" checked>
+                                    <label class="form-check-label" for="allergy-none">None</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <button class="btn btn-outline-secondary" onclick="prevStep(5)">
+                            <i class="fas fa-arrow-left me-2"></i>Back
+                        </button>
+                        <button class="btn btn-primary" onclick="nextStep(5)">
+                            Next <i class="fas fa-arrow-right ms-2"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Step 6: Confirm -->
+            <div class="card shadow step-card d-none" id="step-6">
                 <div class="card-body p-5">
                     <div class="text-center mb-4">
                         <div class="mb-3" style="font-size: 60px;">🚀</div>
@@ -226,15 +355,23 @@
                                     <p class="mb-1"><strong>Training Days</strong></p>
                                     <p class="text-muted mb-3" id="review-days">-</p>
                                     
-                                    <p class="mb-1"><strong>Program</strong></p>
-                                    <p class="text-muted">HWPO</p>
+                                    <p class="mb-1"><strong>Preferred Time</strong></p>
+                                    <p class="text-muted mb-3" id="review-time">-</p>
+                                    
+                                    <p class="mb-1"><strong>Diet</strong></p>
+                                    <p class="text-muted" id="review-diet">-</p>
                                 </div>
                             </div>
                         </div>
                     </div>
                     
+                    <div class="alert alert-info">
+                        <i class="fas fa-lightbulb me-2"></i>
+                        <strong>What happens next:</strong> Your AI coach will create a personalized training program based on your profile. You'll earn XP for completing workouts!
+                    </div>
+                    
                     <div class="d-flex justify-content-between">
-                        <button class="btn btn-outline-secondary" onclick="prevStep(5)">
+                        <button class="btn btn-outline-secondary" onclick="prevStep(6)">
                             <i class="fas fa-arrow-left me-2"></i>Back
                         </button>
                         <button class="btn btn-success btn-lg" onclick="completeOnboarding()">
@@ -248,16 +385,16 @@
 </div>
 
 <style>
-.goal-card, .day-card {
+.goal-card, .day-card, .time-card, .diet-card {
     cursor: pointer;
     transition: all 0.2s;
     border: 2px solid transparent;
 }
-.goal-card:hover, .day-card:hover {
+.goal-card:hover, .day-card:hover, .time-card:hover, .diet-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
-.goal-card.selected, .day-card.selected {
+.goal-card.selected, .day-card.selected, .time-card.selected, .diet-card.selected {
     border-color: var(--bs-primary);
     background-color: rgba(var(--bs-primary-rgb), 0.1);
 }
@@ -272,13 +409,16 @@
 
 <script>
 let currentStep = 1;
-const totalSteps = 5;
+const totalSteps = 6;
 let onboardingData = {
     name: '',
     primary_goal: 'both',
     fitness_level: 'intermediate',
-    available_days: ['monday', 'wednesday', 'friday'],
-    methodologies: ['hwpo']
+    available_days: [],
+    preferred_time: 'morning',
+    methodologies: ['hwpo'],
+    diet_type: 'omnivore',
+    allergies: []
 };
 
 $(document).ready(function() {
@@ -290,6 +430,9 @@ $(document).ready(function() {
             } else {
                 updateProgress();
             }
+        })
+        .fail(function() {
+            updateProgress();
         });
 });
 
@@ -304,6 +447,10 @@ function showStep(step) {
     $('.step-card').addClass('d-none');
     $('#step-' + step).removeClass('d-none');
     updateProgress();
+    
+    if (step === 6) {
+        updateReview();
+    }
 }
 
 function nextStep(step) {
@@ -312,14 +459,6 @@ function nextStep(step) {
     }
     currentStep++;
     showStep(currentStep);
-    
-    if (currentStep === 5) {
-        // Update review
-        $('#review-name').text(onboardingData.name);
-        $('#review-goal').text(onboardingData.primary_goal.charAt(0).toUpperCase() + onboardingData.primary_goal.slice(1));
-        $('#review-fitness').text(onboardingData.fitness_level.charAt(0).toUpperCase() + onboardingData.fitness_level.slice(1));
-        $('#review-days').text(onboardingData.available_days.length + ' days/week');
-    }
 }
 
 function prevStep(step) {
@@ -346,23 +485,58 @@ function toggleDay(dayIndex) {
     
     if (card.hasClass('selected')) {
         card.removeClass('selected');
-        card.find('.text-muted').text('Rest');
+        card.find('.day-status').text('Rest');
         onboardingData.available_days = onboardingData.available_days.filter(d => d !== day);
     } else {
         card.addClass('selected');
-        card.find('.text-muted').text('Train');
+        card.find('.day-status').text('Train');
         if (!onboardingData.available_days.includes(day)) {
             onboardingData.available_days.push(day);
         }
     }
 }
 
+function selectTime(time) {
+    $('.time-card').removeClass('selected');
+    $('#time-' + time).addClass('selected');
+    onboardingData.preferred_time = time;
+}
+
+function selectDiet(diet) {
+    $('.diet-card').removeClass('selected');
+    $('#diet-' + diet).addClass('selected');
+    onboardingData.diet_type = diet;
+}
+
+function updateReview() {
+    $('#review-name').text(onboardingData.name);
+    $('#review-goal').text(onboardingData.primary_goal.charAt(0).toUpperCase() + onboardingData.primary_goal.slice(1));
+    $('#review-fitness').text(onboardingData.fitness_level.charAt(0).toUpperCase() + onboardingData.fitness_level.slice(1));
+    $('#review-days').text(onboardingData.available_days.length + ' days/week (' + onboardingData.available_days.map(d => d.slice(0,3).toUpperCase()).join(', ') + ')');
+    $('#review-time').text(onboardingData.preferred_time.charAt(0).toUpperCase() + onboardingData.preferred_time.slice(1));
+    $('#review-diet').text(onboardingData.diet_type.charAt(0).toUpperCase() + onboardingData.diet_type.slice(1));
+}
+
 function completeOnboarding() {
+    // Collect allergies
+    onboardingData.allergies = [];
+    if ($('#allergy-gluten').is(':checked')) onboardingData.allergies.push('gluten');
+    if ($('#allergy-dairy').is(':checked')) onboardingData.allergies.push('dairy');
+    if ($('#allergy-nuts').is(':checked')) onboardingData.allergies.push('nuts');
+    if ($('#allergy-eggs').is(':checked')) onboardingData.allergies.push('eggs');
+    if ($('#allergy-soy').is(':checked')) onboardingData.allergies.push('soy');
+    
     CHOS.loading.button('.btn-success', true);
     
     CHOS.api.post('/api/v1/onboarding/complete', onboardingData)
         .done(function(response) {
             CHOS.toast.success('Profile created! +300 XP earned!');
+            
+            // Update local storage with user data
+            if (response.profile) {
+                localStorage.setItem('user', JSON.stringify(response.profile));
+            }
+            
             setTimeout(() => {
                 window.location.href = '/dashboard';
             }, 1000);
@@ -373,12 +547,17 @@ function completeOnboarding() {
         });
 }
 
-// Select default days
-setTimeout(() => {
-    ['monday', 'wednesday', 'friday'].forEach((day, i) => {
-        $('#day-' + ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].indexOf(day)).addClass('selected');
-        $('#day-' + ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].indexOf(day)).find('.text-muted').text('Train');
-    });
-}, 100);
+// Allergy toggle logic
+$('#allergy-none').change(function() {
+    if ($(this).is(':checked')) {
+        $('#allergy-gluten, #allergy-dairy, #allergy-nuts, #allergy-eggs, #allergy-soy').prop('checked', false);
+    }
+});
+
+$('#allergy-gluten, #allergy-dairy, #allergy-nuts, #allergy-eggs, #allergy-soy').change(function() {
+    if ($(this).is(':checked')) {
+        $('#allergy-none').prop('checked', false);
+    }
+});
 </script>
 {% endblock %}

@@ -7,33 +7,70 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
-    <!-- Welcome Banner with XP Bar -->
-    <div class="card bg-gradient-primary text-white mb-4 border-0">
-        <div class="card-body p-4">
-            <div class="row align-items-center">
-                <div class="col-md-8">
-                    <h1 class="display-6 fw-bold mb-2">
-                        Hey, <span id="welcome-name">Athlete</span>! <span id="streak-icon"></span>
-                    </h1>
-                    <p class="mb-0 opacity-75" id="streak-text">Start your training streak today!</p>
+<div class="container-fluid py-4" id="main-content">
+    
+    <!-- Loading State -->
+    <div id="loading-state" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="text-muted mt-3">Loading your dashboard...</p>
+    </div>
+    
+    <!-- New User: Show Onboarding Prompt -->
+    <div id="new-user-state" class="d-none">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card border-primary shadow-lg">
+                    <div class="card-body p-5 text-center">
+                        <div class="mb-4">
+                            <span style="font-size: 80px;">🏋️</span>
+                        </div>
+                        <h1 class="display-6 fw-bold mb-3">Welcome to CrossFit Health OS!</h1>
+                        <p class="lead text-muted mb-4">
+                            Let's set up your training profile. It takes less than 2 minutes.
+                        </p>
+                        <div class="d-flex justify-content-center gap-3">
+                            <a href="/onboarding" class="btn btn-primary btn-lg px-5">
+                                <i class="fas fa-rocket me-2"></i> Start Setup
+                            </a>
+                        </div>
+                        <div class="mt-4">
+                            <small class="text-muted">
+                                We'll ask about your goals, fitness level, and training preferences.
+                                This helps us create your personalized program.
+                            </small>
+                        </div>
+                    </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="flex-grow-1">
-                            <div class="d-flex justify-content-between text-white-50 mb-1">
-                                <span>Level <span id="current-level">1</span></span>
-                                <span id="xp-text">0 / 1000 XP</span>
-                            </div>
-                            <div class="progress bg-white bg-opacity-25" style="height: 12px;">
-                                <div class="progress-bar bg-warning" id="xp-bar" style="width: 0%"></div>
+                
+                <!-- Features Preview -->
+                <div class="row g-3 mt-4">
+                    <div class="col-md-4">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body text-center">
+                                <i class="fas fa-brain fa-2x text-primary mb-2"></i>
+                                <h6 class="fw-bold">AI-Powered Programming</h6>
+                                <small class="text-muted">Personalized workouts based on your data</small>
                             </div>
                         </div>
-                        <div class="text-center">
-                            <div class="rounded-circle bg-warning bg-opacity-25 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
-                                <i class="fas fa-trophy text-warning fa-lg"></i>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body text-center">
+                                <i class="fas fa-chart-line fa-2x text-success mb-2"></i>
+                                <h6 class="fw-bold">Track Progress</h6>
+                                <small class="text-muted">Visualize your improvements over time</small>
                             </div>
-                            <small class="text-white-50" id="badge-count">0 badges</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body text-center">
+                                <i class="fas fa-fire fa-2x text-warning mb-2"></i>
+                                <h6 class="fw-bold">Stay Motivated</h6>
+                                <small class="text-muted">Earn badges and maintain streaks</small>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -41,178 +78,246 @@
         </div>
     </div>
     
-    <!-- Quick Stats -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="text-muted mb-0">🔥 Current Streak</h6>
+    <!-- Active User: Full Dashboard -->
+    <div id="active-user-state" class="d-none">
+        <!-- Welcome Banner with XP Bar -->
+        <div class="card bg-gradient-primary text-white mb-4 border-0">
+            <div class="card-body p-4">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h1 class="display-6 fw-bold mb-2">
+                            Hey, <span id="welcome-name">Athlete</span>! <span id="streak-icon"></span>
+                        </h1>
+                        <p class="mb-0 opacity-75" id="streak-text">Start your training streak today!</p>
                     </div>
-                    <h2 class="fw-bold text-primary mb-0" id="stat-streak">0</h2>
-                    <small class="text-muted">days</small>
+                    <div class="col-md-4">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between text-white-50 mb-1">
+                                    <span>Level <span id="current-level">1</span></span>
+                                    <span id="xp-text">0 / 1000 XP</span>
+                                </div>
+                                <div class="progress bg-white bg-opacity-25" style="height: 12px;">
+                                    <div class="progress-bar bg-warning" id="xp-bar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            <div class="text-center">
+                                <div class="rounded-circle bg-warning bg-opacity-25 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                    <i class="fas fa-trophy text-warning fa-lg"></i>
+                                </div>
+                                <small class="text-white-50" id="badge-count">0 badges</small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
         
-        <div class="col-md-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="text-muted mb-0">This Week</h6>
+        <!-- Today's Workout - MAIN CTA -->
+        <div class="card shadow-lg border-0 mb-4" style="border-left: 4px solid var(--bs-primary);">
+            <div class="card-header bg-white border-0 py-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <h4 class="mb-0 fw-bold">Today's Workout</h4>
+                        <span class="badge bg-success ms-2" id="workout-status-badge">Ready</span>
                     </div>
-                    <h2 class="fw-bold text-success mb-0" id="stat-week">0/5</h2>
-                    <small class="text-muted">Sessions</small>
+                    <span class="text-muted" id="today-date"></span>
+                </div>
+            </div>
+            <div class="card-body" id="today-workout-container">
+                <!-- Loaded dynamically -->
+            </div>
+        </div>
+        
+        <!-- Quick Actions Row -->
+        <div class="row g-3 mb-4">
+            <!-- Log Recovery -->
+            <div class="col-md-3">
+                <a href="#" class="text-decoration-none" onclick="openRecoveryModal(); return false;">
+                    <div class="card h-100 border-0 shadow-sm hover-lift text-center">
+                        <div class="card-body p-3">
+                            <i class="fas fa-heartbeat fa-2x text-danger mb-2"></i>
+                            <h6 class="fw-bold mb-1">Log Recovery</h6>
+                            <small class="text-muted">HRV, Sleep, Soreness</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            
+            <!-- Quick Start -->
+            <div class="col-md-3">
+                <a href="#" class="text-decoration-none" onclick="startQuickWorkout(); return false;">
+                    <div class="card h-100 border-0 shadow-sm hover-lift text-center">
+                        <div class="card-body p-3">
+                            <i class="fas fa-bolt fa-2x text-warning mb-2"></i>
+                            <h6 class="fw-bold mb-1">Quick Workout</h6>
+                            <small class="text-muted">15-min conditioning</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            
+            <!-- Schedule -->
+            <div class="col-md-3">
+                <a href="/dashboard/schedule" class="text-decoration-none">
+                    <div class="card h-100 border-0 shadow-sm hover-lift text-center">
+                        <div class="card-body p-3">
+                            <i class="fas fa-calendar-week fa-2x text-primary mb-2"></i>
+                            <h6 class="fw-bold mb-1">Weekly Plan</h6>
+                            <small class="text-muted">View your program</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            
+            <!-- Nutrition -->
+            <div class="col-md-3">
+                <a href="/dashboard/nutrition" class="text-decoration-none">
+                    <div class="card h-100 border-0 shadow-sm hover-lift text-center">
+                        <div class="card-body p-3">
+                            <i class="fas fa-utensils fa-2x text-success mb-2"></i>
+                            <h6 class="fw-bold mb-1">Nutrition</h6>
+                            <small class="text-muted">Track macros</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+        
+        <!-- Stats + Badges Row -->
+        <div class="row g-3 mb-4">
+            <!-- Quick Stats -->
+            <div class="col-lg-8">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-0 py-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0 fw-bold">This Week</h5>
+                            <a href="/dashboard/workouts" class="btn btn-sm btn-outline-primary">View History</a>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-3 text-center">
+                                <h2 class="fw-bold text-primary mb-0" id="stat-streak">0</h2>
+                                <small class="text-muted">🔥 Streak</small>
+                            </div>
+                            <div class="col-3 text-center">
+                                <h2 class="fw-bold text-success mb-0" id="stat-week">0/5</h2>
+                                <small class="text-muted">Sessions</small>
+                            </div>
+                            <div class="col-3 text-center">
+                                <h2 class="fw-bold text-info mb-0" id="stat-month">0</h2>
+                                <small class="text-muted">This Month</small>
+                            </div>
+                            <div class="col-3 text-center">
+                                <h2 class="fw-bold text-warning mb-0" id="stat-rpe">-</h2>
+                                <small class="text-muted">Avg RPE</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Weekly Progress Bar -->
+                        <div class="mt-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <small class="text-muted">Weekly Progress</small>
+                                <small class="text-muted" id="weekly-progress-text">0/5 workouts</small>
+                            </div>
+                            <div class="progress" style="height: 8px;">
+                                <div class="progress-bar bg-success" id="weekly-progress-bar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Badges Preview -->
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0 py-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0 fw-bold">Achievements</h5>
+                            <a href="/dashboard/badges" class="btn btn-sm btn-outline-primary">View All</a>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-2" id="badges-container">
+                            <div class="col-12 text-center text-muted py-3">
+                                <small>Complete workouts to earn badges!</small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
         
-        <div class="col-md-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="text-muted mb-0">This Month</h6>
-                    </div>
-                    <h2 class="fw-bold text-info mb-0" id="stat-month">0</h2>
-                    <small class="text-muted">Workouts</small>
-                </div>
-            </div>
-        </div>
-        
-        <div class="col-md-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="text-muted mb-0">Avg RPE</h6>
-                    </div>
-                    <h2 class="fw-bold text-warning mb-0" id="stat-rpe">-</h2>
-                    <small class="text-muted">per workout</small>
-                </div>
+        <!-- Notifications -->
+        <div class="row">
+            <div class="col-12">
+                <div id="notifications-container"></div>
             </div>
         </div>
     </div>
-    
-    <!-- Today's Workout -->
-    <div class="card shadow-sm border-0 mb-4">
-        <div class="card-header bg-white border-0 py-3">
-            <div class="d-flex justify-content-between align-items-center">
-                <h4 class="mb-0 fw-bold">Today's Workout</h4>
-                <span class="badge bg-primary" id="today-date"></span>
+</div>
+
+<!-- Recovery Modal -->
+<div class="modal fade" id="recoveryModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-heartbeat text-danger me-2"></i>Log Recovery Metrics
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-        </div>
-        <div class="card-body" id="today-workout-container">
-            <div class="text-center py-5">
-                <i class="fas fa-bullseye fa-4x text-muted mb-3"></i>
-                <h5 class="fw-bold mb-3">No workout ready</h5>
-                <p class="text-muted mb-4">
-                    Generate today's workout based on your schedule
-                </p>
-                <button class="btn btn-primary btn-lg" id="btn-generate-today" onclick="generateTodayWorkout()">
-                    <i class="fas fa-magic me-2"></i> Generate Workout
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">How do you feel today?</label>
+                    <select class="form-select" id="recovery-readiness">
+                        <option value="90">😀 Great - 90%</option>
+                        <option value="75">🙂 Good - 75%</option>
+                        <option value="60">😐 Okay - 60%</option>
+                        <option value="40">😕 Tired - 40%</option>
+                        <option value="20">😫 Exhausted - 20%</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Sleep (hours)</label>
+                    <input type="number" class="form-control" id="recovery-sleep" min="0" max="12" step="0.5" value="7">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Muscle Soreness (1-10)</label>
+                    <input type="range" class="form-range" id="recovery-soreness" min="1" max="10" value="3">
+                    <div class="d-flex justify-content-between">
+                        <small class="text-muted">None</small>
+                        <small class="text-muted" id="soreness-value">3</small>
+                        <small class="text-muted">Very Sore</small>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Stress Level (1-10)</label>
+                    <input type="range" class="form-range" id="recovery-stress" min="1" max="10" value="5">
+                    <div class="d-flex justify-content-between">
+                        <small class="text-muted">Low</small>
+                        <small class="text-muted" id="stress-value">5</small>
+                        <small class="text-muted">High</small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveRecovery()">
+                    <i class="fas fa-save me-2"></i>Save
                 </button>
             </div>
         </div>
     </div>
-    
-    <!-- Badges Preview -->
-    <div class="card shadow-sm border-0 mb-4">
-        <div class="card-header bg-white border-0 py-3">
-            <div class="d-flex justify-content-between align-items-center">
-                <h4 class="mb-0 fw-bold">Your Badges</h4>
-                <a href="/dashboard/badges" class="btn btn-sm btn-outline-primary">View All</a>
-            </div>
-        </div>
-        <div class="card-body">
-            <div class="row g-3" id="badges-container">
-                <div class="col-12 text-center text-muted py-3">
-                    <p class="mb-0">Complete workouts to earn badges!</p>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Quick Actions -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-4">
-            <a href="/dashboard/schedule" class="text-decoration-none">
-                <div class="card h-100 border-0 shadow-sm hover-lift">
-                    <div class="card-body text-center p-4">
-                        <i class="fas fa-calendar-alt fa-3x text-primary mb-3"></i>
-                        <h5 class="fw-bold mb-2">Program</h5>
-                        <p class="text-muted mb-0">
-                            View and manage your weekly training program
-                        </p>
-                    </div>
-                </div>
-            </a>
-        </div>
-        
-        <div class="col-md-4">
-            <a href="/dashboard/workouts" class="text-decoration-none">
-                <div class="card h-100 border-0 shadow-sm hover-lift">
-                    <div class="card-body text-center p-4">
-                        <i class="fas fa-chart-line fa-3x text-success mb-3"></i>
-                        <h5 class="fw-bold mb-2">History</h5>
-                        <p class="text-muted mb-0">
-                            Track your progress and personal records
-                        </p>
-                    </div>
-                </div>
-            </a>
-        </div>
-        
-        <div class="col-md-4">
-            <a href="/dashboard/profile" class="text-decoration-none">
-                <div class="card h-100 border-0 shadow-sm hover-lift">
-                    <div class="card-body text-center p-4">
-                        <i class="fas fa-user-cog fa-3x text-info mb-3"></i>
-                        <h5 class="fw-bold mb-2">Profile</h5>
-                        <p class="text-muted mb-0">
-                            Update goals, preferences, and settings
-                        </p>
-                    </div>
-                </div>
-            </a>
-        </div>
-    </div>
-    
-    <!-- Getting Started (shown if new) -->
-    <div class="card border-primary shadow-sm" id="getting-started-card">
-        <div class="card-header bg-primary text-white">
-            <h5 class="mb-0">
-                <i class="fas fa-rocket me-2"></i> Getting Started
-            </h5>
-        </div>
-        <div class="card-body">
-            <ol class="list-unstyled mb-0">
-                <li class="d-flex align-items-start mb-3" id="step-onboarding">
-                    <span class="badge bg-primary rounded-circle me-3" style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">1</span>
-                    <div>
-                        <strong>Complete your profile:</strong> Set up your training preferences
-                        <a href="/onboarding" class="btn btn-sm btn-outline-primary ms-2">Setup</a>
-                    </div>
-                </li>
-                <li class="d-flex align-items-start mb-3" id="step-schedule">
-                    <span class="badge bg-secondary rounded-circle me-3" style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">2</span>
-                    <div>
-                        <strong>Create your schedule:</strong> Choose training days and methodology
-                        <a href="/dashboard/schedule" class="btn btn-sm btn-outline-primary ms-2">Create</a>
-                    </div>
-                </li>
-                <li class="d-flex align-items-start" id="step-workout">
-                    <span class="badge bg-secondary rounded-circle me-3" style="width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;">3</span>
-                    <div>
-                        <strong>Start training:</strong> Generate and complete your first workout
-                    </div>
-                </li>
-            </ol>
-        </div>
-    </div>
 </div>
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
+let recoveryModal;
+
 $(document).ready(async function() {
     // Check auth
     const token = localStorage.getItem('access_token');
@@ -221,13 +326,48 @@ $(document).ready(async function() {
         return;
     }
     
-    // Load user data
-    await loadUserProfile();
-    await loadGamificationStats();
-    await checkOnboardingStatus();
+    // Initialize modal
+    recoveryModal = new bootstrap.Modal(document.getElementById('recoveryModal'));
+    
+    // Setup range sliders
+    $('#recovery-soreness').on('input', function() {
+        $('#soreness-value').text($(this).val());
+    });
+    
+    $('#recovery-stress').on('input', function() {
+        $('#stress-value').text($(this).val());
+    });
+    
+    // Load dashboard
+    await loadDashboard();
 });
 
-async function loadUserProfile() {
+async function loadDashboard() {
+    try {
+        // Check onboarding status
+        const progress = await CHOS.api.get('/api/v1/onboarding/progress');
+        
+        $('#loading-state').addClass('d-none');
+        
+        if (!progress.profile_complete) {
+            // New user - show onboarding prompt
+            $('#new-user-state').removeClass('d-none');
+        } else {
+            // Active user - show full dashboard
+            $('#active-user-state').removeClass('d-none');
+            await loadUserData();
+        }
+        
+    } catch (error) {
+        console.error('Error loading dashboard:', error);
+        $('#loading-state').addClass('d-none');
+        $('#active-user-state').removeClass('d-none');
+        await loadUserData();
+    }
+}
+
+async function loadUserData() {
+    // Load user profile
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     if (user.name) {
         $('#welcome-name').text(user.name.split(' ')[0]);
@@ -235,8 +375,17 @@ async function loadUserProfile() {
     
     // Set today's date
     const today = new Date();
-    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const options = { weekday: 'long', month: 'long', day: 'numeric' };
     $('#today-date').text(today.toLocaleDateString('en-US', options));
+    
+    // Load gamification stats
+    await loadGamificationStats();
+    
+    // Load today's workout
+    await loadTodayWorkout();
+    
+    // Load notifications
+    await loadNotifications();
 }
 
 async function loadGamificationStats() {
@@ -251,6 +400,8 @@ async function loadGamificationStats() {
         } else if (stats.current_streak > 0) {
             $('#streak-icon').text('💪');
             $('#streak-text').text(`You're building momentum!`);
+        } else {
+            $('#streak-text').text('Start your streak today!');
         }
         
         // Update XP bar
@@ -262,13 +413,20 @@ async function loadGamificationStats() {
         $('#xp-text').text(`${currentXp} / ${xpNeeded} XP`);
         
         // Update stats
-        $('#stat-week').text((stats.this_week_workouts || 0) + '/7');
+        const weekWorkouts = stats.this_week_workouts || 0;
+        $('#stat-week').text(`${weekWorkouts}/7`);
         $('#stat-month').text(stats.this_month_workouts || 0);
         $('#stat-rpe').text(stats.average_rpe ? stats.average_rpe.toFixed(1) : '-');
         
+        // Weekly progress bar
+        const targetWorkouts = 5;
+        const progressPct = Math.min((weekWorkouts / targetWorkouts) * 100, 100);
+        $('#weekly-progress-bar').css('width', progressPct + '%');
+        $('#weekly-progress-text').text(`${weekWorkouts}/${targetWorkouts} workouts`);
+        
         // Update badge count
         const earnedBadges = (stats.badges || []).filter(b => b.earned).length;
-        $('#badge-count').text(earnedBadges + ' badges');
+        $('#badge-count').text(`${earnedBadges} badges`);
         
         // Render badges
         renderBadges(stats.badges || []);
@@ -279,138 +437,200 @@ async function loadGamificationStats() {
 }
 
 function renderBadges(badges) {
-    if (badges.length === 0) {
-        return;
-    }
+    if (badges.length === 0) return;
     
     const earned = badges.filter(b => b.earned);
     const upcoming = badges.filter(b => !b.earned).slice(0, 3);
     
     let html = '';
     
-    // Show earned badges
     earned.slice(0, 4).forEach(badge => {
         html += `
-        <div class="col-3 col-md-2 text-center">
-            <div class="rounded-circle bg-warning bg-opacity-25 d-flex align-items-center justify-content-center mx-auto mb-2" style="width: 60px; height: 60px;">
-                <span style="font-size: 30px;">${badge.icon}</span>
+        <div class="col-3 text-center">
+            <div class="rounded-circle bg-warning bg-opacity-25 d-flex align-items-center justify-content-center mx-auto" style="width: 50px; height: 50px;">
+                <span style="font-size: 24px;">${badge.icon}</span>
             </div>
-            <small class="text-muted d-block">${badge.name}</small>
+            <small class="d-block text-muted mt-1" style="font-size: 10px;">${badge.name}</small>
         </div>`;
     });
     
-    // Show locked badges
     upcoming.forEach(badge => {
         html += `
-        <div class="col-3 col-md-2 text-center opacity-50">
-            <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center mx-auto mb-2" style="width: 60px; height: 60px;">
-                <span style="font-size: 30px;">🔒</span>
+        <div class="col-3 text-center opacity-50">
+            <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center mx-auto" style="width: 50px; height: 50px;">
+                <span style="font-size: 24px;">🔒</span>
             </div>
-            <small class="text-muted d-block">${badge.name}</small>
+            <small class="d-block text-muted mt-1" style="font-size: 10px;">${badge.name}</small>
         </div>`;
     });
     
     $('#badges-container').html(html);
 }
 
-async function checkOnboardingStatus() {
+async function loadTodayWorkout() {
     try {
-        const progress = await CHOS.api.get('/api/v1/onboarding/progress');
-        
-        if (progress.profile_complete) {
-            $('#step-onboarding').find('.badge').removeClass('bg-primary').addClass('bg-success').html('<i class="fas fa-check"></i>');
-            $('#step-onboarding').find('a').remove();
-        }
-        if (progress.schedule_created) {
-            $('#step-schedule').find('.badge').removeClass('bg-secondary').addClass('bg-success').html('<i class="fas fa-check"></i>');
-        }
-        if (progress.first_workout_done) {
-            $('#step-workout').find('.badge').removeClass('bg-secondary').addClass('bg-success').html('<i class="fas fa-check"></i>');
-            $('#getting-started-card').addClass('d-none');
-        }
-        
-        if (progress.completed) {
-            $('#getting-started-card').addClass('d-none');
-        }
-    } catch (error) {
-        console.log('Error checking onboarding status');
-    }
-}
-
-async function generateTodayWorkout() {
-    CHOS.loading.button('#btn-generate-today', true);
-    
-    try {
-        // Get today's workout from generated program
+        // Try to get today's workout from schedule
         const response = await CHOS.api.get('/api/v1/training/today');
         
         if (response && response.workout) {
-            // Show workout
-            $('#today-workout-container').html(renderTodayWorkout(response.workout));
+            renderTodayWorkout(response.workout);
         } else {
-            // Generate new adaptive workout
-            const generateResponse = await CHOS.api.post('/api/v1/training/generate', {
-                readiness_score: 75,
-                hrv: 60,
-                sleep_hours: 7,
-                muscle_soreness: 3
-            });
-            
-            if (generateResponse && generateResponse.workout) {
-                $('#today-workout-container').html(renderTodayWorkout(generateResponse.workout));
-                CHOS.toast.success('Workout generated!');
-            } else {
-                CHOS.toast.error('Could not generate workout');
-            }
+            showNoWorkoutState();
         }
     } catch (error) {
-        CHOS.toast.error('Error generating workout');
-    } finally {
-        CHOS.loading.button('#btn-generate-today', false);
+        showNoWorkoutState();
     }
+}
+
+function showNoWorkoutState() {
+    $('#today-workout-container').html(`
+        <div class="text-center py-4">
+            <i class="fas fa-calendar-alt fa-4x text-muted mb-3"></i>
+            <h5 class="fw-bold mb-2">No workout scheduled</h5>
+            <p class="text-muted mb-3">Generate a workout based on your preferences</p>
+            <button class="btn btn-primary btn-lg" onclick="generateWorkout()">
+                <i class="fas fa-magic me-2"></i> Generate Today's Workout
+            </button>
+        </div>
+    `);
+    $('#workout-status-badge').removeClass('bg-success').addClass('bg-secondary').text('Generate');
 }
 
 function renderTodayWorkout(workout) {
     let movementsHtml = '';
     if (workout.movements && workout.movements.length > 0) {
-        movementsHtml = workout.movements.map(m => `
+        workout.movements.slice(0, 4).forEach(m => {
+            const weight = m.weight_kg ? `@ ${m.weight_kg}kg` : '';
+            const reps = m.reps ? `${m.reps}x` : '';
+            movementsHtml += `
             <div class="d-flex justify-content-between py-2 border-bottom">
                 <div>
-                    <strong>${m.movement || m.name}</strong>
-                    <br><small class="text-muted">${m.sets || ''} x ${m.reps || ''} ${m.weight_kg ? '@ ' + m.weight_kg + 'kg' : ''}</small>
+                    <strong>${m.movement}</strong>
+                    <small class="text-muted ms-2">${reps} ${weight}</small>
                 </div>
-                <button class="btn btn-sm btn-outline-success" onclick="markMovementComplete(this)">
-                    <i class="fas fa-check"></i>
-                </button>
-            </div>
-        `).join('');
+            </div>`;
+        });
     }
     
-    return `
-        <div class="mb-3">
-            <h5 class="fw-bold">${workout.name || "Today's Workout"}</h5>
-            <span class="badge bg-${workout.workout_type === 'strength' ? 'primary' : 'danger'}">
-                ${(workout.workout_type || 'mixed').toUpperCase()}
-            </span>
-            <span class="badge bg-secondary">${workout.duration_minutes || 60} min</span>
+    const typeColor = workout.workout_type === 'strength' ? 'bg-primary' : 
+                      workout.workout_type === 'metcon' ? 'bg-danger' : 'bg-info';
+    
+    $('#today-workout-container').html(`
+        <div class="row">
+            <div class="col-md-8">
+                <div class="d-flex align-items-center mb-3">
+                    <h5 class="mb-0 me-2">${workout.name}</h5>
+                    <span class="badge ${typeColor}">${(workout.workout_type || 'mixed').toUpperCase()}</span>
+                    <span class="badge bg-secondary ms-1">${workout.duration_minutes || 60} min</span>
+                </div>
+                ${movementsHtml || '<p class="text-muted">View full workout details</p>'}
+            </div>
+            <div class="col-md-4 text-center">
+                <button class="btn btn-success btn-lg w-100" onclick="startWorkout()">
+                    <i class="fas fa-play me-2"></i> Start Workout
+                </button>
+                <small class="text-muted d-block mt-2">Estimated: ${workout.duration_minutes || 60} minutes</small>
+            </div>
         </div>
-        
-        <div class="mb-3">
-            ${movementsHtml || '<p class="text-muted">No movements specified</p>'}
-        </div>
-        
-        <button class="btn btn-success btn-lg w-100" onclick="startWorkout()">
-            <i class="fas fa-play me-2"></i> Start Workout
-        </button>
-    `;
+    `);
+    $('#workout-status-badge').removeClass('bg-secondary').addClass('bg-success').text('Ready');
 }
 
-function markMovementComplete(btn) {
-    $(btn).closest('.border-bottom').toggleClass('bg-success bg-opacity-25');
+async function generateWorkout() {
+    CHOS.loading.button('button[onclick="generateWorkout()"]', true);
+    
+    try {
+        const response = await CHOS.api.post('/api/v1/training/generate', {
+            readiness_score: 75,
+            hrv: 60,
+            sleep_hours: 7,
+            muscle_soreness: 3
+        });
+        
+        if (response && response.workout) {
+            renderTodayWorkout(response.workout);
+            CHOS.toast.success('Workout generated!');
+        } else {
+            CHOS.toast.error('Could not generate workout');
+        }
+    } catch (error) {
+        CHOS.toast.error('Error generating workout');
+    } finally {
+        CHOS.loading.button('button[onclick="generateWorkout()"]', false);
+    }
 }
 
 function startWorkout() {
     window.location.href = '/dashboard/workouts';
+}
+
+function startQuickWorkout() {
+    // Generate a quick 15-min workout
+    CHOS.api.post('/api/v1/training/generate', {
+        workout_type: 'conditioning',
+        duration_minutes: 15,
+        readiness_score: 75
+    }).then(response => {
+        if (response && response.workout) {
+            sessionStorage.setItem('current_workout', JSON.stringify(response.workout));
+            window.location.href = '/dashboard/workouts';
+        }
+    }).catch(() => {
+        CHOS.toast.error('Could not start quick workout');
+    });
+}
+
+async function loadNotifications() {
+    try {
+        const response = await CHOS.api.get('/api/v1/notifications?limit=3');
+        const notifications = response.notifications || [];
+        
+        if (notifications.length === 0) return;
+        
+        let html = '<div class="card border-0 shadow-sm mt-4"><div class="card-body"><h6 class="fw-bold mb-3">Recent Notifications</h6>';
+        
+        notifications.forEach(notif => {
+            const icon = notif.type === 'badge' ? '🏆' : 
+                        notif.type === 'streak' ? '🔥' :
+                        notif.type === 'level_up' ? '⬆️' : '📬';
+            html += `
+            <div class="d-flex align-items-start py-2 ${notif.read ? 'opacity-50' : ''}">
+                <span class="me-3" style="font-size: 20px;">${icon}</span>
+                <div>
+                    <p class="mb-0"><strong>${notif.title}</strong></p>
+                    <small class="text-muted">${notif.body}</small>
+                </div>
+            </div>`;
+        });
+        
+        html += '</div></div>';
+        $('#notifications-container').html(html);
+        
+    } catch (error) {
+        console.log('Error loading notifications');
+    }
+}
+
+function openRecoveryModal() {
+    recoveryModal.show();
+}
+
+function saveRecovery() {
+    const data = {
+        readiness_score: parseInt($('#recovery-readiness').val()),
+        sleep_hours: parseFloat($('#recovery-sleep').val()),
+        muscle_soreness: parseInt($('#recovery-soreness').val()),
+        stress_level: parseInt($('#recovery-stress').val())
+    };
+    
+    CHOS.api.post('/api/v1/health/recovery', data)
+        .then(() => {
+            CHOS.toast.success('Recovery metrics saved!');
+            recoveryModal.hide();
+        })
+        .catch(() => {
+            CHOS.toast.error('Error saving recovery metrics');
+        });
 }
 </script>
 {% endblock %}
