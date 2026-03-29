@@ -1,0 +1,26 @@
+{
+  "name": "crossfit-health-os-e2e",
+  "version": "1.0.0",
+  "description": "End-to-end tests for CrossFit Health OS using Playwright",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:ui": "playwright test --ui",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:auth": "playwright test tests/auth.spec.js",
+    "test:onboarding": "playwright test tests/onboarding.spec.js",
+    "test:dashboard": "playwright test tests/dashboard.spec.js",
+    "test:edge": "playwright test tests/edge-cases.spec.js",
+    "report": "playwright show-report",
+    "install:browsers": "playwright install chromium --with-deps"
+  },
+  "keywords": ["playwright", "e2e", "testing", "crossfit", "health"],
+  "author": "Karl",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "dotenv": "^16.3.1"
+  },
+  "dependencies": {}
+}
