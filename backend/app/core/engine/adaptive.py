@@ -43,6 +43,9 @@ class AdaptiveTrainingEngine:
     MIN_HRV_DATA_POINTS = 5  # Minimum days of HRV data for baseline calculation
     HRV_BASELINE_LOOKBACK_DAYS = 30  # Days to look back for HRV baseline
 
+    # Weight reduction threshold: readiness below this triggers 15% weight reduction
+    WEIGHT_REDUCTION_THRESHOLD = 50
+
     def __init__(self):
         self.supabase = supabase_client
     
@@ -352,7 +355,7 @@ class AdaptiveTrainingEngine:
                 adjusted_movement.reps = max(1, round(adjusted_movement.reps * volume_multiplier))
             
             # Adjust weight for low readiness
-            if readiness_score < 50 and adjusted_movement.weight_kg:
+            if readiness_score < self.WEIGHT_REDUCTION_THRESHOLD and adjusted_movement.weight_kg:
                 adjusted_movement.weight_kg = adjusted_movement.weight_kg * 0.85
                 adjusted_movement.notes = (adjusted_movement.notes or "") + " (Weight reduced due to fatigue)"
             

@@ -137,10 +137,11 @@ async def list_workout_sessions(
     """List user's workout sessions"""
     user_id = UUID(current_user["id"])
     
+    # Index: CREATE INDEX idx_workout_sessions_user_started ON workout_sessions(user_id, started_at DESC);
     response = supabase_client.table("workout_sessions").select("*").eq(
         "user_id", str(user_id)
     ).order("started_at", desc=True).range(offset, offset + limit - 1).execute()
-    
+
     return [WorkoutSession(**session) for session in response.data]
 
 

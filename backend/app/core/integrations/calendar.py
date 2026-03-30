@@ -10,7 +10,7 @@ Flow:
 import logging
 from uuid import UUID
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, TypedDict, List
 
 import httpx
 
@@ -23,6 +23,20 @@ GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3"
 SCOPES = "https://www.googleapis.com/auth/calendar.events"
+
+
+class SessionSlot(TypedDict, total=False):
+    """Training session slot from the weekly schedule"""
+    time: str          # "HH:MM" or time object
+    duration_minutes: int
+    workout_type: str
+    notes: str
+
+
+class DaySchedule(TypedDict, total=False):
+    """Single day entry in a weekly schedule dict"""
+    rest_day: bool
+    sessions: List[SessionSlot]
 
 
 def get_oauth_url(state: str = "") -> str:
@@ -141,6 +155,7 @@ async def sync_calendar_events(user_id: UUID) -> dict:
                        settings.DEFAULT_TIMEZONE
 
     # Fetch active schedule
+    # Index: CREATE INDEX idx_weekly_schedules_user_active ON weekly_schedules(user_id, active);
     schedule_resp = supabase_client.table("weekly_schedules").select("*").eq(
         "user_id", str(user_id)
     ).eq("active", True).order("created_at", desc=True).limit(1).execute()
@@ -151,7 +166,7 @@ async def sync_calendar_events(user_id: UUID) -> dict:
     schedule = schedule_resp.data[0]
 
     # Parse schedule data structure (it's a Dict[DayOfWeek, DailyTrainingSchedule])
-    schedule_dict = schedule.get("schedule", {})
+    schedule_dict: dict[str, DaySchedule] = schedule.get("schedule", {})
     today = datetime.now(timezone.utc).date()
     created = 0
 

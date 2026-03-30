@@ -1,12 +1,15 @@
 """
 Pydantic models for Training domain
 """
+import logging
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 from typing import Optional, List, Dict, Any
 import datetime as dt_module
 from datetime import datetime, date, time as dt_time
 from enum import Enum
 from uuid import UUID
+
+logger = logging.getLogger(__name__)
 
 
 class WorkoutType(str, Enum):
@@ -305,6 +308,14 @@ class WeeklyScheduleCreate(BaseModel):
     end_date: Optional[date] = None
     active: bool = True
     
+    @field_validator('start_date')
+    @classmethod
+    def warn_past_start_date(cls, v):
+        """Log a warning if start_date is in the past (allowed for retroactive scheduling)"""
+        if v and v < date.today():
+            logger.warning(f"WeeklySchedule start_date {v} is in the past")
+        return v
+
     @field_validator('end_date')
     @classmethod
     def validate_end_after_start(cls, v, info):

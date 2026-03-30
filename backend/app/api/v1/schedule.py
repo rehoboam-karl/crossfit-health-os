@@ -215,15 +215,19 @@ async def generate_weekly_program_ai(
             detail=f"Invalid methodology. Choose: hwpo, mayhem, comptrain, custom"
         )
     
-    weekly_program = await ai_programmer.generate_weekly_program(
-        user_profile=user_profile,
-        methodology=methodology_enum,
-        training_days=training_days,
-        session_durations=session_durations,
-        week_number=request.week_number,
-        focus_movements=request.focus_movements,
-        previous_week_data=previous_week_data
-    )
+    try:
+        weekly_program = await ai_programmer.generate_weekly_program(
+            user_profile=user_profile,
+            methodology=methodology_enum,
+            training_days=training_days,
+            session_durations=session_durations,
+            week_number=request.week_number,
+            focus_movements=request.focus_movements,
+            previous_week_data=previous_week_data
+        )
+    except Exception as e:
+        logger.warning(f"AI program generation failed: {e}, using rule-based fallback")
+        weekly_program = ai_programmer._generate_fallback_program(training_days, session_durations)
     
     # Save generated workouts to database
     saved_templates = []

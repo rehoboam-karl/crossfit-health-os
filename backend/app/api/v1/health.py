@@ -14,6 +14,7 @@ from app.models.health import (
     BiomarkerReading
 )
 from app.db.supabase import supabase_client
+from app.db.helpers import handle_supabase_response
 from app.core.auth import get_current_user
 from app.core.integrations.ocr import parse_lab_report
 
@@ -35,11 +36,14 @@ async def create_recovery_metric(
         metric_data,
         on_conflict="user_id,date"
     ).execute()
-    
-    if response.data:
-        return RecoveryMetric(**response.data[0])
-    
-    raise HTTPException(status_code=500, detail="Failed to record metrics")
+
+    # Index: CREATE INDEX idx_recovery_metrics_user_date ON recovery_metrics(user_id, date DESC);
+    data = handle_supabase_response(response, "Failed to record metrics")
+
+    if not data:
+        raise HTTPException(status_code=500, detail="Failed to record metrics")
+
+    return RecoveryMetric(**data[0])
 
 
 @router.get("/recovery", response_model=List[RecoveryMetric])
