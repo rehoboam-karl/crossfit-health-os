@@ -180,6 +180,56 @@ async function registerViaAPI(page, userData) {
 }
 
 /**
+ * Create a test user and login - returns tokens or null if fails
+ */
+async function createAndLoginTestUser(page) {
+  const email = generateRandomEmail('e2e');
+  const password = 'SecurePass123';
+  
+  try {
+    // First register
+    const regResponse = await page.request.post(`${process.env.API_BASE_URL || 'http://localhost:8000/api/v1'}/auth/register`, {
+      data: {
+        email,
+        password,
+        confirm_password: password,
+        name: 'E2E Test User'
+      }
+    });
+    
+    if (!regResponse.ok()) {
+      // If registration fails (e.g., email exists), try login anyway
+      const regError = await regResponse.text();
+      console.log('Registration failed:', regError.substring(0, 100));
+    }
+    
+    // Then login
+    const loginResponse = await page.request.post(`${process.env.API_BASE_URL || 'http://localhost:8000/api/v1'}/auth/login`, {
+      data: { email, password }
+    });
+    
+    if (loginResponse.ok()) {
+      const data = await loginResponse.json();
+      await page.evaluate((tokens) => {
+        localStorage.setItem('access_token', tokens.access_token);
+        if (tokens.refresh_token) {
+          localStorage.setItem('refresh_token', tokens.refresh_token);
+        }
+      }, data);
+      return { email, password, ...data };
+    } else {
+      const loginError = await loginResponse.text();
+      console.log('Login failed:', loginError.substring(0, 100));
+    }
+    
+    return null;
+  } catch (e) {
+    console.error('createAndLoginTestUser failed:', e.message);
+    return null;
+  }
+}
+
+/**
  * Complete onboarding via API
  */
 async function completeOnboardingViaAPI(page, onboardingData) {
@@ -234,6 +284,7 @@ module.exports = {
   getAllValidationErrors,
   loginViaAPI,
   registerViaAPI,
+  createAndLoginTestUser,
   completeOnboardingViaAPI,
   assertContains,
   assertURL
