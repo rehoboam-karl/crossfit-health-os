@@ -152,24 +152,197 @@ class TestBiomarkers:
 
 class TestLabReportUpload:
     """Test lab report upload (OCR integration)"""
-    
+
     @pytest.mark.asyncio
-    async def test_upload_lab_report_invalid_format(
+    async def test_upload_invalid_format_returns_400(
         self, authenticated_client: AsyncClient, mock_supabase
     ):
-        """Test uploading non-PDF file"""
-        # Note: This test would need actual file upload simulation
-        # For now, we test the endpoint exists and returns proper error
-        
-        # The upload endpoint requires a file, so we'd need to mock that
-        # Skipping actual file upload test as it requires more complex setup
-        pass
-    
+        """Test uploading unsupported format returns 400"""
+        import io
+        content = b"some text content"
+        response = await authenticated_client.post(
+            "/api/v1/health/biomarkers/upload",
+            files={"file": ("report.txt", io.BytesIO(content), "text/plain")},
+        )
+        assert response.status_code == 400
+        assert "Allowed formats" in response.json()["detail"]
+
     @pytest.mark.asyncio
-    async def test_upload_lab_report_success(
+    async def test_upload_file_too_large_returns_400(
         self, authenticated_client: AsyncClient, mock_supabase
     ):
-        """Test successful lab report upload"""
-        # This would require mocking the OCR parsing
-        # Skipping for now as it requires file upload simulation
-        pass
+        """Test uploading file > 20MB returns 400"""
+        import io
+        from unittest.mock import patch, AsyncMock
+
+        large_content = b"x" * (21 * 1024 * 1024)
+
+        response = await authenticated_client.post(
+            "/api/v1/health/biomarkers/upload",
+            files={"file": ("report.pdf", io.BytesIO(large_content), "application/pdf")},
+        )
+        assert response.status_code == 400
+        assert "too large" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_upload_pdf_no_biomarkers_found(
+        self, authenticated_client: AsyncClient, mock_supabase
+    ):
+        """Test PDF upload that finds no biomarkers returns warning"""
+        import io
+        from unittest.mock import patch, AsyncMock
+
+        pdf_content = b"%PDF-1.4 minimal"
+
+        with patch("app.api.v1.health.parse_lab_report", new_callable=AsyncMock, return_value=[]):
+            response = await authenticated_client.post(
+                "/api/v1/health/biomarkers/upload",
+                files={"file": ("report.pdf", io.BytesIO(pdf_content), "application/pdf")},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "warning"
+        assert data["biomarkers_found"] == 0
+
+    @pytest.mark.asyncio
+    async def test_upload_pdf_success_saves_biomarkers(
+        self, authenticated_client: AsyncClient, mock_supabase
+    ):
+        """Test successful PDF upload saves extracted biomarkers"""
+        import io
+        from unittest.mock import patch, AsyncMock
+
+        biomarkers = [
+            {
+                "name": "Glucose",
+                "value": 95.0,
+                "unit": "mg/dL",
+                "reference_min": 70,
+                "reference_max": 100,
+                "status": "normal",
+                "category": "metabolic",
+            },
+            {
+                "name": "Hemoglobin",
+                "value": 14.5,
+                "unit": "g/dL",
+                "reference_min": 12,
+                "reference_max": 17,
+                "status": "normal",
+                "category": "hematology",
+            },
+        ]
+
+        with patch("app.api.v1.health.parse_lab_report", new_callable=AsyncMock, return_value=biomarkers):
+            response = await authenticated_client.post(
+                "/api/v1/health/biomarkers/upload",
+                files={"file": ("report.pdf", io.BytesIO(b"%PDF-1.4"), "application/pdf")},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert data["biomarkers_found"] == 2
+        assert data["biomarkers_saved"] >= 0
+
+    @pytest.mark.asyncio
+    async def test_upload_jpg_accepted(
+        self, authenticated_client: AsyncClient, mock_supabase
+    ):
+        """Test JPG files are accepted"""
+        import io
+        from unittest.mock import patch, AsyncMock
+
+        with patch("app.api.v1.health.parse_lab_report", new_callable=AsyncMock, return_value=[]):
+            response = await authenticated_client.post(
+                "/api/v1/health/biomarkers/upload",
+                files={"file": ("lab.jpg", io.BytesIO(b"\xff\xd8\xff"), "image/jpeg")},
+            )
+
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_upload_png_accepted(
+        self, authenticated_client: AsyncClient, mock_supabase
+    ):
+        """Test PNG files are accepted"""
+        import io
+        from unittest.mock import patch, AsyncMock
+
+        with patch("app.api.v1.health.parse_lab_report", new_callable=AsyncMock, return_value=[]):
+            response = await authenticated_client.post(
+                "/api/v1/health/biomarkers/upload",
+                files={"file": ("lab.png", io.BytesIO(b"\x89PNG"), "image/png")},
+            )
+
+        assert response.status_code == 200
+
+
+class TestRecoveryWithDateRange:
+    """Test recovery metrics with date range filtering"""
+
+    @pytest.mark.asyncio
+    async def test_list_recovery_with_start_date(
+        self, authenticated_client: AsyncClient, mock_supabase, mock_user_uuid
+    ):
+        """Test GET /recovery with start_date filter"""
+        from datetime import date, datetime
+        from uuid import uuid4
+
+        metrics = [
+            {
+                "id": str(uuid4()),
+                "user_id": str(mock_user_uuid),
+                "date": "2026-03-20",
+                "sleep_quality_score": 80,
+                "energy_level": 7,
+                "readiness_score": 70,
+                "created_at": datetime.utcnow().isoformat(),
+            }
+        ]
+        mock_supabase.set_mock_data("recovery_metrics", metrics)
+
+        response = await authenticated_client.get(
+            "/api/v1/health/recovery?start_date=2026-03-01"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+
+    @pytest.mark.asyncio
+    async def test_list_recovery_with_date_range(
+        self, authenticated_client: AsyncClient, mock_supabase, mock_user_uuid
+    ):
+        """Test GET /recovery with both start and end dates"""
+        from datetime import datetime
+        from uuid import uuid4
+
+        metrics = [
+            {
+                "id": str(uuid4()),
+                "user_id": str(mock_user_uuid),
+                "date": "2026-03-15",
+                "sleep_quality_score": 75,
+                "energy_level": 6,
+                "readiness_score": 65,
+                "created_at": datetime.utcnow().isoformat(),
+            }
+        ]
+        mock_supabase.set_mock_data("recovery_metrics", metrics)
+
+        response = await authenticated_client.get(
+            "/api/v1/health/recovery?start_date=2026-03-01&end_date=2026-03-31"
+        )
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_list_recovery_empty(
+        self, authenticated_client: AsyncClient, mock_supabase
+    ):
+        """Test GET /recovery returns empty list when no data"""
+        mock_supabase.set_mock_data("recovery_metrics", [])
+
+        response = await authenticated_client.get("/api/v1/health/recovery")
+        assert response.status_code == 200
+        assert response.json() == []
