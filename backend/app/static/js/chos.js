@@ -5,10 +5,11 @@
 
 // JWT validation helper
 function isTokenExpired(token) {
+    if (!token || token.split('.').length !== 3) return true;
     try {
         const payload = JSON.parse(atob(token.split('.')[1]));
-        const exp = payload.exp * 1000;
-        return Date.now() > exp;
+        if (!payload.exp) return true;
+        return Date.now() > payload.exp * 1000;
     } catch {
         return true;
     }
