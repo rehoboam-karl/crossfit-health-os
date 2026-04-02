@@ -144,7 +144,8 @@ $(document).ready(function() {
     });
     
     // Load user name from localStorage
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userJson = localStorage.getItem('user');
+    const user = userJson && userJson !== 'undefined' ? JSON.parse(userJson) : {};
     if (user.name) {
         $('#user-name').text(user.name);
     }

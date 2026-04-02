@@ -23,7 +23,7 @@ function isTokenExpired(token) {
 }
 
 // Utils object with authentication helpers
-const Utils = {
+const AuthUtils = {
     /**
      * Check if user is authenticated
      * @returns {boolean} True if user has valid access token
@@ -82,7 +82,7 @@ $(document).ready(function() {
     const currentPath = window.location.pathname;
     const authPages = ['/login', '/register', '/forgot-password'];
     
-    if (authPages.includes(currentPath) && Utils.isAuthenticated()) {
+    if (authPages.includes(currentPath) && AuthUtils.isAuthenticated()) {
         window.location.href = '/dashboard';
     }
 });
