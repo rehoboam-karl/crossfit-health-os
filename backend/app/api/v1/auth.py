@@ -2,13 +2,13 @@
 Authentication API Endpoints (PostgreSQL version)
 Registration, Login, Password Reset
 """
-from fastapi import APIRouter, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, HTTPException, status, BackgroundTasks, Request
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 import logging
 import re
-from datetime import datetime, timedelta
-import secrets
+from datetime import datetime, timedelta, timezone
+from jose import jwt, JWTError
 from passlib.context import CryptContext
 
 from app.db.database import init_db, fetchone, execute
@@ -95,9 +95,34 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against a hash"""
     return pwd_context.verify(plain_password, hashed_password)
 
-def create_session_token() -> str:
-    """Create a new session token"""
-    return secrets.token_urlsafe(32)
+def create_jwt_token(user_id: int, email: str) -> str:
+    """Create a JWT token for a user"""
+    from app.core.config import settings
+    expire = datetime.now(timezone.utc) + timedelta(hours=settings.JWT_EXPIRATION_HOURS)
+    payload = {
+        "sub": str(user_id),
+        "email": email,
+        "exp": expire,
+        "iat": datetime.now(timezone.utc)
+    }
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+def verify_jwt_token(token: str) -> Optional[dict]:
+    """Verify JWT token and return payload"""
+    from app.core.config import settings
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        return payload
+    except JWTError as e:
+        logger.warning(f"JWT verification failed: {e}")
+        return None
+
+def get_user_by_id(user_id: int):
+    """Get user by ID"""
+    return fetchone(
+        "SELECT id, email, name, birth_date, weight_kg, height_cm, fitness_level, goals FROM users WHERE id = %s",
+        user_id
+    )
 
 def get_user_by_email(email: str):
     """Get user by email"""
@@ -199,8 +224,8 @@ async def login(request: LoginRequest):
             detail="Invalid email or password"
         )
     
-    # Create session token
-    token = create_session_token()
+    # Create JWT token
+    token = create_jwt_token(user_id, email)
     
     return {
         "access_token": token,
@@ -218,12 +243,49 @@ async def login(request: LoginRequest):
     }
 
 
+def extract_user_from_token(req):
+    """Extract and validate user from request Authorization header"""
+    auth_header = req.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header"
+        )
+    token = auth_header[7:]
+    payload = verify_jwt_token(token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token"
+        )
+    user_id = int(payload.get("sub", 0))
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload"
+        )
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found"
+        )
+    return user
+
 @router.get("/me", response_model=UserResponse)
-async def get_current_user():
-    """Get current user (placeholder - needs token validation)"""
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Token validation not implemented yet"
+async def get_current_user(req: Request):
+    """Get current authenticated user"""
+    user = extract_user_from_token(req)
+    user_id, email, name, birth_date, weight_kg, height_cm, fitness_level, goals = user
+    return UserResponse(
+        id=user_id,
+        email=email,
+        name=name,
+        birth_date=str(birth_date) if birth_date else None,
+        weight_kg=weight_kg,
+        height_cm=height_cm,
+        fitness_level=fitness_level,
+        goals=goals if goals else []
     )
 
 
