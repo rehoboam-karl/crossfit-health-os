@@ -15,7 +15,6 @@ from typing import Optional, TypedDict, List
 import httpx
 
 from app.core.config import settings
-from app.db.supabase import supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -81,16 +80,24 @@ async def refresh_access_token(refresh_token: str) -> str:
         return resp.json()["access_token"]
 
 
-async def _get_user_token(user_id: UUID) -> Optional[str]:
-    """Get a valid access token for a user, refreshing if needed."""
-    row = supabase_client.table("users").select(
-        "google_calendar_refresh_token"
-    ).eq("id", str(user_id)).single().execute()
+async def _get_user_token(user_id: int) -> Optional[str]:
+    """Get a valid access token for a user, refreshing if needed.
 
-    refresh_token = (row.data or {}).get("google_calendar_refresh_token")
+    The refresh token is stored under `preferences['google_calendar_refresh_token']`
+    on the User row (JSONB).
+    """
+    from sqlalchemy import select
+    from app.db.models import User as UserDB
+    from app.db.session import SessionLocal
+
+    with SessionLocal() as session:
+        user = session.get(UserDB, int(user_id))
+        if not user:
+            return None
+        refresh_token = (user.preferences or {}).get("google_calendar_refresh_token")
+
     if not refresh_token:
         return None
-
     return await refresh_access_token(refresh_token)
 
 
@@ -131,102 +138,91 @@ async def create_calendar_event(
         return resp.json()
 
 
-async def sync_calendar_events(user_id: UUID) -> dict:
+async def sync_calendar_events(user_id: int) -> dict:
     """
     Create Google Calendar events for the user's next 7 days of training.
 
-    Reads active weekly schedule → maps training days to calendar events.
-    Returns count of created events.
+    Reads planned_sessions from the periodization model and creates one event
+    per session with workout-type-specific coloring.
     """
+    from sqlalchemy import select
+    from app.db.models import PlannedSession as PlannedSessionDB, User as UserDB
+    from app.db.session import SessionLocal
+
     access_token = await _get_user_token(user_id)
     if not access_token:
         return {"created": 0, "status": "not_connected", "message": "Google Calendar not connected. Please authorize first."}
 
-    # Fetch user profile to get timezone preference
-    user_resp = supabase_client.table("users").select("preferences, timezone").eq(
-        "id", str(user_id)
-    ).single().execute()
-
-    user_timezone = settings.DEFAULT_TIMEZONE  # Default
-    if user_resp.data:
-        # Check for timezone in profile (direct field or in preferences)
-        user_timezone = user_resp.data.get("timezone") or \
-                       user_resp.data.get("preferences", {}).get("timezone") or \
-                       settings.DEFAULT_TIMEZONE
-
-    # Fetch active schedule
-    # Index: CREATE INDEX idx_weekly_schedules_user_active ON weekly_schedules(user_id, active);
-    schedule_resp = supabase_client.table("weekly_schedules").select("*").eq(
-        "user_id", str(user_id)
-    ).eq("active", True).order("created_at", desc=True).limit(1).execute()
-
-    if not schedule_resp.data:
-        return {"created": 0, "status": "no_schedule", "message": "No active training schedule found."}
-
-    schedule = schedule_resp.data[0]
-
-    # Parse schedule data structure (it's a Dict[DayOfWeek, DailyTrainingSchedule])
-    schedule_dict: dict[str, DaySchedule] = schedule.get("schedule", {})
     today = datetime.now(timezone.utc).date()
+    end = today + timedelta(days=6)
+
+    with SessionLocal() as session:
+        user = session.get(UserDB, int(user_id))
+        user_timezone = (
+            (user.timezone if user else None)
+            or (user.preferences or {}).get("timezone") if user else None
+        ) or settings.DEFAULT_TIMEZONE
+
+        sessions = session.execute(
+            select(PlannedSessionDB)
+            .where(
+                PlannedSessionDB.user_id == int(user_id),
+                PlannedSessionDB.date >= today,
+                PlannedSessionDB.date <= end,
+            )
+            .order_by(PlannedSessionDB.date, PlannedSessionDB.order_in_day)
+        ).scalars().all()
+
+    if not sessions:
+        return {"created": 0, "status": "no_schedule", "message": "No planned sessions in the next 7 days."}
+
+    color_map = {
+        "strength": "9",      # blueberry
+        "metcon": "11",       # tomato
+        "skill": "2",         # sage
+        "conditioning": "7",  # peacock
+        "mixed": "5",         # banana
+    }
     created = 0
 
-    for offset in range(7):
-        target_date = today + timedelta(days=offset)
-        weekday = target_date.strftime("%A").lower()  # monday, tuesday, ...
+    for ps in sessions:
+        workout_type = ps.workout_type or "training"
+        session_type = workout_type.capitalize()
+        duration_min = ps.duration_minutes or 60
+        session_date = ps.date
 
-        # Find matching day in schedule dictionary
-        day_schedule = schedule_dict.get(weekday)
-        if not day_schedule:
-            continue
+        if ps.start_time:
+            hour, minute = ps.start_time.hour, ps.start_time.minute
+        else:
+            hour, minute = 6, 0
 
-        # Check if it's a rest day
-        if day_schedule.get("rest_day", False):
-            continue
+        start_dt = datetime(
+            session_date.year, session_date.month, session_date.day,
+            hour, minute, tzinfo=timezone.utc,
+        )
+        end_dt = start_dt + timedelta(minutes=duration_min)
 
-        sessions = day_schedule.get("sessions", [])
-        for session in sessions:
-            # Session structure: {time: "06:00", duration_minutes: 60, workout_type: "strength", notes: "..."}
-            workout_type = session.get("workout_type", "training")
-            session_type = workout_type.capitalize() if workout_type else "Training"
-            duration_min = session.get("duration_minutes", 60)
-            time_str = session.get("time", "06:00")
+        summary = f"🏋️ {session_type} — CrossFit Health OS"
+        description_parts = [
+            f"Type: {session_type}",
+            f"Duration: {duration_min} min",
+        ]
+        if ps.focus:
+            description_parts.append(f"Focus: {ps.focus}")
+        if ps.notes:
+            description_parts.append(f"Notes: {ps.notes}")
+        description_parts.append("Generated by CrossFit Health OS")
+        description = "\n".join(description_parts)
 
-            # Handle time string (could be "HH:MM" or time object)
-            if isinstance(time_str, str):
-                hour, minute = map(int, time_str.split(":"))
-            else:
-                # It's already a time object
-                hour = time_str.hour
-                minute = time_str.minute
-            start_dt = datetime(
-                target_date.year, target_date.month, target_date.day,
-                hour, minute, tzinfo=timezone.utc
+        color_id = color_map.get(workout_type.lower(), "9")
+
+        try:
+            await create_calendar_event(
+                access_token, summary, description,
+                start_dt, end_dt, user_timezone, color_id,
             )
-            end_dt = start_dt + timedelta(minutes=duration_min)
-
-            summary = f"🏋️ {session_type} — CrossFit Health OS"
-            description = (
-                f"Type: {session_type}\n"
-                f"Duration: {duration_min} min\n"
-                f"Generated by CrossFit Health OS"
-            )
-
-            color_map = {
-                "strength": "9",      # blueberry
-                "metcon": "11",       # tomato
-                "skill": "2",         # sage
-                "conditioning": "7",  # peacock
-                "mixed": "5",         # banana
-            }
-            color_id = color_map.get(workout_type.lower() if workout_type else "", "9")
-
-            try:
-                await create_calendar_event(
-                    access_token, summary, description,
-                    start_dt, end_dt, user_timezone, color_id,
-                )
-                created += 1
-            except Exception as e:
-                logger.error(f"Failed to create calendar event: {e}")
+            created += 1
+        except Exception as e:
+            logger.error(f"Failed to create calendar event: {e}")
 
     return {"created": created, "status": "success"}

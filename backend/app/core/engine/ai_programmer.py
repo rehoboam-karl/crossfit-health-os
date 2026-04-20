@@ -1,347 +1,511 @@
 """
-AI-Powered Training Programmer
-Generates progressive training programs using LLM
+AI-Powered Training Programmer (SQLAlchemy).
+
+Generates workouts for a microcycle (one week) using OpenAI GPT, with full
+context of the athlete's periodization block, week-in-block, next block, and
+real previous-week performance. Also supports single-session regeneration.
 """
-from datetime import date, timedelta
-from typing import List, Dict, Optional
-from uuid import UUID
+from __future__ import annotations
+
+from datetime import date as _Date, datetime as _Datetime, timedelta
+from typing import List, Optional
+from uuid import UUID, uuid4
 import json
 import logging
+
 from openai import AsyncOpenAI
+from sqlalchemy import and_, select
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.engine.periodization import (
+    next_block_after,
+    resolve_block_and_week_in_block,
+)
+from app.db.models import (
+    Macrocycle as MacrocycleDB,
+    Microcycle as MicrocycleDB,
+    PlannedSession as PlannedSessionDB,
+    User as UserDB,
+    WorkoutSession as WorkoutSessionDB,
+    WorkoutTemplate as WorkoutTemplateDB,
+)
 from app.models.training import (
-    WorkoutTemplate,
-    Movement,
-    WorkoutType,
+    BlockPlanItem,
+    BlockType,
     Methodology,
-    DayOfWeek
+    Movement,
+    PlannedSessionStatus,
+    WorkoutTemplate,
+    WorkoutType,
 )
 
 logger = logging.getLogger(__name__)
 
 
 class AITrainingProgrammer:
-    """
-    AI-powered training programmer that generates progressive workouts
-    Similar to HWPO, Mayhem, CompTrain but personalized
-    """
-    
+    """AI-powered training programmer that generates progressive workouts."""
+
     def __init__(self):
         self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY) if settings.OPENAI_API_KEY else None
-    
-    async def generate_weekly_program(
+
+    # ==========================================================
+    # Public API — microcycle-based generation
+    # ==========================================================
+
+    async def generate_microcycle_program(
         self,
-        user_profile: dict,
-        methodology: Methodology,
-        training_days: List[DayOfWeek],
-        session_durations: Dict[DayOfWeek, int],
-        week_number: int = 1,
-        focus_movements: Optional[List[str]] = None,
-        previous_week_data: Optional[dict] = None
-    ) -> Dict[DayOfWeek, WorkoutTemplate]:
+        db: Session,
+        microcycle: MicrocycleDB,
+        user_id: int,
+    ) -> int:
         """
-        Generate complete weekly training program using AI
-        
-        Args:
-            user_profile: User fitness level, goals, weaknesses, PRs
-            methodology: HWPO, Mayhem, CompTrain, Custom
-            training_days: List of days to train (e.g., [monday, wednesday, friday])
-            session_durations: Duration for each day {monday: 90, wednesday: 60, ...}
-            week_number: Current week in mesocycle (for progression)
-            focus_movements: Optional list of movements to emphasize
-            previous_week_data: Results from previous week for progressive overload
-            
-        Returns:
-            Dict mapping DayOfWeek to WorkoutTemplate
+        Generate workouts for every planned_session in the given microcycle.
+
+        Commits per-session template inserts within the caller's transaction.
+        Returns the count of sessions generated.
         """
-        if not self.client:
-            logger.warning("OpenAI API key not configured, using fallback templates")
-            return self._generate_fallback_program(training_days, session_durations)
-        
-        # Build context for AI
-        context = self._build_programming_context(
-            user_profile,
-            methodology,
-            training_days,
-            session_durations,
-            week_number,
-            focus_movements,
-            previous_week_data
+        macro = db.get(MacrocycleDB, microcycle.macrocycle_id)
+        if not macro:
+            raise RuntimeError("Macrocycle not found for microcycle")
+
+        block_plan = _parse_block_plan(macro.block_plan)
+        block_type, week_in_block, block_len = resolve_block_and_week_in_block(
+            block_plan, microcycle.week_index_in_macro
         )
-        
-        # Generate program via LLM
-        prompt = self._build_programming_prompt(context)
-        
+        next_block = next_block_after(block_plan, microcycle.week_index_in_macro)
+
+        planned_sessions = db.execute(
+            select(PlannedSessionDB)
+            .where(PlannedSessionDB.microcycle_id == microcycle.id)
+            .order_by(PlannedSessionDB.date, PlannedSessionDB.order_in_day)
+        ).scalars().all()
+
+        if not planned_sessions:
+            logger.info(f"Microcycle {microcycle.id} has no planned sessions; nothing to generate")
+            return 0
+
+        user = db.get(UserDB, user_id)
+        previous_week_data = self._fetch_previous_microcycle_stats(
+            db=db, user_id=user_id, current_start=microcycle.start_date
+        )
+
+        if not self.client:
+            logger.warning("OpenAI client unavailable; using fallback generator")
+            return self._generate_fallback_for_sessions(db, planned_sessions, user_id)
+
+        context = self._build_microcycle_context(
+            user=user,
+            macro=macro,
+            microcycle=microcycle,
+            block_type=block_type,
+            week_in_block=week_in_block,
+            block_len=block_len,
+            next_block=next_block,
+            planned_sessions=planned_sessions,
+            previous_week_data=previous_week_data,
+        )
+
         try:
             response = await self.client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
-                    {
-                        "role": "system",
-                        "content": self._get_system_prompt()
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
+                    {"role": "system", "content": self._get_system_prompt()},
+                    {"role": "user", "content": self._build_microcycle_prompt(context)},
                 ],
                 temperature=0.7,
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
             )
-            
             program_json = json.loads(response.choices[0].message.content)
-            
-            # Parse JSON into WorkoutTemplate objects
-            weekly_program = self._parse_ai_response(program_json, training_days)
-            
-            logger.info(f"Generated weekly program for week {week_number} with {len(weekly_program)} workouts")
-            return weekly_program
-            
+            return self._persist_generated_workouts(
+                db=db,
+                program_json=program_json,
+                planned_sessions=planned_sessions,
+                methodology=Methodology(macro.methodology),
+                user_id=user_id,
+            )
         except Exception as e:
-            logger.error(f"Failed to generate AI program: {e}", exc_info=True)
-            return self._generate_fallback_program(training_days, session_durations)
-    
+            logger.error(f"AI microcycle generation failed: {e}", exc_info=True)
+            return self._generate_fallback_for_sessions(db, planned_sessions, user_id)
+
+    async def regenerate_single_session(
+        self,
+        db: Session,
+        planned: PlannedSessionDB,
+        user_id: int,
+    ) -> PlannedSessionDB:
+        """Regenerate the workout for one planned session, keeping the rest of the week as context."""
+        micro = db.get(MicrocycleDB, planned.microcycle_id)
+        macro = db.get(MacrocycleDB, micro.macrocycle_id)
+        block_plan = _parse_block_plan(macro.block_plan)
+        block_type, week_in_block, block_len = resolve_block_and_week_in_block(
+            block_plan, micro.week_index_in_macro
+        )
+        next_block = next_block_after(block_plan, micro.week_index_in_macro)
+
+        planned_sessions = db.execute(
+            select(PlannedSessionDB)
+            .where(PlannedSessionDB.microcycle_id == micro.id)
+            .order_by(PlannedSessionDB.date, PlannedSessionDB.order_in_day)
+        ).scalars().all()
+
+        user = db.get(UserDB, user_id)
+        previous_week_data = self._fetch_previous_microcycle_stats(
+            db=db, user_id=user_id, current_start=micro.start_date
+        )
+
+        if not self.client:
+            template = self._fallback_template_for_session(planned)
+            self._attach_template_to_session(db, planned, template, user_id)
+            return planned
+
+        context = self._build_microcycle_context(
+            user=user,
+            macro=macro,
+            microcycle=micro,
+            block_type=block_type,
+            week_in_block=week_in_block,
+            block_len=block_len,
+            next_block=next_block,
+            planned_sessions=planned_sessions,
+            previous_week_data=previous_week_data,
+        )
+
+        prompt = self._build_single_session_prompt(context, planned)
+        try:
+            response = await self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": self._get_system_prompt()},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.7,
+                response_format={"type": "json_object"},
+            )
+            workout_data = json.loads(response.choices[0].message.content)
+            template = self._parse_single_workout(workout_data, planned, Methodology(macro.methodology))
+            self._attach_template_to_session(db, planned, template, user_id)
+        except Exception as e:
+            logger.error(f"Single-session regeneration failed: {e}", exc_info=True)
+            template = self._fallback_template_for_session(planned)
+            self._attach_template_to_session(db, planned, template, user_id)
+
+        return planned
+
+    # ==========================================================
+    # Prompt building
+    # ==========================================================
+
     def _get_system_prompt(self) -> str:
-        """
-        System prompt defining AI's role as elite CrossFit programmer
-        """
         return """You are an elite CrossFit programming coach with expertise in HWPO (Mat Fraser), Mayhem (Rich Froning), and CompTrain (Ben Bergeron) methodologies.
 
 Your role is to create intelligent, progressive training programs that:
-1. Follow proven periodization principles (volume cycles, deload weeks, progressive overload)
-2. Balance strength, metcon, gymnastics, and conditioning
-3. Adapt to the athlete's fitness level, weaknesses, and goals
-4. Consider session duration constraints (short: ≤60min, long: >60min)
-5. Provide clear rep schemes, intensities, and coaching cues
-6. Include appropriate warm-up and cooldown guidance
+1. Respect the current periodization block (accumulation, intensification, realization, deload, test, transition) AND the week's position inside that block.
+2. Balance strength, metcon, gymnastics, and conditioning across the week.
+3. Adapt to the athlete's fitness level, weaknesses, and goals.
+4. Respect the user-planned session grid — date, shift, workout_type, duration are fixed. You only fill the workout content.
+5. Support multi-session days (e.g., strength AM + metcon PM) and avoid CNS overlap.
+6. Apply progressive overload using the previous microcycle's actual performance data.
 
-Programming Philosophy:
-- Week 1-3: Volume accumulation
-- Week 4: Deload/Active recovery
-- Week 5-7: Intensity phase
-- Week 8: Test week
+Block-type programming rules:
+- ACCUMULATION: higher volume, moderate intensity (60-75% 1RM), 4-6 sets, RPE 6-7, lots of accessory work.
+- INTENSIFICATION: reduced volume, higher intensity (80-90% 1RM), 3-5 sets, RPE 7-8.
+- REALIZATION/PEAK: low volume, very high intensity (85-95% 1RM), 2-3 working sets, sharp metcons.
+- DELOAD: 50-60% volume of the previous week at moderate intensity, restorative tempo work, technical focus.
+- TEST: primarily benchmark lifts or named WODs (Fran, Grace, 1RM attempts).
+- TRANSITION: mostly recovery, mobility, aerobic zone-2 work; minimal barbell.
 
-Session Structure:
-**Short Sessions (≤60min):**
-- Warm-up: 10min
-- Skill/Strength: 15-20min (1-2 movements)
-- MetCon: 15-20min
-- Cooldown: 5min
+Ergometer / monostructural movement rules:
+- Calorie-based (cal_row, cal_bike, cal_ski): reps field = calories, reps_unit = "cal".
+- Distance-based (run, row_meters): use distance_meters.
+- Time-based: use duration_seconds.
+- Always include reps_unit when reps means something other than repetitions.
 
-**Long Sessions (>60min):**
-- Warm-up: 15min
-- Strength: 30min (3-4 movements, multiple sets)
-- Accessory: 15min
-- MetCon: 20-25min
-- Cooldown: 10min
+You must return a valid JSON object with workout details for each requested session."""
 
-Movement Selection:
-- Prioritize compound lifts (squat, deadlift, press, olympic lifts)
-- Include gymnastics progressions (pull-ups, handstands, muscle-ups)
-- Balance pushing/pulling, squatting/hinging
-- Address user's weakness areas
-
-Intensity Guidelines:
-- Strength: 70-90% 1RM
-- MetCon: 75-85% max effort
-- Conditioning: 60-75% (Zone 2-3)
-- Skill: Focus on quality, not fatigue
-
-Ergometer / Monostructural Movement Rules:
-- For calorie-based work (cal_row, cal_bike, cal_ski_erg): use "reps" field with the number of calories, and set "reps_unit" to "cal"
-- For distance-based work (run, row_meters, ski_meters, sled_push): use "distance_meters" field (e.g., 400 for a 400m run)
-- For time-based work (bike, row for time, assault bike): use "duration_seconds" field (e.g., 60 for 1 minute)
-- NEVER put meters or calories in the "reps" field without specifying the unit
-- Always include "reps_unit" when reps means something other than repetitions. Valid values: "reps" (default), "cal", "m"
-
-You must return a valid JSON object with workout details for each training day."""
-    
-    def _build_programming_context(
+    def _build_microcycle_context(
         self,
-        user_profile: dict,
-        methodology: Methodology,
-        training_days: List[DayOfWeek],
-        session_durations: Dict[DayOfWeek, int],
-        week_number: int,
-        focus_movements: Optional[List[str]],
-        previous_week_data: Optional[dict]
+        user: Optional[UserDB],
+        macro: MacrocycleDB,
+        microcycle: MicrocycleDB,
+        block_type: Optional[BlockType],
+        week_in_block: Optional[int],
+        block_len: Optional[int],
+        next_block: Optional[BlockPlanItem],
+        planned_sessions: list[PlannedSessionDB],
+        previous_week_data: Optional[dict],
     ) -> dict:
-        """Build context dictionary for AI prompt"""
-        
-        # Extract user info
-        fitness_level = user_profile.get("fitness_level", "intermediate")
-        weight_kg = user_profile.get("weight_kg", 80)
-        goals = user_profile.get("preferences", {}).get("goals", ["strength", "conditioning"])
-        weaknesses = user_profile.get("preferences", {}).get("weaknesses", [])
-        
-        # Determine mesocycle phase
-        if week_number <= 3:
-            phase = "accumulation"
-        elif week_number == 4:
-            phase = "deload"
-        elif week_number <= 7:
-            phase = "intensification"
-        else:
-            phase = "test_week"
-        
-        context = {
-            "user": {
-                "fitness_level": fitness_level,
-                "bodyweight_kg": weight_kg,
-                "goals": goals,
-                "weaknesses": weaknesses
+        prefs = (user.preferences or {}) if user else {}
+        return {
+            "athlete": {
+                "fitness_level": (user.fitness_level if user else "intermediate"),
+                "weight_kg": (user.weight_kg if user else 80),
+                "goals": prefs.get("goals", user.goals if user else ["strength", "conditioning"]),
+                "weaknesses": prefs.get("weaknesses", []),
             },
-            "program": {
-                "methodology": methodology.value,
-                "week_number": week_number,
-                "phase": phase,
-                "training_days": [day.value for day in training_days],
-                "session_durations": {day.value: duration for day, duration in session_durations.items()},
-                "focus_movements": focus_movements or []
+            "macrocycle": {
+                "methodology": macro.methodology,
+                "start_date": str(macro.start_date),
+                "end_date": str(macro.end_date),
+                "goal": macro.goal,
             },
-            "previous_week": previous_week_data
+            "microcycle": {
+                "start_date": str(microcycle.start_date),
+                "end_date": str(microcycle.end_date),
+                "week_index_in_macro": microcycle.week_index_in_macro,
+                "block_type": block_type.value if block_type else None,
+                "week_in_block": week_in_block,
+                "block_total_weeks": block_len,
+                "next_block": {
+                    "type": next_block.type.value,
+                    "weeks": next_block.weeks,
+                } if next_block else None,
+                "intensity_target": microcycle.intensity_target,
+                "volume_target": microcycle.volume_target,
+            },
+            "planned_sessions": [
+                {
+                    "id": str(s.id),
+                    "date": str(s.date),
+                    "order_in_day": s.order_in_day,
+                    "shift": s.shift,
+                    "start_time": str(s.start_time) if s.start_time else None,
+                    "duration_minutes": s.duration_minutes,
+                    "workout_type": s.workout_type,
+                    "focus": s.focus,
+                } for s in planned_sessions
+            ],
+            "previous_microcycle": previous_week_data,
         }
-        
-        return context
-    
-    def _build_programming_prompt(self, context: dict) -> str:
-        """
-        Build the actual prompt for workout generation
-        """
-        user = context["user"]
-        program = context["program"]
-        previous = context.get("previous_week")
-        
-        prompt = f"""Generate a weekly training program with the following parameters:
 
-**Athlete Profile:**
-- Fitness Level: {user['fitness_level']}
-- Bodyweight: {user['bodyweight_kg']}kg
-- Goals: {', '.join(user['goals'])}
-- Weaknesses: {', '.join(user['weaknesses']) if user['weaknesses'] else 'None specified'}
+    def _build_microcycle_prompt(self, context: dict) -> str:
+        athlete = context["athlete"]
+        macro = context["macrocycle"]
+        micro = context["microcycle"]
+        sessions = context["planned_sessions"]
+        prev = context.get("previous_microcycle")
 
-**Program Parameters:**
-- Methodology: {program['methodology'].upper()}
-- Week Number: {program['week_number']} ({program['phase']} phase)
-- Training Days: {', '.join(program['training_days'])}
-- Session Durations: {json.dumps(program['session_durations'])}
-- Focus Movements: {', '.join(program['focus_movements']) if program['focus_movements'] else 'None'}
+        return f"""Generate the workout for every planned session below.
 
-**Previous Week Results:**
-{json.dumps(previous, indent=2) if previous else 'First week - no previous data'}
+**Athlete**
+- Fitness level: {athlete['fitness_level']}
+- Bodyweight: {athlete['weight_kg']} kg
+- Goals: {', '.join(athlete['goals'] or [])}
+- Weaknesses: {', '.join(athlete['weaknesses']) if athlete['weaknesses'] else 'None specified'}
 
-**Requirements:**
-1. Create a workout for EACH training day listed above
-2. Respect session duration constraints (short ≤60min, long >60min)
-3. Apply progressive overload if previous week data exists
-4. Follow {program['methodology'].upper()} principles:
-   - HWPO: Heavy strength + short intense metcons
-   - Mayhem: High volume, competition prep focus
-   - CompTrain: Balanced, sustainable programming
-   - Custom: Adapt to athlete's specific needs
-5. Address athlete's weaknesses
-6. Include clear instructions (sets, reps, weights, rest)
+**Macrocycle**
+- Methodology: {macro['methodology'].upper()}
+- Dates: {macro['start_date']} → {macro['end_date']}
+- Goal: {macro.get('goal') or 'General performance'}
 
-**Output Format:**
-Return a JSON object with this structure:
-```json
+**Current Microcycle**
+- Dates: {micro['start_date']} → {micro['end_date']}
+- Week {micro['week_index_in_macro']} of the macrocycle
+- Block: {micro['block_type']} (week {micro['week_in_block']} of {micro['block_total_weeks']})
+- Next block: {json.dumps(micro.get('next_block')) if micro.get('next_block') else 'end of macrocycle'}
+- Intensity target: {micro.get('intensity_target') or 'auto'}
+- Volume target: {micro.get('volume_target') or 'auto'}
+
+**Planned Sessions** (you must generate one workout per session; do NOT change dates, order, type or duration)
+{json.dumps(sessions, indent=2)}
+
+**Previous Microcycle Performance**
+{json.dumps(prev, indent=2) if prev else 'No prior data (first microcycle)'}
+
+**Output**
+Return JSON with the shape:
+```
 {{
-  "program_summary": "Brief overview of the week's focus",
-  "workouts": {{
-    "monday": {{
-      "name": "Heavy Squat + Short AMRAP",
-      "duration_minutes": 90,
+  "microcycle_summary": "High-level focus of the week",
+  "workouts": [
+    {{
+      "session_id": "<planned_session.id>",
+      "name": "…",
+      "description": "…",
       "workout_type": "strength",
-      "description": "Focus on building squat strength with accessory work",
-      "warm_up": "10min: Row 500m, 2 rounds (10 air squats, 10 PVC pass-throughs, 5 inchworms)",
-      "parts": [
-        {{
-          "part_name": "Strength",
-          "duration_minutes": 30,
-          "movements": [
-            {{
-              "movement": "back_squat",
-              "sets": 5,
-              "reps": 5,
-              "intensity": "80% 1RM",
-              "rest": "3min",
-              "notes": "Focus on depth and speed out of the hole"
-            }},
-            {{
-              "movement": "bulgarian_split_squat",
-              "sets": 3,
-              "reps": 10,
-              "intensity": "Bodyweight + 20kg DB",
-              "rest": "90s",
-              "notes": "Per leg, control the descent"
-            }}
-          ]
-        }},
-        {{
-          "part_name": "MetCon",
-          "duration_minutes": 15,
-          "format": "AMRAP 12min",
-          "movements": [
-            {{
-              "movement": "thruster",
-              "reps": 5,
-              "weight_kg": 42.5,
-              "notes": "Barbell, aim for unbroken sets"
-            }},
-            {{
-              "movement": "burpee_box_jump",
-              "reps": 10,
-              "notes": "24inch box, step down"
-            }},
-            {{
-              "movement": "cal_row",
-              "reps": 15,
-              "reps_unit": "cal",
-              "notes": "Damper 5-7, hold steady pace"
-            }},
-            {{
-              "movement": "run",
-              "distance_meters": 400,
-              "notes": "Moderate pace, recover on the row"
-            }}
-          ]
-        }}
-      ],
-      "cooldown": "5min: Easy bike, foam roll quads and hamstrings",
-      "target_stimulus": "Leg strength + lactate tolerance",
-      "scaling_options": {{
-        "rx": "As written",
-        "scaled": "Thruster 35kg, Box jumps 20inch",
-        "beginner": "Goblet squats, step-ups, bike instead of row"
-      }}
-    }},
-    "wednesday": {{
-      // ... similar structure for wednesday
-    }},
-    // ... other training days
-  }}
+      "duration_minutes": 90,
+      "warm_up": "…",
+      "movements": [ {{…}} ],
+      "target_stimulus": "…",
+      "tags": ["…"]
+    }}
+  ]
 }}
 ```
 
-Generate the complete weekly program now."""
-        
-        return prompt
-    
-    def _normalize_workout_type(self, raw_type: str) -> WorkoutType:
-        """Map GPT's free-form workout type strings to valid enum values"""
-        raw = raw_type.lower().strip()
+Each output workout must reference a planned session by its `session_id`. Generate exactly {len(sessions)} workouts."""
 
-        # Direct match
+    def _build_single_session_prompt(self, context: dict, planned: PlannedSessionDB) -> str:
+        target = {
+            "session_id": str(planned.id),
+            "date": str(planned.date),
+            "order_in_day": planned.order_in_day,
+            "workout_type": planned.workout_type,
+            "duration_minutes": planned.duration_minutes,
+            "focus": planned.focus,
+        }
+        return f"""Regenerate a single training session.
+
+**Full-week context** (other sessions in the same microcycle — do NOT duplicate their stimulus):
+{json.dumps(context['planned_sessions'], indent=2)}
+
+**Microcycle block**: {context['microcycle']['block_type']} (week {context['microcycle']['week_in_block']} of {context['microcycle']['block_total_weeks']})
+
+**Target session** (return exactly one workout for this):
+{json.dumps(target, indent=2)}
+
+**Previous Microcycle Performance**
+{json.dumps(context.get('previous_microcycle'), indent=2) if context.get('previous_microcycle') else 'No prior data'}
+
+Return JSON: {{"session_id":"…","name":"…","description":"…","workout_type":"…","duration_minutes":…,"warm_up":"…","movements":[…],"target_stimulus":"…","tags":[…]}}.
+"""
+
+    # ==========================================================
+    # Persistence
+    # ==========================================================
+
+    def _persist_generated_workouts(
+        self,
+        db: Session,
+        program_json: dict,
+        planned_sessions: list[PlannedSessionDB],
+        methodology: Methodology,
+        user_id: int,
+    ) -> int:
+        session_by_id = {str(s.id): s for s in planned_sessions}
+        workouts = program_json.get("workouts", [])
+
+        count = 0
+        for w in workouts:
+            sid = str(w.get("session_id"))
+            planned = session_by_id.get(sid)
+            if not planned:
+                logger.warning(f"Generated workout references unknown session_id={sid}")
+                continue
+            template = self._parse_single_workout(w, planned, methodology)
+            self._attach_template_to_session(db, planned, template, user_id)
+            count += 1
+        db.commit()
+        return count
+
+    def _attach_template_to_session(
+        self,
+        db: Session,
+        planned: PlannedSessionDB,
+        template: WorkoutTemplate,
+        user_id: int,
+    ) -> None:
+        template_row = WorkoutTemplateDB(
+            owner_user_id=user_id,
+            name=template.name,
+            description=template.description,
+            methodology=template.methodology.value,
+            difficulty_level=template.difficulty_level,
+            workout_type=template.workout_type.value,
+            duration_minutes=template.duration_minutes,
+            movements=[m.model_dump(mode="json") for m in template.movements],
+            target_stimulus=template.target_stimulus,
+            tags=(template.tags or []) + ["ai_generated"],
+            equipment_required=template.equipment_required or [],
+            is_public=False,
+        )
+        db.add(template_row)
+        db.flush()
+
+        planned.generated_template_id = template_row.id
+        planned.status = PlannedSessionStatus.GENERATED.value
+
+    # ==========================================================
+    # Fetchers
+    # ==========================================================
+
+    def _fetch_previous_microcycle_stats(
+        self,
+        db: Session,
+        user_id: int,
+        current_start: _Date,
+    ) -> Optional[dict]:
+        prev_end = current_start - timedelta(days=1)
+        prev_start = prev_end - timedelta(days=6)
+
+        rows = db.execute(
+            select(WorkoutSessionDB).where(
+                and_(
+                    WorkoutSessionDB.user_id == user_id,
+                    WorkoutSessionDB.started_at >= _Datetime.combine(prev_start, _Datetime.min.time()),
+                    WorkoutSessionDB.started_at <= _Datetime.combine(prev_end, _Datetime.max.time()),
+                )
+            )
+        ).scalars().all()
+
+        if not rows:
+            return None
+
+        completed = [r for r in rows if r.completed_at]
+        rpes = [r.rpe_score for r in completed if r.rpe_score is not None]
+        durations = [r.duration_minutes for r in completed if r.duration_minutes is not None]
+
+        return {
+            "date_range": f"{prev_start} → {prev_end}",
+            "sessions_started": len(rows),
+            "sessions_completed": len(completed),
+            "avg_rpe": round(sum(rpes) / len(rpes), 1) if rpes else None,
+            "avg_duration_min": round(sum(durations) / len(durations), 1) if durations else None,
+            "workout_types": [r.workout_type for r in completed],
+        }
+
+    # ==========================================================
+    # Parsing & fallback
+    # ==========================================================
+
+    def _parse_single_workout(
+        self,
+        workout_data: dict,
+        planned: PlannedSessionDB,
+        methodology: Methodology,
+    ) -> WorkoutTemplate:
+        movements = []
+        for mov in workout_data.get("movements", []):
+            movements.append(Movement(
+                movement=mov.get("movement", "unknown"),
+                sets=mov.get("sets"),
+                reps=mov.get("reps"),
+                reps_unit=mov.get("reps_unit", "reps"),
+                weight_kg=mov.get("weight_kg"),
+                distance_meters=mov.get("distance_meters"),
+                duration_seconds=mov.get("duration_seconds"),
+                intensity=mov.get("intensity"),
+                rest=mov.get("rest"),
+                notes=mov.get("notes"),
+            ))
+
+        workout_type = self._normalize_workout_type(
+            workout_data.get("workout_type") or planned.workout_type or "mixed"
+        )
+
+        return WorkoutTemplate(
+            id=uuid4(),
+            name=workout_data.get("name", f"Session {planned.date}"),
+            description=workout_data.get("description"),
+            methodology=methodology,
+            difficulty_level="rx",
+            workout_type=workout_type,
+            duration_minutes=workout_data.get("duration_minutes") or planned.duration_minutes,
+            movements=movements,
+            target_stimulus=workout_data.get("target_stimulus"),
+            tags=workout_data.get("tags", []),
+            equipment_required=workout_data.get("equipment_required", []),
+            created_at=_Datetime.utcnow(),
+            is_public=False,
+        )
+
+    def _normalize_workout_type(self, raw_type: str) -> WorkoutType:
+        raw = (raw_type or "").lower().strip()
         for wt in WorkoutType:
             if wt.value == raw:
                 return wt
-
-        # Keyword mapping
         if any(k in raw for k in ["strength", "squat", "deadlift", "press", "heavy"]):
-            if any(k in raw for k in ["metcon", "wod", "amrap", "emom", "+"]):
-                return WorkoutType.MIXED
-            return WorkoutType.STRENGTH
+            return WorkoutType.MIXED if any(k in raw for k in ["metcon", "wod", "amrap"]) else WorkoutType.STRENGTH
         if any(k in raw for k in ["metcon", "wod", "amrap", "emom", "chipper", "for time"]):
             return WorkoutType.METCON
         if any(k in raw for k in ["skill", "gymnastic", "handstand", "muscle-up"]):
@@ -350,219 +514,88 @@ Generate the complete weekly program now."""
             return WorkoutType.CONDITIONING
         if any(k in raw for k in ["mixed", "hybrid", "combo"]):
             return WorkoutType.MIXED
-
         return WorkoutType.MIXED
 
-    def _parse_ai_response(
+    def _generate_fallback_for_sessions(
         self,
-        program_json: dict,
-        training_days: List[DayOfWeek]
-    ) -> Dict[DayOfWeek, WorkoutTemplate]:
-        """
-        Parse AI-generated JSON into WorkoutTemplate objects
-        """
-        weekly_program = {}
+        db: Session,
+        planned_sessions: list[PlannedSessionDB],
+        user_id: int,
+    ) -> int:
+        count = 0
+        for p in planned_sessions:
+            template = self._fallback_template_for_session(p)
+            self._attach_template_to_session(db, p, template, user_id)
+            count += 1
+        db.commit()
+        return count
 
-        workouts = program_json.get("workouts", {})
+    def _fallback_template_for_session(self, planned: PlannedSessionDB) -> WorkoutTemplate:
+        wt = self._normalize_workout_type(planned.workout_type or "mixed")
+        duration = planned.duration_minutes or 60
 
-        for day in training_days:
-            day_key = day.value
-            if day_key not in workouts:
-                logger.warning(f"AI response missing workout for {day_key}")
-                continue
-
-            workout_data = workouts[day_key]
-
-            # Parse movements from all parts
-            all_movements = []
-            for part in workout_data.get("parts", []):
-                for mov in part.get("movements", []):
-                    movement = Movement(
-                        movement=mov.get("movement"),
-                        sets=mov.get("sets"),
-                        reps=mov.get("reps"),
-                        reps_unit=mov.get("reps_unit", "reps"),
-                        weight_kg=mov.get("weight_kg"),
-                        distance_meters=mov.get("distance_meters"),
-                        duration_seconds=mov.get("duration_seconds"),
-                        intensity=mov.get("intensity"),
-                        rest=mov.get("rest"),
-                        notes=mov.get("notes")
-                    )
-                    all_movements.append(movement)
-
-            # Create WorkoutTemplate
-            workout_type = self._normalize_workout_type(
-                workout_data.get("workout_type", "mixed")
-            )
-
-            template = WorkoutTemplate(
-                id=UUID("00000000-0000-0000-0000-000000000000"),  # Will be replaced on save
-                name=workout_data.get("name", f"{day_key.title()} Workout"),
-                description=workout_data.get("description", ""),
-                methodology=Methodology.CUSTOM,  # AI-generated is custom
-                difficulty_level="rx",
-                workout_type=workout_type,
-                duration_minutes=workout_data.get("duration_minutes"),
-                movements=all_movements,
-                target_stimulus=workout_data.get("target_stimulus"),
-                tags=["ai_generated", day_key],
-                equipment_required=[],
-                created_at=date.today(),
-                is_public=False
-            )
-
-            weekly_program[day] = template
-
-        return weekly_program
-    
-    def _generate_fallback_program(
-        self,
-        training_days: List[DayOfWeek],
-        session_durations: Dict[DayOfWeek, int]
-    ) -> Dict[DayOfWeek, WorkoutTemplate]:
-        """
-        Fallback program generator if AI is unavailable
-        Simple default workouts
-        """
-        fallback_workouts = {
-            DayOfWeek.MONDAY: self._create_strength_workout(session_durations.get(DayOfWeek.MONDAY, 60)),
-            DayOfWeek.TUESDAY: self._create_metcon_workout(session_durations.get(DayOfWeek.TUESDAY, 60)),
-            DayOfWeek.WEDNESDAY: self._create_skill_workout(session_durations.get(DayOfWeek.WEDNESDAY, 60)),
-            DayOfWeek.THURSDAY: self._create_mixed_workout(session_durations.get(DayOfWeek.THURSDAY, 60)),
-            DayOfWeek.FRIDAY: self._create_conditioning_workout(session_durations.get(DayOfWeek.FRIDAY, 60)),
-            DayOfWeek.SATURDAY: self._create_metcon_workout(session_durations.get(DayOfWeek.SATURDAY, 60)),
-        }
-        
-        return {day: fallback_workouts[day] for day in training_days if day in fallback_workouts}
-    
-    def _create_strength_workout(self, duration: int) -> WorkoutTemplate:
-        """Create basic strength workout"""
-        if duration > 60:
+        if wt == WorkoutType.STRENGTH:
             movements = [
                 Movement(movement="back_squat", sets=5, reps=5, intensity="80%", rest="3min"),
-                Movement(movement="deadlift", sets=3, reps=5, intensity="75%", rest="3min"),
-                Movement(movement="strict_press", sets=4, reps=8, intensity="70%", rest="2min"),
+                Movement(movement="bench_press", sets=4, reps=8, intensity="75%", rest="2min"),
             ]
+            name = "Strength Session (fallback)"
+            stimulus = "Build maximal strength"
+        elif wt == WorkoutType.METCON:
+            movements = [
+                Movement(movement="thruster", reps=21, weight_kg=42.5),
+                Movement(movement="pull_up", reps=21),
+                Movement(movement="thruster", reps=15, weight_kg=42.5),
+                Movement(movement="pull_up", reps=15),
+                Movement(movement="thruster", reps=9, weight_kg=42.5),
+                Movement(movement="pull_up", reps=9),
+            ]
+            name = "Metcon Session (fallback)"
+            stimulus = "High intensity couplet"
+        elif wt == WorkoutType.SKILL:
+            movements = [
+                Movement(movement="handstand_walk", sets=6, duration_seconds=30, rest="90s"),
+                Movement(movement="muscle_up", sets=5, reps=3, rest="2min"),
+                Movement(movement="double_under", sets=5, reps=50, rest="60s"),
+            ]
+            name = "Skill Session (fallback)"
+            stimulus = "Skill acquisition"
+        elif wt == WorkoutType.CONDITIONING:
+            movements = [
+                Movement(movement="run", distance_meters=400, sets=6, rest="90s"),
+                Movement(movement="cal_row", sets=5, reps=20, reps_unit="cal", rest="60s"),
+            ]
+            name = "Conditioning Session (fallback)"
+            stimulus = "Aerobic capacity"
         else:
             movements = [
-                Movement(movement="front_squat", sets=4, reps=6, intensity="75%", rest="2min"),
-                Movement(movement="push_press", sets=4, reps=8, intensity="70%", rest="90s"),
+                Movement(movement="deadlift", sets=3, reps=8, intensity="75%", rest="2min"),
+                Movement(movement="cal_bike", reps=40, reps_unit="cal"),
             ]
-        
+            name = "Mixed Modal (fallback)"
+            stimulus = "Balanced stimulus"
+
         return WorkoutTemplate(
-            id=UUID("00000000-0000-0000-0000-000000000000"),
-            name="Strength Day",
-            description="Compound strength work",
+            id=uuid4(),
+            name=name,
+            description="Fallback workout (OpenAI unavailable)",
             methodology=Methodology.CUSTOM,
             difficulty_level="rx",
-            workout_type=WorkoutType.STRENGTH,
+            workout_type=wt,
             duration_minutes=duration,
             movements=movements,
-            target_stimulus="Build maximal strength",
-            tags=["fallback", "strength"],
-            equipment_required=["barbell", "rack"],
-            created_at=date.today(),
-            is_public=False
+            target_stimulus=stimulus,
+            tags=["fallback"],
+            equipment_required=[],
+            created_at=_Datetime.utcnow(),
+            is_public=False,
         )
-    
-    def _create_metcon_workout(self, duration: int) -> WorkoutTemplate:
-        """Create basic metcon workout"""
-        movements = [
-            Movement(movement="thruster", reps=21, weight_kg=42.5),
-            Movement(movement="pull_up", reps=21),
-            Movement(movement="thruster", reps=15, weight_kg=42.5),
-            Movement(movement="pull_up", reps=15),
-            Movement(movement="thruster", reps=9, weight_kg=42.5),
-            Movement(movement="pull_up", reps=9),
-        ]
-        
-        return WorkoutTemplate(
-            id=UUID("00000000-0000-0000-0000-000000000000"),
-            name="Fran (Classic)",
-            description="21-15-9 Thrusters and Pull-ups",
-            methodology=Methodology.CUSTOM,
-            difficulty_level="rx",
-            workout_type=WorkoutType.METCON,
-            duration_minutes=duration,
-            movements=movements,
-            target_stimulus="High intensity, short duration",
-            rep_scheme="21-15-9",
-            tags=["fallback", "metcon", "classic"],
-            equipment_required=["barbell", "pull_up_bar"],
-            created_at=date.today(),
-            is_public=False
-        )
-    
-    def _create_skill_workout(self, duration: int) -> WorkoutTemplate:
-        """Create basic skill workout"""
-        movements = [
-            Movement(movement="handstand_walk", sets=10, duration_seconds=30, rest="60s"),
-            Movement(movement="muscle_up", sets=5, reps=3, rest="2min"),
-            Movement(movement="double_under", sets=5, reps=50, rest="60s"),
-        ]
-        
-        return WorkoutTemplate(
-            id=UUID("00000000-0000-0000-0000-000000000000"),
-            name="Gymnastics Skills",
-            description="Skill practice and development",
-            methodology=Methodology.CUSTOM,
-            difficulty_level="rx",
-            workout_type=WorkoutType.SKILL,
-            duration_minutes=duration,
-            movements=movements,
-            target_stimulus="Skill acquisition",
-            tags=["fallback", "gymnastics"],
-            equipment_required=["rings", "jump_rope"],
-            created_at=date.today(),
-            is_public=False
-        )
-    
-    def _create_mixed_workout(self, duration: int) -> WorkoutTemplate:
-        """Create mixed workout"""
-        movements = [
-            Movement(movement="deadlift", sets=3, reps=8, intensity="75%", rest="2min"),
-            Movement(movement="rowing", distance_meters=500, sets=5, rest="90s"),
-        ]
-        
-        return WorkoutTemplate(
-            id=UUID("00000000-0000-0000-0000-000000000000"),
-            name="Mixed Modal",
-            description="Strength + Conditioning",
-            methodology=Methodology.CUSTOM,
-            difficulty_level="rx",
-            workout_type=WorkoutType.MIXED,
-            duration_minutes=duration,
-            movements=movements,
-            target_stimulus="Balanced work capacity",
-            tags=["fallback", "mixed"],
-            equipment_required=["barbell", "rower"],
-            created_at=date.today(),
-            is_public=False
-        )
-    
-    def _create_conditioning_workout(self, duration: int) -> WorkoutTemplate:
-        """Create conditioning workout"""
-        movements = [
-            Movement(movement="air_bike", duration_seconds=60, sets=10, rest="60s"),
-            Movement(movement="run", distance_meters=400, sets=6, rest="2min"),
-        ]
-        
-        return WorkoutTemplate(
-            id=UUID("00000000-0000-0000-0000-000000000000"),
-            name="Conditioning",
-            description="Aerobic capacity work",
-            methodology=Methodology.CUSTOM,
-            difficulty_level="rx",
-            workout_type=WorkoutType.CONDITIONING,
-            duration_minutes=duration,
-            movements=movements,
-            target_stimulus="Aerobic endurance",
-            tags=["fallback", "conditioning"],
-            equipment_required=["bike", "track"],
-            created_at=date.today(),
-            is_public=False
-        )
+
+
+def _parse_block_plan(raw: list[dict] | None) -> list[BlockPlanItem]:
+    if not raw:
+        return []
+    return [BlockPlanItem(type=item["type"], weeks=item["weeks"]) for item in raw]
 
 
 # Global instance

@@ -1,377 +1,331 @@
 """
-Weekly Review & Session Feedback API Endpoints
+Weekly Review & Session Feedback API (SQLAlchemy).
 """
-from fastapi import APIRouter, HTTPException, Depends, status
+from datetime import date as _Date
 from typing import List
 from uuid import UUID
-from datetime import date, timedelta
+import logging
 
-from app.models.review import (
-    SessionFeedbackCreate,
-    SessionFeedbackResponse,
-    WeeklyReviewCreate,
-    WeeklyReview
-)
-from app.db.supabase import supabase_client
-from app.db.helpers import handle_supabase_response, handle_supabase_single
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from app.core.auth import get_current_user
 from app.core.engine.weekly_reviewer import weekly_reviewer
-import logging
+from app.db.models import (
+    Macrocycle as MacrocycleDB,
+    Microcycle as MicrocycleDB,
+    SessionFeedback as SessionFeedbackDB,
+    WeeklyReview as WeeklyReviewDB,
+    WorkoutSession as WorkoutSessionDB,
+)
+from app.db.session import get_session
+from app.models.review import (
+    IntensityChange,
+    NextWeekAdjustments,
+    PerformanceChallenge,
+    PerformanceHighlight,
+    RecoveryStatus,
+    SessionFeedbackCreate,
+    SessionFeedbackResponse,
+    VolumeAssessment,
+    WeeklyReview,
+    WeeklyReviewCreate,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-# ============================================
+def _fb_to_schema(row: SessionFeedbackDB) -> SessionFeedbackResponse:
+    return SessionFeedbackResponse(
+        id=row.id,
+        user_id=row.user_id,
+        session_id=row.session_id,
+        date=row.date,
+        rpe_score=row.rpe_score,
+        difficulty=row.difficulty,
+        technique_quality=row.technique_quality,
+        pacing=row.pacing,
+        energy_level_pre=row.energy_level_pre,
+        energy_level_post=row.energy_level_post,
+        would_repeat=row.would_repeat,
+        favorite_part=row.favorite_part,
+        least_favorite_part=row.least_favorite_part,
+        notes=row.notes,
+        movements_feedback=row.movements_feedback or [],
+        created_at=row.created_at,
+    )
+
+
+def _wr_to_schema(row: WeeklyReviewDB) -> WeeklyReview:
+    return WeeklyReview(
+        id=row.id,
+        user_id=row.user_id,
+        week_number=row.week_number,
+        week_start_date=row.week_start_date,
+        week_end_date=row.week_end_date,
+        summary=row.summary,
+        planned_sessions=row.planned_sessions,
+        completed_sessions=row.completed_sessions,
+        adherence_rate=row.adherence_rate,
+        avg_rpe=row.avg_rpe,
+        avg_readiness=row.avg_readiness,
+        overall_satisfaction=row.overall_satisfaction,
+        strengths=[PerformanceHighlight(**s) for s in (row.strengths or [])],
+        weaknesses=[PerformanceChallenge(**w) for w in (row.weaknesses or [])],
+        recovery_status=RecoveryStatus(row.recovery_status),
+        volume_assessment=VolumeAssessment(row.volume_assessment),
+        progressions_detected=row.progressions_detected or [],
+        next_week_adjustments=NextWeekAdjustments(**(row.next_week_adjustments or {})),
+        coach_message=row.coach_message,
+        created_at=row.created_at,
+        ai_model_used=row.ai_model_used,
+    )
+
+
+# ==========================================================
 # Session Feedback
-# ============================================
+# ==========================================================
 
 @router.post("/feedback", response_model=SessionFeedbackResponse, status_code=status.HTTP_201_CREATED)
 async def create_session_feedback(
     feedback: SessionFeedbackCreate,
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """
-    Submit post-workout feedback
-    
-    Critical data for weekly review:
-    - RPE (Rate of Perceived Exertion) 1-10
-    - Difficulty assessment
-    - Technique quality
-    - Movement-specific notes
-    
-    Example:
-    ```json
-    {
-      "session_id": "uuid",
-      "date": "2026-02-08",
-      "rpe_score": 8,
-      "difficulty": "hard_but_manageable",
-      "technique_quality": 7,
-      "pacing": "good",
-      "energy_level_pre": 8,
-      "energy_level_post": 4,
-      "would_repeat": true,
-      "notes": "Squats felt strong, MetCon was spicy",
-      "movements_feedback": [
-        {
-          "movement": "back_squat",
-          "prescribed_sets": 5,
-          "prescribed_reps": 5,
-          "prescribed_weight_kg": 112,
-          "actual_sets": 5,
-          "actual_reps": [5, 5, 5, 5, 4],
-          "actual_weight_kg": [112, 112, 112, 112, 110],
-          "technique_quality": 8,
-          "notes": "Last set too heavy, dropped weight"
-        }
-      ]
-    }
-    ```
-    """
-    user_id = UUID(current_user["id"])
-    
-    # Verify session belongs to user
-    session_response = supabase_client.table("workout_sessions").select("*").eq(
-        "id", str(feedback.session_id)
-    ).single().execute()
-    
-    session = handle_supabase_single(session_response, "Session not found")
-    
-    if session["user_id"] != str(user_id):
+    """Submit post-workout feedback for a session the user owns."""
+    user_id = int(current_user["id"])
+
+    session_row = db.get(WorkoutSessionDB, feedback.session_id)
+    if not session_row:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session_row.user_id != user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
-    
-    # Save feedback
-    feedback_data = feedback.model_dump(mode='json')
-    feedback_data["user_id"] = str(user_id)
-    feedback_data["session_id"] = str(feedback.session_id)
-    
-    response = supabase_client.table("session_feedback").insert(
-        feedback_data
-    ).execute()
-    
-    data = handle_supabase_response(response, "Failed to save feedback")
-    
-    if not data:
-        raise HTTPException(status_code=500, detail="Feedback saved but no data returned")
-    
-    return SessionFeedbackResponse(**data[0])
+
+    row = SessionFeedbackDB(
+        user_id=user_id,
+        session_id=feedback.session_id,
+        date=feedback.date,
+        rpe_score=feedback.rpe_score,
+        difficulty=feedback.difficulty,
+        technique_quality=feedback.technique_quality,
+        pacing=feedback.pacing,
+        energy_level_pre=feedback.energy_level_pre,
+        energy_level_post=feedback.energy_level_post,
+        would_repeat=feedback.would_repeat,
+        favorite_part=feedback.favorite_part,
+        least_favorite_part=feedback.least_favorite_part,
+        notes=feedback.notes,
+        movements_feedback=[m.model_dump(mode="json") for m in (feedback.movements_feedback or [])],
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return _fb_to_schema(row)
 
 
 @router.get("/feedback/{session_id}", response_model=SessionFeedbackResponse)
 async def get_session_feedback(
     session_id: UUID,
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """Get feedback for a specific session"""
-    user_id = UUID(current_user["id"])
-    
-    response = supabase_client.table("session_feedback").select("*").eq(
-        "session_id", str(session_id)
-    ).eq("user_id", str(user_id)).single().execute()
-    
-    data = handle_supabase_single(response, "Feedback not found")
-    
-    return SessionFeedbackResponse(**data)
+    user_id = int(current_user["id"])
+    row = db.execute(
+        select(SessionFeedbackDB).where(
+            SessionFeedbackDB.session_id == session_id,
+            SessionFeedbackDB.user_id == user_id,
+        ).limit(1)
+    ).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Feedback not found")
+    return _fb_to_schema(row)
 
 
 @router.get("/feedback", response_model=List[SessionFeedbackResponse])
 async def list_feedback(
     limit: int = 20,
     offset: int = 0,
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """List user's session feedback"""
-    user_id = UUID(current_user["id"])
-    
-    response = supabase_client.table("session_feedback").select("*").eq(
-        "user_id", str(user_id)
-    ).order("date", desc=True).range(offset, offset + limit - 1).execute()
-    
-    data = handle_supabase_response(response, "Failed to fetch feedback")
-    
-    return [SessionFeedbackResponse(**f) for f in data]
+    user_id = int(current_user["id"])
+    rows = db.execute(
+        select(SessionFeedbackDB)
+        .where(SessionFeedbackDB.user_id == user_id)
+        .order_by(SessionFeedbackDB.date.desc())
+        .limit(limit)
+        .offset(offset)
+    ).scalars().all()
+    return [_fb_to_schema(r) for r in rows]
 
 
-# ============================================
-# Weekly Review
-# ============================================
+# ==========================================================
+# Weekly review
+# ==========================================================
 
 @router.post("/weekly", response_model=WeeklyReview)
 async def generate_weekly_review(
     request: WeeklyReviewCreate,
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """
-    Generate AI-powered weekly review
-    
-    Analyzes:
-    - Session completion & adherence
-    - RPE trends
-    - Recovery metrics (HRV, sleep, readiness)
-    - Movement-specific performance
-    - Volume & intensity appropriateness
-    
-    Returns:
-    - Strengths & weaknesses identified
-    - Recovery status assessment
-    - Specific recommendations for next week
-    - Motivational coaching message
-    
-    Example:
-    ```json
-    {
-      "week_number": 3,
-      "week_start_date": "2026-02-03",
-      "week_end_date": "2026-02-09",
-      "athlete_notes": "Felt great this week. Ready to push harder."
-    }
-    ```
-    
-    Triggers automatic adjustments:
-    - If recovery compromised → reduce volume next week
-    - If performance plateauing → adjust focus movements
-    - If technique issues → add skill work
-    """
-    user_id = UUID(current_user["id"])
-    
-    # Generate review using AI
+    user_id = int(current_user["id"])
     try:
         review = await weekly_reviewer.generate_weekly_review(
             user_id=user_id,
             week_number=request.week_number,
             week_start=request.week_start_date,
             week_end=request.week_end_date,
-            athlete_notes=request.athlete_notes
+            athlete_notes=request.athlete_notes,
+            db=db,
         )
-        
-        logger.info(f"Generated weekly review for user {user_id}, week {request.week_number}")
-        
         return review
-        
     except Exception as e:
         logger.error(f"Failed to generate weekly review: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to generate review: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to generate review: {e}")
 
 
 @router.get("/weekly/latest", response_model=WeeklyReview)
 async def get_latest_review(
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """Get most recent weekly review"""
-    user_id = UUID(current_user["id"])
-    
-    response = supabase_client.table("weekly_reviews").select("*").eq(
-        "user_id", str(user_id)
-    ).order("created_at", desc=True).limit(1).execute()
-    
-    data = handle_supabase_response(response, "Failed to fetch reviews")
-    
-    if not data:
+    user_id = int(current_user["id"])
+    row = db.execute(
+        select(WeeklyReviewDB)
+        .where(WeeklyReviewDB.user_id == user_id)
+        .order_by(WeeklyReviewDB.created_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    if not row:
         raise HTTPException(status_code=404, detail="No reviews found")
-    
-    return WeeklyReview(**data[0])
+    return _wr_to_schema(row)
 
 
 @router.get("/weekly", response_model=List[WeeklyReview])
 async def list_weekly_reviews(
     limit: int = 10,
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """List user's weekly reviews"""
-    user_id = UUID(current_user["id"])
-    
-    response = supabase_client.table("weekly_reviews").select("*").eq(
-        "user_id", str(user_id)
-    ).order("created_at", desc=True).limit(limit).execute()
-    
-    data = handle_supabase_response(response, "Failed to fetch reviews")
-    
-    return [WeeklyReview(**r) for r in data]
+    user_id = int(current_user["id"])
+    rows = db.execute(
+        select(WeeklyReviewDB)
+        .where(WeeklyReviewDB.user_id == user_id)
+        .order_by(WeeklyReviewDB.created_at.desc())
+        .limit(limit)
+    ).scalars().all()
+    return [_wr_to_schema(r) for r in rows]
 
 
 @router.get("/weekly/{week_number}", response_model=WeeklyReview)
 async def get_review_by_week(
     week_number: int,
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """Get review for specific week number"""
-    user_id = UUID(current_user["id"])
-    
-    response = supabase_client.table("weekly_reviews").select("*").eq(
-        "user_id", str(user_id)
-    ).eq("week_number", week_number).order("created_at", desc=True).limit(1).execute()
-    
-    data = handle_supabase_response(response, "Failed to fetch review")
-    
-    if not data:
+    user_id = int(current_user["id"])
+    row = db.execute(
+        select(WeeklyReviewDB)
+        .where(WeeklyReviewDB.user_id == user_id, WeeklyReviewDB.week_number == week_number)
+        .order_by(WeeklyReviewDB.created_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    if not row:
         raise HTTPException(status_code=404, detail=f"No review found for week {week_number}")
-    
-    return WeeklyReview(**data[0])
+    return _wr_to_schema(row)
 
 
-# ============================================
-# Auto-Apply Review Adjustments
-# ============================================
+# ==========================================================
+# Auto-apply review adjustments
+# ==========================================================
 
 @router.post("/weekly/{review_id}/apply")
 async def apply_review_adjustments(
     review_id: UUID,
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """
-    Apply review recommendations to next week's program
-    
-    Automatically:
-    1. Adjusts volume based on recovery
-    2. Updates focus movements
-    3. Adds skill work if recommended
-    4. Modifies intensity if needed
-    5. Generates next week's program with adjustments
-    
-    Returns the generated program for next week
-    """
-    user_id = UUID(current_user["id"])
-    
-    # Get review
-    review_response = supabase_client.table("weekly_reviews").select("*").eq(
-        "id", str(review_id)
-    ).single().execute()
-    
-    review_data = handle_supabase_single(review_response, "Review not found")
-    
-    if review_data["user_id"] != str(user_id):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    review = WeeklyReview(**review_data)
-    
-    # Generate next week's program with adjustments
+    """Apply review adjustments to the next microcycle + regenerate its workouts."""
     from app.core.engine.ai_programmer import ai_programmer
-    from app.models.training import Methodology, DayOfWeek
-    
-    # Get active schedule
-    schedule_response = supabase_client.table("weekly_schedules").select("*").eq(
-        "user_id", str(user_id)
-    ).eq("active", True).order("created_at", desc=True).limit(1).execute()
-    
-    schedule_data = handle_supabase_response(schedule_response, "Failed to fetch schedule")
-    
-    if not schedule_data:
-        raise HTTPException(status_code=404, detail="No active schedule found")
-    
-    # Extract training days and durations
-    schedule = schedule_data[0]
-    training_days = []
-    session_durations = {}
-    
-    for day_key, day_schedule in schedule["schedule"].items():
-        if not day_schedule.get("rest_day") and day_schedule.get("sessions"):
-            day_enum = DayOfWeek(day_key)
-            training_days.append(day_enum)
-            total_duration = sum(s["duration_minutes"] for s in day_schedule["sessions"])
-            session_durations[day_enum] = total_duration
-    
-    # Get user profile
-    user_response = supabase_client.table("users").select("*").eq(
-        "id", str(user_id)
-    ).single().execute()
-    
-    user_profile = handle_supabase_response(user_response, "Failed to fetch user")
-    
-    # Apply adjustments
-    next_week_number = review.week_number + 1
-    adjustments = review.next_week_adjustments
-    
-    # Calculate volume modifier
-    volume_modifier = 1 + (adjustments.volume_change_pct / 100)
-    
-    # Generate program
-    try:
-        next_week_program = await ai_programmer.generate_weekly_program(
-            user_profile=user_profile,
-            methodology=Methodology.HWPO,  # TODO: Get from schedule
-            training_days=training_days,
-            session_durations=session_durations,
-            week_number=next_week_number,
-            focus_movements=adjustments.focus_movements,
-            previous_week_data={
-                "review": review_data,
-                "volume_modifier": volume_modifier
-            }
+
+    user_id = int(current_user["id"])
+
+    review_row = db.get(WeeklyReviewDB, review_id)
+    if not review_row:
+        raise HTTPException(status_code=404, detail="Review not found")
+    if review_row.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    adjustments = NextWeekAdjustments(**(review_row.next_week_adjustments or {}))
+    next_week_index = review_row.week_number + 1
+
+    macro = db.execute(
+        select(MacrocycleDB).where(
+            MacrocycleDB.user_id == user_id,
+            MacrocycleDB.active.is_(True),
+        ).limit(1)
+    ).scalar_one_or_none()
+    if not macro:
+        raise HTTPException(status_code=404, detail="No active macrocycle")
+
+    micro = db.execute(
+        select(MicrocycleDB).where(
+            MicrocycleDB.macrocycle_id == macro.id,
+            MicrocycleDB.week_index_in_macro == next_week_index,
+        ).limit(1)
+    ).scalar_one_or_none()
+    if not micro:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No microcycle found for week {next_week_index} in active macrocycle",
         )
-        
-        # Save templates
-        saved_templates = []
-        for day, template in next_week_program.items():
-            template_data = template.model_dump(mode='json', exclude={'id'})
-            template_data["tags"] = template.tags + [f"week_{next_week_number}", "review_adjusted"]
-            
-            save_response = supabase_client.table("workout_templates").insert(
-                template_data
-            ).execute()
-            
-            data = handle_supabase_response(save_response, "Failed to save template")
-            if data:
-                saved_templates.append(data[0])
-        
+
+    intensity_target = {
+        "increase": "high",
+        "decrease": "low",
+        "maintain": None,
+    }.get(
+        adjustments.intensity_change.value
+        if hasattr(adjustments.intensity_change, "value")
+        else adjustments.intensity_change,
+        None,
+    )
+
+    volume_target = None
+    if adjustments.volume_change_pct >= 10:
+        volume_target = "high"
+    elif adjustments.volume_change_pct <= -10:
+        volume_target = "low"
+
+    if intensity_target is not None:
+        micro.intensity_target = intensity_target
+    if volume_target is not None:
+        micro.volume_target = volume_target
+    focus_note = (
+        f" · Focus: {', '.join(adjustments.focus_movements)}"
+        if adjustments.focus_movements else ""
+    )
+    micro.notes = f"Auto-adjusted from week {review_row.week_number} review" + focus_note
+    db.commit()
+
+    try:
+        generated = await ai_programmer.generate_microcycle_program(
+            db=db, microcycle=micro, user_id=user_id
+        )
         return {
             "status": "success",
-            "message": f"Applied week {review.week_number} review adjustments to week {next_week_number}",
+            "message": f"Applied week {review_row.week_number} review adjustments to week {next_week_index}",
             "adjustments_applied": {
                 "volume_change_pct": adjustments.volume_change_pct,
                 "intensity_change": adjustments.intensity_change,
-                "focus_movements": adjustments.focus_movements
+                "focus_movements": adjustments.focus_movements,
             },
-            "workouts_generated": len(saved_templates),
-            "templates": saved_templates
+            "microcycle_id": str(micro.id),
+            "workouts_generated": generated,
         }
-        
     except Exception as e:
         logger.error(f"Failed to apply adjustments: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to apply adjustments: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to apply adjustments: {e}")

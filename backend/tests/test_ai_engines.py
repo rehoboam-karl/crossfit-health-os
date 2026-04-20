@@ -17,7 +17,9 @@ from app.models.review import (
 # AITrainingProgrammer tests
 # ─────────────────────────────────────────────
 
-class TestAITrainingProgrammerFallback:
+class TestAITrainingProgrammer:
+    """Tests for the microcycle-based AI programmer (post-periodization)."""
+
     @pytest.fixture
     def programmer(self):
         with patch("app.core.engine.ai_programmer.AsyncOpenAI"):
@@ -26,123 +28,23 @@ class TestAITrainingProgrammerFallback:
             p.client = None  # Force fallback mode
             return p
 
-    def test_fallback_returns_dict_for_all_days(self, programmer):
-        days = [DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY]
-        durations = {DayOfWeek.MONDAY: 90, DayOfWeek.WEDNESDAY: 60, DayOfWeek.FRIDAY: 60}
-        result = programmer._generate_fallback_program(days, durations)
-        assert DayOfWeek.MONDAY in result
-        assert DayOfWeek.WEDNESDAY in result
-        assert DayOfWeek.FRIDAY in result
-
-    def test_fallback_skips_sunday(self, programmer):
-        """Sunday is not in fallback_workouts, so it's skipped"""
-        days = [DayOfWeek.SUNDAY, DayOfWeek.MONDAY]
-        durations = {DayOfWeek.SUNDAY: 60, DayOfWeek.MONDAY: 60}
-        result = programmer._generate_fallback_program(days, durations)
-        assert DayOfWeek.MONDAY in result
-        assert DayOfWeek.SUNDAY not in result
-
-    def test_strength_workout_long_session(self, programmer):
-        template = programmer._create_strength_workout(90)
-        assert template.workout_type == WorkoutType.STRENGTH
-        assert len(template.movements) >= 3
-
-    def test_strength_workout_short_session(self, programmer):
-        template = programmer._create_strength_workout(45)
-        assert template.workout_type == WorkoutType.STRENGTH
-        assert len(template.movements) == 2
-
-    def test_metcon_workout(self, programmer):
-        template = programmer._create_metcon_workout(60)
-        assert template.workout_type == WorkoutType.METCON
-        assert len(template.movements) == 6  # Fran: 21-15-9
-
-    def test_skill_workout(self, programmer):
-        template = programmer._create_skill_workout(60)
-        assert template.workout_type == WorkoutType.SKILL
-        assert len(template.movements) > 0
-
-    def test_mixed_workout(self, programmer):
-        template = programmer._create_mixed_workout(60)
-        assert template.workout_type == WorkoutType.MIXED
-
-    def test_conditioning_workout(self, programmer):
-        template = programmer._create_conditioning_workout(60)
-        assert template.workout_type == WorkoutType.CONDITIONING
-
-    @pytest.mark.asyncio
-    async def test_generate_weekly_program_no_client_uses_fallback(self, programmer):
-        user_profile = {"fitness_level": "intermediate", "weight_kg": 80, "preferences": {"goals": ["strength"], "weaknesses": []}}
-        days = [DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY]
-        durations = {DayOfWeek.MONDAY: 60, DayOfWeek.WEDNESDAY: 60}
-        result = await programmer.generate_weekly_program(
-            user_profile=user_profile,
-            methodology=Methodology.HWPO,
-            training_days=days,
-            session_durations=durations,
-            week_number=1
-        )
-        assert DayOfWeek.MONDAY in result
-
     def test_normalize_workout_type_direct_match(self, programmer):
-        result = programmer._normalize_workout_type("strength")
-        assert result == WorkoutType.STRENGTH
+        assert programmer._normalize_workout_type("strength") == WorkoutType.STRENGTH
 
     def test_normalize_workout_type_metcon_keywords(self, programmer):
-        result = programmer._normalize_workout_type("AMRAP 12min")
-        assert result == WorkoutType.METCON
+        assert programmer._normalize_workout_type("AMRAP 12min") == WorkoutType.METCON
 
     def test_normalize_workout_type_strength_with_metcon(self, programmer):
-        result = programmer._normalize_workout_type("strength + metcon")
-        assert result == WorkoutType.MIXED
+        assert programmer._normalize_workout_type("strength + metcon") == WorkoutType.MIXED
 
     def test_normalize_workout_type_unknown_defaults_mixed(self, programmer):
-        result = programmer._normalize_workout_type("totally_unknown")
-        assert result == WorkoutType.MIXED
+        assert programmer._normalize_workout_type("totally_unknown") == WorkoutType.MIXED
 
     def test_normalize_skill(self, programmer):
-        result = programmer._normalize_workout_type("gymnastics skill work")
-        assert result == WorkoutType.SKILL
+        assert programmer._normalize_workout_type("gymnastics skill work") == WorkoutType.SKILL
 
     def test_normalize_conditioning(self, programmer):
-        result = programmer._normalize_workout_type("aerobic conditioning")
-        assert result == WorkoutType.CONDITIONING
-
-    def test_build_programming_context(self, programmer):
-        user_profile = {
-            "fitness_level": "advanced",
-            "weight_kg": 85,
-            "preferences": {"goals": ["strength"], "weaknesses": ["snatch"]}
-        }
-        days = [DayOfWeek.MONDAY]
-        durations = {DayOfWeek.MONDAY: 90}
-        context = programmer._build_programming_context(
-            user_profile, Methodology.HWPO, days, durations, 1, ["snatch"], None
-        )
-        assert context["user"]["fitness_level"] == "advanced"
-        assert context["program"]["phase"] == "accumulation"
-        assert "snatch" in context["program"]["focus_movements"]
-
-    def test_build_programming_context_phase_deload(self, programmer):
-        user_profile = {"fitness_level": "intermediate", "weight_kg": 80, "preferences": {}}
-        context = programmer._build_programming_context(
-            user_profile, Methodology.CUSTOM, [], {}, 4, None, None
-        )
-        assert context["program"]["phase"] == "deload"
-
-    def test_build_programming_context_phase_intensification(self, programmer):
-        user_profile = {"fitness_level": "intermediate", "weight_kg": 80, "preferences": {}}
-        context = programmer._build_programming_context(
-            user_profile, Methodology.CUSTOM, [], {}, 6, None, None
-        )
-        assert context["program"]["phase"] == "intensification"
-
-    def test_build_programming_context_phase_test_week(self, programmer):
-        user_profile = {"fitness_level": "intermediate", "weight_kg": 80, "preferences": {}}
-        context = programmer._build_programming_context(
-            user_profile, Methodology.CUSTOM, [], {}, 8, None, None
-        )
-        assert context["program"]["phase"] == "test_week"
+        assert programmer._normalize_workout_type("aerobic conditioning") == WorkoutType.CONDITIONING
 
     def test_system_prompt_contains_methodology_guidance(self, programmer):
         prompt = programmer._get_system_prompt()
@@ -150,30 +52,48 @@ class TestAITrainingProgrammerFallback:
         assert "Mayhem" in prompt
         assert "CompTrain" in prompt
 
-    def test_parse_ai_response(self, programmer):
-        program_json = {
-            "workouts": {
-                "monday": {
-                    "name": "Heavy Squat Day",
-                    "workout_type": "strength",
-                    "duration_minutes": 90,
-                    "description": "Heavy squats",
-                    "target_stimulus": "max strength",
-                    "parts": [
-                        {
-                            "part_name": "Strength",
-                            "movements": [
-                                {"movement": "back_squat", "sets": 5, "reps": 5, "intensity": "80%", "rest": "3min"}
-                            ]
-                        }
-                    ]
-                }
-            }
+    def test_system_prompt_contains_block_types(self, programmer):
+        """The new system prompt should describe all periodization block types."""
+        prompt = programmer._get_system_prompt()
+        assert "ACCUMULATION" in prompt
+        assert "INTENSIFICATION" in prompt
+        assert "REALIZATION" in prompt
+        assert "DELOAD" in prompt
+        assert "TEST" in prompt
+
+    def test_fallback_template_matches_workout_type(self, programmer):
+        from types import SimpleNamespace
+        from datetime import date as _date
+
+        strength_ps = SimpleNamespace(workout_type="strength", duration_minutes=60, date=_date(2026, 4, 20))
+        tpl_strength = programmer._fallback_template_for_session(strength_ps)
+        assert tpl_strength.workout_type == WorkoutType.STRENGTH
+        assert tpl_strength.duration_minutes == 60
+
+        metcon_ps = SimpleNamespace(workout_type="metcon", duration_minutes=45, date=_date(2026, 4, 21))
+        tpl_metcon = programmer._fallback_template_for_session(metcon_ps)
+        assert tpl_metcon.workout_type == WorkoutType.METCON
+
+    def test_parse_single_workout(self, programmer):
+        from types import SimpleNamespace
+        from datetime import date as _date
+        workout_data = {
+            "session_id": "abc",
+            "name": "Heavy Squat Day",
+            "workout_type": "strength",
+            "duration_minutes": 90,
+            "description": "Heavy squats",
+            "target_stimulus": "max strength",
+            "movements": [
+                {"movement": "back_squat", "sets": 5, "reps": 5, "intensity": "80%", "rest": "3min"}
+            ],
         }
-        result = programmer._parse_ai_response(program_json, [DayOfWeek.MONDAY])
-        assert DayOfWeek.MONDAY in result
-        assert result[DayOfWeek.MONDAY].name == "Heavy Squat Day"
-        assert len(result[DayOfWeek.MONDAY].movements) == 1
+        session_row = SimpleNamespace(date=_date(2026, 4, 20), workout_type="strength", duration_minutes=90)
+        tpl = programmer._parse_single_workout(workout_data, session_row, Methodology.HWPO)
+        assert tpl.name == "Heavy Squat Day"
+        assert tpl.workout_type == WorkoutType.STRENGTH
+        assert len(tpl.movements) == 1
+        assert tpl.methodology == Methodology.HWPO
 
 
 # ─────────────────────────────────────────────
@@ -183,13 +103,13 @@ class TestAITrainingProgrammerFallback:
 class TestWeeklyReviewEngineFallback:
     @pytest.fixture
     def reviewer(self):
-        with patch("app.core.engine.weekly_reviewer.supabase_client"):
-            with patch("app.core.engine.weekly_reviewer.AsyncAnthropic"):
-                from app.core.engine.weekly_reviewer import WeeklyReviewEngine
-                r = WeeklyReviewEngine()
-                r.anthropic_client = None
-                r.openai_client = None
-                return r
+        # Weekly reviewer no longer holds a Supabase client — it takes a Session per call.
+        with patch("app.core.engine.weekly_reviewer.AsyncAnthropic"):
+            from app.core.engine.weekly_reviewer import WeeklyReviewEngine
+            r = WeeklyReviewEngine()
+            r.anthropic_client = None
+            r.openai_client = None
+            return r
 
     def _make_weekly_data(
         self,

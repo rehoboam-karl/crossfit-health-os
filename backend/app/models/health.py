@@ -24,22 +24,26 @@ class RecoveryMetricCreate(BaseModel):
 class RecoveryMetric(RecoveryMetricCreate):
     """Recovery metric response"""
     id: UUID
-    user_id: UUID
+    user_id: int
     hrv_baseline_ms: Optional[int] = None
     hrv_ratio: Optional[float] = None
     resting_hr_baseline_bpm: Optional[int] = None
     readiness_score: Optional[int] = None
     created_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
 class BiomarkerReadingCreate(BaseModel):
-    """Create biomarker reading"""
-    biomarker_type_id: UUID
+    """Create biomarker reading (API schema — free-form name, not FK to biomarker_types)."""
+    biomarker_name: str
     test_date: date
-    value: float
-    unit: str
+    value: Optional[float] = None
+    unit: str = ""
+    reference_min: Optional[float] = None
+    reference_max: Optional[float] = None
+    status: str = "normal"
+    category: str = "other"
     lab_name: Optional[str] = None
     notes: Optional[str] = None
 
@@ -47,10 +51,9 @@ class BiomarkerReadingCreate(BaseModel):
 class BiomarkerReading(BiomarkerReadingCreate):
     """Biomarker reading response"""
     id: UUID
-    user_id: UUID
-    status: Optional[str] = None
+    user_id: int
+    source: Optional[str] = None
     pdf_url: Optional[str] = None
-    manually_entered: bool = False
     created_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)

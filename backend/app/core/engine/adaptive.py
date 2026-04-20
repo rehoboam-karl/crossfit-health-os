@@ -1,461 +1,314 @@
 """
-Adaptive Training Engine
-Adjusts workout volume based on recovery metrics (HRV, sleep, readiness)
+Adaptive Training Engine (SQLAlchemy).
+
+Reads recovery metrics + planned_sessions to prescribe a daily workout adjusted
+by readiness score.
 """
-from datetime import date, datetime, timedelta
+from __future__ import annotations
+
+from datetime import date as _Date, datetime as _Datetime, timedelta
 from typing import Optional, Tuple
-from uuid import UUID
+from uuid import UUID, uuid4
 import logging
 
+from sqlalchemy import and_, select
+from sqlalchemy.orm import Session
+
+from app.db.models import (
+    PlannedSession as PlannedSessionDB,
+    RecoveryMetric as RecoveryMetricDB,
+    User as UserDB,
+    WorkoutTemplate as WorkoutTemplateDB,
+)
 from app.models.training import (
     AdaptiveWorkoutResponse,
-    WorkoutTemplate,
+    Methodology,
     Movement,
-    Methodology
+    WorkoutTemplate,
+    WorkoutType,
 )
-from app.db.supabase import supabase_client
-from app.db.helpers import handle_supabase_response
 
 logger = logging.getLogger(__name__)
 
 
 class AdaptiveTrainingEngine:
-    """
-    Core engine that implements the feedback loop:
-    Biometric Data → Recovery Assessment → Volume Adjustment → Training Prescription
-    """
-    
-    # Volume multiplier thresholds
-    OPTIMAL_THRESHOLD = 80  # readiness >= 80 → push harder
-    NORMAL_THRESHOLD = 60   # readiness >= 60 → maintain
-    REDUCED_THRESHOLD = 40  # readiness >= 40 → reduce volume
-    # Below 40 → active recovery only
+    """Readiness → volume → template selection."""
 
-    # Default values for new users (no data yet)
-    DEFAULT_HRV_MS = 50.0  # Default HRV baseline in milliseconds
-    DEFAULT_READINESS_SCORE = 70  # Default readiness when no metrics available
-    DEFAULT_SLEEP_QUALITY = 7  # Default sleep quality (1-10 scale)
-    DEFAULT_STRESS_LEVEL = 5   # Default stress level (1-10 scale)
-    DEFAULT_MUSCLE_SORENESS = 5  # Default muscle soreness (1-10 scale)
-    DEFAULT_ENERGY_LEVEL = 7   # Default energy level (1-10 scale)
+    OPTIMAL_THRESHOLD = 80
+    NORMAL_THRESHOLD = 60
+    REDUCED_THRESHOLD = 40
 
-    # HRV calculation constants
-    MIN_HRV_DATA_POINTS = 5  # Minimum days of HRV data for baseline calculation
-    HRV_BASELINE_LOOKBACK_DAYS = 30  # Days to look back for HRV baseline
+    DEFAULT_HRV_MS = 50.0
+    DEFAULT_READINESS_SCORE = 70
+    DEFAULT_SLEEP_QUALITY = 7
+    DEFAULT_STRESS_LEVEL = 5
+    DEFAULT_MUSCLE_SORENESS = 5
+    DEFAULT_ENERGY_LEVEL = 7
 
-    # Weight reduction threshold: readiness below this triggers 15% weight reduction
+    MIN_HRV_DATA_POINTS = 5
+    HRV_BASELINE_LOOKBACK_DAYS = 30
     WEIGHT_REDUCTION_THRESHOLD = 50
 
-    def __init__(self):
-        self.supabase = supabase_client
-    
+    # ==========================================================
+    # Public
+    # ==========================================================
+
     async def generate_workout(
         self,
-        user_id: UUID,
-        target_date: date,
-        force_rest: bool = False
+        db: Session,
+        user_id: int,
+        target_date: _Date,
+        force_rest: bool = False,
     ) -> AdaptiveWorkoutResponse:
-        """
-        Generate adaptive workout for user on target date
-        
-        Algorithm:
-        1. Get user's recovery metrics for today
-        2. Calculate readiness score (0-100)
-        3. Determine volume multiplier
-        4. Select appropriate workout template
-        5. Adjust workout based on multiplier
-        6. Return adapted workout with reasoning
-        """
-        # Step 1: Get recovery metrics
-        recovery = await self._get_recovery_metrics(user_id, target_date)
-        
-        # Step 2: Calculate readiness score
+        recovery = self._get_recovery_metrics(db, user_id, target_date)
         readiness_score = self._calculate_readiness_score(recovery)
-        
-        # Step 3: Determine volume multiplier and recommendation
-        volume_multiplier, recommendation = self._determine_volume_adjustment(
-            readiness_score,
-            force_rest
-        )
-        
-        # Step 4: Get user profile and select workout
-        user_profile = await self._get_user_profile(user_id)
-        base_workout = await self._select_workout_template(
-            user_id,
-            target_date,
-            user_profile,
-            readiness_score
-        )
-        
-        # Step 5: Adjust workout movements
-        adjusted_movements = self._adjust_movements(
-            base_workout.movements,
-            volume_multiplier,
-            readiness_score
-        )
-        
-        # Step 6: Generate reasoning
-        reasoning = self._generate_reasoning(
-            recovery,
-            readiness_score,
-            volume_multiplier,
-            base_workout.methodology
-        )
-        
+        volume_multiplier, recommendation = self._determine_volume_adjustment(readiness_score, force_rest)
+
+        user = db.get(UserDB, user_id)
+        base_workout = self._select_workout_template(db, user_id, target_date, user, readiness_score)
+
+        adjusted_movements = self._adjust_movements(base_workout.movements, volume_multiplier, readiness_score)
+        reasoning = self._generate_reasoning(recovery, readiness_score, volume_multiplier, base_workout.methodology)
+
         return AdaptiveWorkoutResponse(
             template=base_workout,
             volume_multiplier=volume_multiplier,
             readiness_score=readiness_score,
             recommendation=recommendation,
             adjusted_movements=adjusted_movements,
-            reasoning=reasoning
+            reasoning=reasoning,
         )
-    
-    async def _calculate_hrv_baseline(self, user_id: UUID, lookback_days: int = 30) -> float:
-        """
-        Calculate user's HRV baseline (rolling average)
 
-        Args:
-            user_id: User ID
-            lookback_days: Number of days to average (default 30)
+    # ==========================================================
+    # Recovery + readiness
+    # ==========================================================
 
-        Returns:
-            Baseline HRV in milliseconds (RMSSD)
-        """
-        from_date = (datetime.utcnow() - timedelta(days=lookback_days)).date()
+    def _calculate_hrv_baseline(self, db: Session, user_id: int, lookback_days: int = 30) -> float:
+        from_date = _Date.today() - timedelta(days=lookback_days)
+        rows = db.execute(
+            select(RecoveryMetricDB.hrv_ms).where(
+                RecoveryMetricDB.user_id == user_id,
+                RecoveryMetricDB.date >= from_date,
+                RecoveryMetricDB.hrv_ms.isnot(None),
+            )
+        ).scalars().all()
 
-        response = self.supabase.table("recovery_metrics").select("hrv_ms").eq(
-            "user_id", str(user_id)
-        ).gte("date", from_date.isoformat()).execute()
-
-        data = handle_supabase_response(response, "Failed to fetch HRV history")
-
-        if not data or len(data) < self.MIN_HRV_DATA_POINTS:
-            logger.warning(f"Insufficient HRV data for user {user_id}, using default baseline of {self.DEFAULT_HRV_MS}ms")
+        if not rows or len(rows) < self.MIN_HRV_DATA_POINTS:
             return self.DEFAULT_HRV_MS
+        return sum(rows) / len(rows)
 
-        # Calculate average HRV
-        hrv_values = [m.get("hrv_ms") for m in data if m.get("hrv_ms") is not None]
+    def _get_recovery_metrics(self, db: Session, user_id: int, target_date: _Date) -> dict:
+        row = db.execute(
+            select(RecoveryMetricDB).where(
+                RecoveryMetricDB.user_id == user_id,
+                RecoveryMetricDB.date == target_date,
+            )
+        ).scalar_one_or_none()
 
-        if not hrv_values:
-            return self.DEFAULT_HRV_MS
+        if not row:
+            return {
+                "hrv_ratio": 1.0,
+                "hrv_ms": self.DEFAULT_HRV_MS,
+                "sleep_quality": self.DEFAULT_SLEEP_QUALITY,
+                "stress_level": self.DEFAULT_STRESS_LEVEL,
+                "muscle_soreness": self.DEFAULT_MUSCLE_SORENESS,
+                "energy_level": self.DEFAULT_ENERGY_LEVEL,
+                "readiness_score": self.DEFAULT_READINESS_SCORE,
+            }
 
-        baseline = sum(hrv_values) / len(hrv_values)
-        logger.info(f"User {user_id} HRV baseline: {baseline:.1f}ms (from {len(hrv_values)} days)")
-        return baseline
-
-    async def _get_recovery_metrics(
-        self,
-        user_id: UUID,
-        target_date: date
-    ) -> dict:
-        """
-        Get recovery metrics for user on date and calculate HRV ratio
-
-        Returns dict with:
-        - hrv_ratio: Current HRV / Baseline HRV
-        - sleep_quality: 1-10 scale
-        - stress_level: 1-10 scale
-        - muscle_soreness: 1-10 scale
-        - energy_level: 1-10 scale
-        """
-        response = self.supabase.table("recovery_metrics").select("*").eq(
-            "user_id", str(user_id)
-        ).eq("date", target_date.isoformat()).execute()
-
-        # ✅ Check for errors
-        data = handle_supabase_response(response, "Failed to fetch recovery metrics")
-
-        if data:
-            metric = data[0]
-
-            # Calculate HRV ratio if raw HRV is present
-            if metric.get("hrv_ms"):
-                baseline_hrv = await self._calculate_hrv_baseline(user_id)
-                hrv_ratio = metric["hrv_ms"] / baseline_hrv
-                metric["hrv_ratio"] = hrv_ratio
-                logger.info(f"HRV ratio for {target_date}: {hrv_ratio:.2f} ({metric['hrv_ms']}ms / {baseline_hrv:.1f}ms)")
-            else:
-                metric["hrv_ratio"] = 1.0
-                logger.warning(f"No HRV data for {target_date}, defaulting ratio to 1.0")
-
-            return metric
-
-        # If no data, return default "unknown" state
-        logger.warning(f"No recovery data for user {user_id} on {target_date}, using defaults")
-        return {
-            "hrv_ratio": 1.0,
-            "hrv_ms": self.DEFAULT_HRV_MS,
-            "sleep_quality": self.DEFAULT_SLEEP_QUALITY,
-            "stress_level": self.DEFAULT_STRESS_LEVEL,
-            "muscle_soreness": self.DEFAULT_MUSCLE_SORENESS,
-            "energy_level": self.DEFAULT_ENERGY_LEVEL,
-            "readiness_score": self.DEFAULT_READINESS_SCORE
+        metric = {
+            "hrv_ms": row.hrv_ms,
+            "sleep_quality": row.sleep_quality or self.DEFAULT_SLEEP_QUALITY,
+            "stress_level": row.stress_level or self.DEFAULT_STRESS_LEVEL,
+            "muscle_soreness": row.muscle_soreness or self.DEFAULT_MUSCLE_SORENESS,
+            "energy_level": row.energy_level or self.DEFAULT_ENERGY_LEVEL,
+            "readiness_score": row.readiness_score or self.DEFAULT_READINESS_SCORE,
         }
-    
-    async def _get_user_profile(self, user_id: UUID) -> dict:
-        """Get user profile"""
-        response = self.supabase.table("users").select("*").eq(
-            "id", str(user_id)
-        ).single().execute()
-        
-        # ✅ Check for errors
-        data = handle_supabase_response(response, "Failed to fetch user profile")
-        return data
-    
+
+        if row.hrv_ms:
+            baseline = self._calculate_hrv_baseline(db, user_id)
+            metric["hrv_ratio"] = row.hrv_ms / baseline
+        else:
+            metric["hrv_ratio"] = 1.0
+        return metric
+
     def _calculate_readiness_score(self, recovery: dict) -> int:
-        """
-        Calculate readiness score (0-100) from recovery metrics
-
-        Weighted formula:
-        - HRV ratio: 40%
-        - Sleep quality: 30%
-        - Stress (inverted): 20%
-        - Soreness (inverted): 10%
-
-        All metrics normalized to 0-1 before applying weights.
-        """
-        # Get raw values with defaults
         hrv_ratio = recovery.get("hrv_ratio", 1.0)
-        sleep_quality = recovery.get("sleep_quality", 7)  # 1-10 scale
-        stress = recovery.get("stress_level", 5)  # 1-10 scale
-        soreness = recovery.get("muscle_soreness", 5)  # 1-10 scale
+        sleep_quality = recovery.get("sleep_quality", 7)
+        stress = recovery.get("stress_level", 5)
+        soreness = recovery.get("muscle_soreness", 5)
 
-        # Normalize HRV ratio (typically 0.7-1.3, with 1.0 = baseline)
-        # Clamp between 0.5 and 1.5 for safety
         hrv_normalized = max(0, min(1, (hrv_ratio - 0.5) / 1.0))
-
-        # Normalize sleep quality from 1-10 scale to 0-1
         sleep_normalized = (sleep_quality - 1) / 9
-
-        # Normalize stress (inverted: low stress = high readiness)
         stress_normalized = 1 - ((stress - 1) / 9)
-
-        # Normalize soreness (inverted: low soreness = high readiness)
         soreness_normalized = 1 - ((soreness - 1) / 9)
 
-        # Apply weighted formula
         readiness = (
-            (hrv_normalized * 0.4) +      # HRV = 40%
-            (sleep_normalized * 0.3) +    # Sleep = 30%
-            (stress_normalized * 0.2) +   # Stress = 20%
-            (soreness_normalized * 0.1)   # Soreness = 10%
+            hrv_normalized * 0.4
+            + sleep_normalized * 0.3
+            + stress_normalized * 0.2
+            + soreness_normalized * 0.1
         ) * 100
-
-        # Clamp to 0-100
         return max(0, min(100, int(round(readiness))))
-    
-    def _determine_volume_adjustment(
-        self,
-        readiness_score: int,
-        force_rest: bool
-    ) -> Tuple[float, str]:
-        """
-        Determine volume multiplier and recommendation based on readiness
-        
-        Returns:
-            (volume_multiplier, recommendation_text)
-        """
+
+    def _determine_volume_adjustment(self, readiness_score: int, force_rest: bool) -> Tuple[float, str]:
         if force_rest:
             return 0.0, "🛌 Forced rest day - complete recovery"
-        
         if readiness_score >= self.OPTIMAL_THRESHOLD:
             return 1.1, "💪 Excellent readiness - push for PRs and high volume"
-        
-        elif readiness_score >= self.NORMAL_THRESHOLD:
+        if readiness_score >= self.NORMAL_THRESHOLD:
             return 1.0, "✅ Normal readiness - train as programmed"
-        
-        elif readiness_score >= self.REDUCED_THRESHOLD:
+        if readiness_score >= self.REDUCED_THRESHOLD:
             return 0.8, "⚠️  Moderate fatigue - reduce volume by 20%"
-        
-        else:
-            return 0.5, "🔴 High fatigue - active recovery only (mobility, light cardio)"
-    
-    async def _select_workout_template(
+        return 0.5, "🔴 High fatigue - active recovery only (mobility, light cardio)"
+
+    # ==========================================================
+    # Template selection
+    # ==========================================================
+
+    def _select_workout_template(
         self,
-        user_id: UUID,
-        target_date: date,
-        user_profile: dict,
-        readiness_score: int
+        db: Session,
+        user_id: int,
+        target_date: _Date,
+        user: Optional[UserDB],
+        readiness_score: int,
     ) -> WorkoutTemplate:
         """
-        Select appropriate workout template based on:
-        - Day of week
-        - User's methodology preference
-        - Readiness score
-        - Training periodization
+        1. planned_session.generated_template_id → use that template directly.
+        2. planned_session without linked template → pick any template that matches workout_type.
+        3. no planned_session → readiness-aware HWPO weekday fallback.
         """
-        day_of_week = target_date.weekday()  # 0=Monday, 6=Sunday
-        methodology = user_profile.get("preferences", {}).get("methodology", "hwpo")
-        fitness_level = user_profile.get("fitness_level", "intermediate")
-        
-        # HWPO Weekly Structure (Mat Fraser methodology)
-        if methodology == "hwpo":
-            if day_of_week == 0:  # Monday: Heavy Strength
-                workout_type = "strength"
-                target_stimulus = "max_strength"
-            elif day_of_week == 1:  # Tuesday: Gymnastics Skill
-                workout_type = "skill"
-                target_stimulus = "body_control"
-            elif day_of_week == 2:  # Wednesday: Active Recovery or Moderate
-                workout_type = "conditioning" if readiness_score >= 60 else "skill"
-                target_stimulus = "recovery"
-            elif day_of_week == 3:  # Thursday: Threshold Training
-                workout_type = "metcon"
-                target_stimulus = "power_endurance"
-            elif day_of_week == 4:  # Friday: Competition Sim
-                workout_type = "mixed"
-                target_stimulus = "competition"
-            elif day_of_week == 5:  # Saturday: Long Chipper
-                workout_type = "metcon"
-                target_stimulus = "endurance"
-            else:  # Sunday: Rest or Zone 2
-                workout_type = "conditioning"
-                target_stimulus = "recovery"
-        
-        # Query workout templates
-        response = self.supabase.table("workout_templates").select("*").eq(
-            "methodology", methodology
-        ).eq("workout_type", workout_type).eq(
-            "difficulty_level", fitness_level
-        ).limit(1).execute()
-        
-        if response.data:
-            template_data = response.data[0]
-            return WorkoutTemplate(**template_data)
-        
-        # Fallback: create a simple default workout
+        prefs = (user.preferences or {}) if user else {}
+        methodology = prefs.get("methodology", "hwpo")
+        fitness_level = user.fitness_level if user else "intermediate"
+
+        planned = db.execute(
+            select(PlannedSessionDB)
+            .where(
+                PlannedSessionDB.user_id == user_id,
+                PlannedSessionDB.date == target_date,
+            )
+            .order_by(PlannedSessionDB.order_in_day)
+            .limit(1)
+        ).scalar_one_or_none()
+
+        if planned:
+            if planned.generated_template_id:
+                tpl_row = db.get(WorkoutTemplateDB, planned.generated_template_id)
+                if tpl_row:
+                    return _template_from_row(tpl_row)
+            workout_type = planned.workout_type or "mixed"
+            target_stimulus = planned.focus or workout_type
+            return self._pick_or_default_template(db, methodology, workout_type, fitness_level, target_stimulus)
+
+        workout_type, target_stimulus = self._fallback_weekday_type(target_date.weekday(), readiness_score)
+        return self._pick_or_default_template(db, methodology, workout_type, fitness_level, target_stimulus)
+
+    def _pick_or_default_template(
+        self,
+        db: Session,
+        methodology: str,
+        workout_type: str,
+        fitness_level: str,
+        target_stimulus: str,
+    ) -> WorkoutTemplate:
+        row = db.execute(
+            select(WorkoutTemplateDB).where(
+                WorkoutTemplateDB.methodology == methodology,
+                WorkoutTemplateDB.workout_type == workout_type,
+                WorkoutTemplateDB.difficulty_level == fitness_level,
+            ).limit(1)
+        ).scalar_one_or_none()
+        if row:
+            return _template_from_row(row)
         return self._create_default_workout(workout_type, target_stimulus)
-    
+
+    @staticmethod
+    def _fallback_weekday_type(day_of_week: int, readiness_score: int) -> tuple[str, str]:
+        if day_of_week == 0:
+            return "strength", "max_strength"
+        if day_of_week == 1:
+            return "skill", "body_control"
+        if day_of_week == 2:
+            return ("conditioning" if readiness_score >= 60 else "skill"), "recovery"
+        if day_of_week == 3:
+            return "metcon", "power_endurance"
+        if day_of_week == 4:
+            return "mixed", "competition"
+        if day_of_week == 5:
+            return "metcon", "endurance"
+        return "conditioning", "recovery"
+
+    # ==========================================================
+    # Movement adjustment & reasoning
+    # ==========================================================
+
     def _adjust_movements(
         self,
         movements: list[Movement],
         volume_multiplier: float,
-        readiness_score: int
+        readiness_score: int,
     ) -> list[Movement]:
-        """
-        Adjust movement volume based on multiplier
-        
-        Adjustments:
-        - Sets/reps reduced/increased proportionally
-        - Weight % adjusted for strength work
-        - Rest periods adjusted
-        """
         adjusted = []
-        
         for movement in movements:
-            adjusted_movement = movement.model_copy(deep=True)
-
-            # Adjust sets (use round for fair rounding)
-            if adjusted_movement.sets:
-                adjusted_movement.sets = max(1, round(adjusted_movement.sets * volume_multiplier))
-
-            # Adjust reps (if numeric, use round for fair rounding)
-            if isinstance(adjusted_movement.reps, int):
-                adjusted_movement.reps = max(1, round(adjusted_movement.reps * volume_multiplier))
-            
-            # Adjust weight for low readiness
-            if readiness_score < self.WEIGHT_REDUCTION_THRESHOLD and adjusted_movement.weight_kg:
-                adjusted_movement.weight_kg = adjusted_movement.weight_kg * 0.85
-                adjusted_movement.notes = (adjusted_movement.notes or "") + " (Weight reduced due to fatigue)"
-            
-            adjusted.append(adjusted_movement)
-        
+            m = movement.model_copy(deep=True)
+            if m.sets:
+                m.sets = max(1, round(m.sets * volume_multiplier))
+            if isinstance(m.reps, int):
+                m.reps = max(1, round(m.reps * volume_multiplier))
+            if readiness_score < self.WEIGHT_REDUCTION_THRESHOLD and m.weight_kg:
+                m.weight_kg = m.weight_kg * 0.85
+                m.notes = (m.notes or "") + " (Weight reduced due to fatigue)"
+            adjusted.append(m)
         return adjusted
-    
+
     def _generate_reasoning(
         self,
         recovery: dict,
         readiness_score: int,
         volume_multiplier: float,
-        methodology: Methodology
+        methodology: Methodology,
     ) -> str:
-        """Generate human-readable reasoning for the prescription"""
-        
         hrv_ratio = recovery.get("hrv_ratio", 1.0)
-        sleep_quality = recovery.get("sleep_quality_score", 70)
-        
-        reasoning_parts = []
-        
-        # HRV interpretation
+        sleep_quality = recovery.get("sleep_quality_score", recovery.get("sleep_quality", 7))
+        parts: list[str] = []
         if hrv_ratio > 1.1:
-            reasoning_parts.append(f"HRV is elevated ({hrv_ratio:.2f}x baseline) - excellent recovery")
+            parts.append(f"HRV elevated ({hrv_ratio:.2f}x baseline) — excellent recovery")
         elif hrv_ratio < 0.9:
-            reasoning_parts.append(f"HRV is suppressed ({hrv_ratio:.2f}x baseline) - incomplete recovery")
+            parts.append(f"HRV suppressed ({hrv_ratio:.2f}x baseline) — incomplete recovery")
         else:
-            reasoning_parts.append(f"HRV is normal ({hrv_ratio:.2f}x baseline)")
-        
-        # Sleep interpretation
-        if sleep_quality >= 80:
-            reasoning_parts.append(f"Sleep quality is excellent ({sleep_quality}/100)")
-        elif sleep_quality < 60:
-            reasoning_parts.append(f"Sleep quality is poor ({sleep_quality}/100)")
-        
-        # Overall readiness
-        reasoning_parts.append(f"Overall readiness: {readiness_score}/100")
-        
-        # Volume decision
+            parts.append(f"HRV normal ({hrv_ratio:.2f}x baseline)")
+        if isinstance(sleep_quality, (int, float)):
+            if sleep_quality >= 80 or (1 <= sleep_quality <= 10 and sleep_quality >= 8):
+                parts.append(f"sleep quality excellent ({sleep_quality})")
+            elif (10 < sleep_quality < 60) or (1 <= sleep_quality <= 10 and sleep_quality < 6):
+                parts.append(f"sleep quality poor ({sleep_quality})")
+        parts.append(f"Overall readiness: {readiness_score}/100")
         if volume_multiplier > 1.0:
-            reasoning_parts.append(f"Increasing volume by {int((volume_multiplier - 1) * 100)}% to capitalize on recovery")
+            parts.append(f"Increasing volume by {int((volume_multiplier - 1) * 100)}% to capitalize on recovery")
         elif volume_multiplier < 1.0:
-            reasoning_parts.append(f"Reducing volume by {int((1 - volume_multiplier) * 100)}% to prioritize recovery")
+            parts.append(f"Reducing volume by {int((1 - volume_multiplier) * 100)}% to prioritize recovery")
         else:
-            reasoning_parts.append("Training at programmed volume")
-        
-        # Methodology context
-        reasoning_parts.append(f"Following {methodology.value.upper()} methodology")
-        
-        return " • ".join(reasoning_parts)
-    
-    def _create_default_workout(
-        self,
-        workout_type: str,
-        target_stimulus: str
-    ) -> WorkoutTemplate:
-        """Create a simple default workout when no template found"""
-        
-        # Simple fallback workouts
+            parts.append("Training at programmed volume")
+        parts.append(f"Following {methodology.value.upper()} methodology")
+        return " • ".join(parts)
+
+    def _create_default_workout(self, workout_type: str, target_stimulus: str) -> WorkoutTemplate:
         if workout_type == "strength":
-            movements = [
-                Movement(
-                    movement="back_squat",
-                    sets=5,
-                    reps=5,
-                    intensity="80%",
-                    rest="3min"
-                )
-            ]
+            movements = [Movement(movement="back_squat", sets=5, reps=5, intensity="80%", rest="3min")]
         elif workout_type == "metcon":
             movements = [
-                Movement(
-                    movement="burpees",
-                    reps=21
-                ),
-                Movement(
-                    movement="air_squats",
-                    reps=21
-                ),
-                Movement(
-                    movement="burpees",
-                    reps=15
-                ),
-                Movement(
-                    movement="air_squats",
-                    reps=15
-                )
+                Movement(movement="burpees", reps=21),
+                Movement(movement="air_squats", reps=21),
+                Movement(movement="burpees", reps=15),
+                Movement(movement="air_squats", reps=15),
             ]
         else:
-            movements = [
-                Movement(
-                    movement="run",
-                    distance_meters=400,
-                    sets=5,
-                    rest="90s"
-                )
-            ]
-        
+            movements = [Movement(movement="run", distance_meters=400, sets=5, rest="90s")]
+
         return WorkoutTemplate(
-            id=UUID("00000000-0000-0000-0000-000000000000"),
+            id=uuid4(),
             name=f"Default {workout_type.title()}",
             description="Auto-generated fallback workout",
             methodology=Methodology.CUSTOM,
@@ -465,10 +318,28 @@ class AdaptiveTrainingEngine:
             target_stimulus=target_stimulus,
             tags=["auto_generated"],
             equipment_required=[],
-            created_at=datetime.utcnow(),
-            is_public=False
+            created_at=_Datetime.utcnow(),
+            is_public=False,
         )
 
 
-# Global engine instance
+def _template_from_row(row: WorkoutTemplateDB) -> WorkoutTemplate:
+    return WorkoutTemplate(
+        id=row.id,
+        name=row.name,
+        description=row.description,
+        methodology=Methodology(row.methodology),
+        difficulty_level=row.difficulty_level,
+        workout_type=WorkoutType(row.workout_type),
+        duration_minutes=row.duration_minutes,
+        movements=[Movement(**m) for m in (row.movements or [])],
+        target_stimulus=row.target_stimulus,
+        rep_scheme=row.rep_scheme,
+        tags=row.tags or [],
+        equipment_required=row.equipment_required or [],
+        created_at=row.created_at,
+        is_public=row.is_public,
+    )
+
+
 adaptive_engine = AdaptiveTrainingEngine()

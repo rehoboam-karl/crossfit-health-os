@@ -97,7 +97,7 @@ class TestCalendarOAuthUrl:
 
         assert response.status_code == 200
         url = response.json()["auth_url"]
-        assert mock_user["id"] in url
+        assert f"state={mock_user['id']}" in url
 
 
 class TestCalendarOAuthCallback:
@@ -132,9 +132,9 @@ class TestCalendarOAuthCallback:
 
     @pytest.mark.asyncio
     async def test_callback_success_stores_refresh_token(
-        self, async_client: AsyncClient, mock_supabase
+        self, async_client: AsyncClient, db_session, seeded_user
     ):
-        """Test successful callback stores refresh token and redirects"""
+        """Test successful callback stores refresh token in user preferences."""
         tokens = {"access_token": "at_abc", "refresh_token": "rt_xyz"}
 
         with patch(
@@ -143,12 +143,15 @@ class TestCalendarOAuthCallback:
             return_value=tokens,
         ):
             response = await async_client.get(
-                "/api/v1/integrations/calendar/oauth/callback?code=auth_code&state=user123",
+                f"/api/v1/integrations/calendar/oauth/callback?code=auth_code&state={seeded_user.id}",
                 follow_redirects=False,
             )
 
         assert response.status_code in [302, 307]
         assert "calendar=connected" in response.headers.get("location", "")
+
+        db_session.refresh(seeded_user)
+        assert (seeded_user.preferences or {}).get("google_calendar_refresh_token") == "rt_xyz"
 
     @pytest.mark.asyncio
     async def test_callback_no_refresh_token_still_redirects(
@@ -246,12 +249,19 @@ class TestCalendarDisconnect:
 
     @pytest.mark.asyncio
     async def test_disconnect_returns_success(
-        self, authenticated_client: AsyncClient, mock_supabase
+        self, authenticated_client: AsyncClient, db_session, seeded_user
     ):
-        """Test calendar disconnect clears refresh token"""
-        response = await authenticated_client.delete("/api/v1/integrations/calendar/disconnect")
+        """Test calendar disconnect clears refresh token."""
+        seeded_user.preferences = {
+            **(seeded_user.preferences or {}),
+            "google_calendar_refresh_token": "rt_existing",
+        }
+        db_session.add(seeded_user)
+        db_session.commit()
 
+        response = await authenticated_client.delete("/api/v1/integrations/calendar/disconnect")
         assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "success"
-        assert "disconnected" in data["message"].lower()
+        assert "disconnected" in response.json()["message"].lower()
+
+        db_session.refresh(seeded_user)
+        assert "google_calendar_refresh_token" not in (seeded_user.preferences or {})

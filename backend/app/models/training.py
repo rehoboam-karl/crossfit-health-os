@@ -180,7 +180,7 @@ class WorkoutSessionUpdate(BaseModel):
 class WorkoutSession(WorkoutSessionBase):
     """Workout session response"""
     id: UUID
-    user_id: UUID
+    user_id: int
     template_id: Optional[UUID] = None
     
     scheduled_at: Optional[datetime] = None
@@ -213,7 +213,7 @@ class WorkoutSession(WorkoutSessionBase):
 
 class WorkoutGenerationRequest(BaseModel):
     """Request to generate adaptive workout"""
-    user_id: Optional[UUID] = None  # Filled from authenticated user if not provided
+    user_id: Optional[int] = None  # Filled from authenticated user if not provided
     date: Optional[dt_module.date] = None  # Defaults to today if not provided
     force_rest: bool = False  # Override and force rest day
 
@@ -255,19 +255,19 @@ class PersonalRecordCreate(BaseModel):
 class PersonalRecord(PersonalRecordCreate):
     """Personal record response"""
     id: UUID
-    user_id: UUID
+    user_id: int
     achieved_at: datetime
     session_id: Optional[UUID] = None
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================
-# Weekly Training Schedule
+# Periodization: Macrocycles, Microcycles, Planned Sessions
 # ============================================
 
 class DayOfWeek(str, Enum):
-    """Days of the week"""
+    """Days of the week (kept for utilities that convert between date and weekday)"""
     MONDAY = "monday"
     TUESDAY = "tuesday"
     WEDNESDAY = "wednesday"
@@ -277,66 +277,147 @@ class DayOfWeek(str, Enum):
     SUNDAY = "sunday"
 
 
-class TrainingSessionSlot(BaseModel):
-    """Individual training session slot in a day"""
-    time: dt_time = Field(..., description="Time of day (e.g., 06:00, 18:30)")
-    duration_minutes: int = Field(60, ge=30, le=180, description="Session duration")
+class BlockType(str, Enum):
+    """Periodization block types"""
+    ACCUMULATION = "accumulation"
+    INTENSIFICATION = "intensification"
+    REALIZATION = "realization"
+    DELOAD = "deload"
+    TEST = "test"
+    TRANSITION = "transition"
+
+
+class Shift(str, Enum):
+    """Time-of-day shift label for a planned session"""
+    MORNING = "morning"
+    AFTERNOON = "afternoon"
+    EVENING = "evening"
+    CUSTOM = "custom"
+
+
+class PlannedSessionStatus(str, Enum):
+    PLANNED = "planned"
+    GENERATED = "generated"
+    COMPLETED = "completed"
+    SKIPPED = "skipped"
+
+
+class BlockPlanItem(BaseModel):
+    """One block in the macrocycle's block_plan"""
+    type: BlockType
+    weeks: int = Field(..., ge=1, le=16)
+
+
+class MacrocycleCreate(BaseModel):
+    """Create a macrocycle. block_plan can be omitted — API fills from methodology default."""
+    name: str = Field(..., max_length=100)
+    methodology: Methodology = Methodology.HWPO
+    start_date: date = Field(..., description="Any date in the starting week — server snaps to Monday")
+    block_plan: Optional[List[BlockPlanItem]] = Field(
+        default=None,
+        description="If omitted, uses METHODOLOGY_BLOCK_PLANS default for the methodology"
+    )
+    goal: Optional[str] = None
+
+
+class Macrocycle(BaseModel):
+    """Macrocycle API response"""
+    id: UUID
+    user_id: int
+    name: str
+    methodology: Methodology
+    start_date: date
+    end_date: date
+    block_plan: List[BlockPlanItem]
+    goal: Optional[str] = None
+    active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MacrocycleUpdate(BaseModel):
+    """Patch a macrocycle (extend via appended blocks, rename, change goal)"""
+    name: Optional[str] = Field(None, max_length=100)
+    goal: Optional[str] = None
+    block_plan: Optional[List[BlockPlanItem]] = None
+    active: Optional[bool] = None
+
+
+class PlannedSessionCreate(BaseModel):
+    """Create a planned session within a microcycle"""
+    date: date
+    order_in_day: int = Field(..., ge=1, le=5, description="1 = first of day, up to 5")
+    shift: Optional[Shift] = None
+    start_time: Optional[dt_time] = None
+    duration_minutes: int = Field(60, ge=15, le=240)
     workout_type: Optional[WorkoutType] = None
+    focus: Optional[str] = Field(None, description="e.g., 'heavy back squat + short metcon'")
     notes: Optional[str] = None
 
 
-class DailyTrainingSchedule(BaseModel):
-    """Training schedule for a single day"""
-    day: DayOfWeek
-    sessions: List[TrainingSessionSlot] = Field(..., min_length=0, max_length=3, description="Max 3 sessions per day")
-    rest_day: bool = Field(False, description="Mark as rest day")
-
-    @model_validator(mode='after')
-    def validate_no_sessions_on_rest_day(self):
-        """Ensure no sessions if rest_day=True"""
-        if self.rest_day and len(self.sessions) > 0:
-            raise ValueError('Rest days cannot have training sessions')
-        return self
+class PlannedSessionUpdate(BaseModel):
+    """Patch fields of a planned session"""
+    shift: Optional[Shift] = None
+    start_time: Optional[dt_time] = None
+    duration_minutes: Optional[int] = Field(None, ge=15, le=240)
+    workout_type: Optional[WorkoutType] = None
+    focus: Optional[str] = None
+    notes: Optional[str] = None
+    status: Optional[PlannedSessionStatus] = None
 
 
-class WeeklyScheduleCreate(BaseModel):
-    """Create weekly training schedule"""
-    name: str = Field(..., max_length=100, description="Schedule name (e.g., 'HWPO 5x/week')")
-    methodology: Methodology = Field(Methodology.HWPO, description="Training methodology")
-    schedule: Dict[DayOfWeek, DailyTrainingSchedule] = Field(..., description="Schedule for each day")
-    start_date: date = Field(..., description="When this schedule starts")
-    end_date: Optional[date] = None
-    active: bool = True
-    
-    @field_validator('start_date')
-    @classmethod
-    def warn_past_start_date(cls, v):
-        """Log a warning if start_date is in the past (allowed for retroactive scheduling)"""
-        if v and v < date.today():
-            logger.warning(f"WeeklySchedule start_date {v} is in the past")
-        return v
-
-    @field_validator('end_date')
-    @classmethod
-    def validate_end_after_start(cls, v, info):
-        """Ensure end_date is after start_date"""
-        if v and 'start_date' in info.data and v <= info.data['start_date']:
-            raise ValueError('end_date must be after start_date')
-        return v
-
-
-class WeeklySchedule(WeeklyScheduleCreate):
-    """Weekly schedule response"""
+class PlannedSession(PlannedSessionCreate):
+    """Planned session API response"""
     id: UUID
-    user_id: UUID
+    microcycle_id: UUID
+    user_id: int
+    status: PlannedSessionStatus = PlannedSessionStatus.PLANNED
+    generated_template_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
+
+
+class Microcycle(BaseModel):
+    """Microcycle (1 week) API response with real dates"""
+    id: UUID
+    macrocycle_id: UUID
+    user_id: int
+    start_date: date            # Monday
+    end_date: date              # Sunday
+    week_index_in_macro: int
+    intensity_target: Optional[str] = None
+    volume_target: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime
+
+    # Derived (populated by service layer, not stored)
+    block_type: Optional[BlockType] = None
+    week_index_in_block: Optional[int] = None
+    sessions: List[PlannedSession] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MicrocycleUpdate(BaseModel):
+    """Patch a microcycle (target intensity/volume, notes)"""
+    intensity_target: Optional[str] = None
+    volume_target: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class MacrocycleWithMicrocycles(Macrocycle):
+    """Macrocycle response with nested microcycles"""
+    microcycles: List[Microcycle] = Field(default_factory=list)
 
 
 # ============================================
 # Meal Timing (Synced with Training)
+# Weekly meal plan storage is handled in the nutrition module; this only exposes
+# the building blocks that may be reused by meal-planning logic tied to planned_sessions.
 # ============================================
 
 class MealType(str, Enum):
@@ -360,25 +441,7 @@ class MealWindow(BaseModel):
 
 class DailyMealPlan(BaseModel):
     """Meal plan for a single day"""
-    day: DayOfWeek
+    date: date
     meals: List[MealWindow] = Field(..., min_length=1, max_length=8)
     total_calories: Optional[int] = None
     training_day: bool = True
-
-
-class WeeklyMealPlanCreate(BaseModel):
-    """Create weekly meal plan (auto-generated from training schedule)"""
-    training_schedule_id: UUID = Field(..., description="Linked training schedule")
-    meal_plans: Dict[DayOfWeek, DailyMealPlan]
-    pre_workout_offset_minutes: int = Field(-60, description="Minutes before workout (negative)")
-    post_workout_offset_minutes: int = Field(30, description="Minutes after workout")
-
-
-class WeeklyMealPlan(WeeklyMealPlanCreate):
-    """Weekly meal plan response"""
-    id: UUID
-    user_id: UUID
-    created_at: datetime
-    updated_at: datetime
-    
-    model_config = ConfigDict(from_attributes=True)

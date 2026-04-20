@@ -1,119 +1,158 @@
 """
-Health API Endpoints
-Biomarker tracking, lab results, recovery metrics
+Health API — recovery metrics and biomarker readings (SQLAlchemy).
 """
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
-from typing import List
+from datetime import date as _Date
+from typing import List, Optional
 from uuid import UUID
-from datetime import date
+import logging
 
-from app.models.health import (
-    RecoveryMetricCreate,
-    RecoveryMetric,
-    BiomarkerReadingCreate,
-    BiomarkerReading
-)
-from app.db.supabase import supabase_client
-from app.db.helpers import handle_supabase_response
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from app.core.auth import get_current_user
 from app.core.integrations.ocr import parse_lab_report
+from app.db.models import (
+    BiomarkerReading as BiomarkerReadingDB,
+    RecoveryMetric as RecoveryMetricDB,
+)
+from app.db.session import get_session
+from app.models.health import (
+    BiomarkerReading,
+    RecoveryMetric,
+    RecoveryMetricCreate,
+)
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+def _rm_to_schema(row: RecoveryMetricDB) -> RecoveryMetric:
+    return RecoveryMetric(
+        id=row.id,
+        user_id=row.user_id,
+        date=row.date,
+        sleep_duration_hours=row.sleep_duration_hours,
+        sleep_quality_score=row.sleep_quality,  # remap: DB column is sleep_quality (1-10)
+        hrv_rmssd_ms=row.hrv_ms,
+        resting_heart_rate_bpm=row.resting_heart_rate_bpm,
+        stress_level=row.stress_level,
+        muscle_soreness=row.muscle_soreness,
+        energy_level=row.energy_level,
+        mood_score=None,
+        notes=row.notes,
+        readiness_score=row.readiness_score,
+        created_at=row.created_at,
+    )
+
+
+def _bm_to_schema(row: BiomarkerReadingDB) -> BiomarkerReading:
+    return BiomarkerReading(
+        id=row.id,
+        user_id=row.user_id,
+        biomarker_name=row.biomarker_name,
+        test_date=row.test_date,
+        value=row.value,
+        unit=row.unit,
+        reference_min=row.reference_min,
+        reference_max=row.reference_max,
+        status=row.status,
+        category=row.category,
+        lab_name=row.lab_name,
+        notes=row.notes,
+        source=row.source,
+        pdf_url=row.pdf_url,
+        created_at=row.created_at,
+    )
 
 
 @router.post("/recovery", response_model=RecoveryMetric)
 async def create_recovery_metric(
     metric: RecoveryMetricCreate,
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """Record daily recovery metrics"""
-    user_id = UUID(current_user["id"])
-    
-    metric_data = metric.model_dump()
-    metric_data["user_id"] = str(user_id)
-    
-    response = supabase_client.table("recovery_metrics").upsert(
-        metric_data,
-        on_conflict="user_id,date"
-    ).execute()
+    """Record daily recovery metrics (upsert on user_id + date)."""
+    user_id = int(current_user["id"])
 
-    # Index: CREATE INDEX idx_recovery_metrics_user_date ON recovery_metrics(user_id, date DESC);
-    data = handle_supabase_response(response, "Failed to record metrics")
+    existing = db.execute(
+        select(RecoveryMetricDB).where(
+            RecoveryMetricDB.user_id == user_id,
+            RecoveryMetricDB.date == metric.date,
+        )
+    ).scalar_one_or_none()
 
-    if not data:
-        raise HTTPException(status_code=500, detail="Failed to record metrics")
+    if existing:
+        row = existing
+    else:
+        row = RecoveryMetricDB(user_id=user_id, date=metric.date)
+        db.add(row)
 
-    return RecoveryMetric(**data[0])
+    row.sleep_duration_hours = metric.sleep_duration_hours
+    row.sleep_quality = metric.sleep_quality_score
+    row.hrv_ms = metric.hrv_rmssd_ms
+    row.resting_heart_rate_bpm = metric.resting_heart_rate_bpm
+    row.stress_level = metric.stress_level
+    row.muscle_soreness = metric.muscle_soreness
+    row.energy_level = metric.energy_level
+    row.notes = metric.notes
+
+    db.commit()
+    db.refresh(row)
+    return _rm_to_schema(row)
 
 
 @router.get("/recovery", response_model=List[RecoveryMetric])
 async def list_recovery_metrics(
-    start_date: date = None,
-    end_date: date = None,
+    start_date: Optional[_Date] = None,
+    end_date: Optional[_Date] = None,
     limit: int = 30,
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """
-    Get recovery metrics for date range
-
-    Query params:
-    - start_date: Start date (YYYY-MM-DD)
-    - end_date: End date (YYYY-MM-DD)
-    - limit: Max results (default 30)
-    """
-    user_id = UUID(current_user["id"])
-
-    query = supabase_client.table("recovery_metrics").select("*").eq(
-        "user_id", str(user_id)
-    )
-
+    user_id = int(current_user["id"])
+    stmt = select(RecoveryMetricDB).where(RecoveryMetricDB.user_id == user_id)
     if start_date:
-        query = query.gte("date", start_date.isoformat())
-
+        stmt = stmt.where(RecoveryMetricDB.date >= start_date)
     if end_date:
-        query = query.lte("date", end_date.isoformat())
-
-    response = query.order("date", desc=True).limit(limit).execute()
-
-    return [RecoveryMetric(**m) for m in response.data]
+        stmt = stmt.where(RecoveryMetricDB.date <= end_date)
+    stmt = stmt.order_by(RecoveryMetricDB.date.desc()).limit(limit)
+    rows = db.execute(stmt).scalars().all()
+    return [_rm_to_schema(r) for r in rows]
 
 
 @router.get("/recovery/latest", response_model=RecoveryMetric)
 async def get_latest_recovery(
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """Get today's recovery metrics"""
-    user_id = UUID(current_user["id"])
-
-    response = supabase_client.table("recovery_metrics").select("*").eq(
-        "user_id", str(user_id)
-    ).order("date", desc=True).limit(1).execute()
-
-    if response.data:
-        return RecoveryMetric(**response.data[0])
-
-    raise HTTPException(status_code=404, detail="No recovery data found")
+    user_id = int(current_user["id"])
+    row = db.execute(
+        select(RecoveryMetricDB)
+        .where(RecoveryMetricDB.user_id == user_id)
+        .order_by(RecoveryMetricDB.date.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="No recovery data found")
+    return _rm_to_schema(row)
 
 
 @router.post("/biomarkers/upload")
 async def upload_lab_report(
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """
-    Upload lab report (PDF or image) and extract biomarkers via GPT-4o Vision.
-    Automatically parses values, reference ranges, and status.
-    Cost: ~$0.05–0.15 per report depending on pages.
-    """
+    """Upload lab report (PDF or image), extract biomarkers via GPT-4o Vision, persist readings."""
     allowed = (".pdf", ".jpg", ".jpeg", ".png")
-    if not any(file.filename.lower().endswith(ext) for ext in allowed):
+    if not any((file.filename or "").lower().endswith(ext) for ext in allowed):
         raise HTTPException(status_code=400, detail="Allowed formats: PDF, JPG, PNG")
 
     file_bytes = await file.read()
-    if len(file_bytes) > 20 * 1024 * 1024:  # 20MB limit
+    if len(file_bytes) > 20 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large (max 20MB)")
 
-    # Parse with GPT-4o Vision
     biomarkers = await parse_lab_report(
         file_bytes=file_bytes,
         filename=file.filename,
@@ -125,51 +164,51 @@ async def upload_lab_report(
             "status": "warning",
             "message": "No biomarkers found in the uploaded file",
             "biomarkers_found": 0,
-            "biomarkers": []
+            "biomarkers": [],
         }
 
-    # Store parsed biomarkers in database
-    user_id = str(UUID(current_user["id"]))
-    today = date.today().isoformat()
+    user_id = int(current_user["id"])
+    today = _Date.today()
     saved = 0
 
     for bm in biomarkers:
         try:
-            reading = {
-                "user_id": user_id,
-                "biomarker_name": bm.get("name", "Unknown"),
-                "value": bm.get("value"),
-                "unit": bm.get("unit", ""),
-                "reference_min": bm.get("reference_min"),
-                "reference_max": bm.get("reference_max"),
-                "status": bm.get("status", "normal"),
-                "category": bm.get("category", "other"),
-                "test_date": today,
-                "source": "ocr_upload",
-            }
-            supabase_client.table("biomarker_readings").insert(reading).execute()
+            db.add(BiomarkerReadingDB(
+                user_id=user_id,
+                biomarker_name=bm.get("name", "Unknown"),
+                value=bm.get("value"),
+                unit=bm.get("unit", ""),
+                reference_min=bm.get("reference_min"),
+                reference_max=bm.get("reference_max"),
+                status=bm.get("status", "normal"),
+                category=bm.get("category", "other"),
+                test_date=today,
+                source="ocr_upload",
+            ))
             saved += 1
         except Exception:
-            pass  # skip duplicates / validation errors
+            pass
+    db.commit()
 
     return {
         "status": "success",
         "biomarkers_found": len(biomarkers),
         "biomarkers_saved": saved,
-        "biomarkers": biomarkers
+        "biomarkers": biomarkers,
     }
 
 
 @router.get("/biomarkers", response_model=List[BiomarkerReading])
 async def list_biomarkers(
     limit: int = 50,
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """List user's biomarker readings"""
-    user_id = UUID(current_user["id"])
-    
-    response = supabase_client.table("biomarker_readings").select("*").eq(
-        "user_id", str(user_id)
-    ).order("test_date", desc=True).limit(limit).execute()
-    
-    return [BiomarkerReading(**b) for b in response.data]
+    user_id = int(current_user["id"])
+    rows = db.execute(
+        select(BiomarkerReadingDB)
+        .where(BiomarkerReadingDB.user_id == user_id)
+        .order_by(BiomarkerReadingDB.test_date.desc())
+        .limit(limit)
+    ).scalars().all()
+    return [_bm_to_schema(r) for r in rows]

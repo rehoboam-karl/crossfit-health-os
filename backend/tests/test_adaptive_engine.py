@@ -15,8 +15,8 @@ from app.models.training import Movement, Methodology
 
 @pytest.fixture
 def engine():
-    with patch("app.core.engine.adaptive.supabase_client"):
-        return AdaptiveTrainingEngine()
+    # Adaptive engine no longer holds a Supabase client — takes a Session per call.
+    return AdaptiveTrainingEngine()
 
 
 # ─────────────────────────────────────────────
@@ -274,26 +274,39 @@ def _mock_db_response(data):
 
 
 class TestCalculateHrvBaseline:
-    @pytest.mark.asyncio
-    async def test_insufficient_data_returns_default(self, engine):
-        engine.supabase = MagicMock()
-        engine.supabase.table.return_value.select.return_value.eq.return_value.gte.return_value.execute.return_value = _mock_db_response([])
-        baseline = await engine._calculate_hrv_baseline(uuid4())
+    """The adaptive engine now takes a SQLAlchemy session. Tests use the
+    `db_session` + `seeded_user` fixtures from conftest to insert recovery rows."""
+
+    def test_insufficient_data_returns_default(self, engine, db_session, seeded_user):
+        baseline = engine._calculate_hrv_baseline(db_session, seeded_user.id)
         assert baseline == AdaptiveTrainingEngine.DEFAULT_HRV_MS
 
-    @pytest.mark.asyncio
-    async def test_calculates_average_when_enough_data(self, engine):
-        engine.supabase = MagicMock()
-        data = [{"hrv_ms": v} for v in [50, 55, 60, 48, 52, 58]]
-        engine.supabase.table.return_value.select.return_value.eq.return_value.gte.return_value.execute.return_value = _mock_db_response(data)
-        baseline = await engine._calculate_hrv_baseline(uuid4())
-        expected = sum([50, 55, 60, 48, 52, 58]) / 6
+    def test_calculates_average_when_enough_data(self, engine, db_session, seeded_user):
+        from app.db.models import RecoveryMetric
+        values = [50, 55, 60, 48, 52, 58]
+        today = date.today()
+        for i, v in enumerate(values):
+            db_session.add(RecoveryMetric(
+                user_id=seeded_user.id,
+                date=today - timedelta(days=i),
+                hrv_ms=v,
+            ))
+        db_session.commit()
+        baseline = engine._calculate_hrv_baseline(db_session, seeded_user.id)
+        expected = sum(values) / len(values)
         assert abs(baseline - expected) < 0.1
 
-    @pytest.mark.asyncio
-    async def test_none_hrv_values_filtered(self, engine):
-        engine.supabase = MagicMock()
-        data = [{"hrv_ms": None}, {"hrv_ms": None}, {"hrv_ms": None}, {"hrv_ms": None}, {"hrv_ms": None}]
-        engine.supabase.table.return_value.select.return_value.eq.return_value.gte.return_value.execute.return_value = _mock_db_response(data)
-        baseline = await engine._calculate_hrv_baseline(uuid4())
+    def test_none_hrv_values_filtered(self, engine, db_session, seeded_user):
+        from app.db.models import RecoveryMetric
+        today = date.today()
+        for i in range(5):
+            db_session.add(RecoveryMetric(
+                user_id=seeded_user.id,
+                date=today - timedelta(days=i),
+                hrv_ms=None,
+                sleep_quality=7,
+            ))
+        db_session.commit()
+        # Rows with NULL hrv_ms are excluded, so count < MIN_HRV_DATA_POINTS → default
+        baseline = engine._calculate_hrv_baseline(db_session, seeded_user.id)
         assert baseline == AdaptiveTrainingEngine.DEFAULT_HRV_MS

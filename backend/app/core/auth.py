@@ -1,59 +1,68 @@
 """
-Authentication utilities
-JWT validation with Supabase
+Authentication dependency.
+
+Validates the local JWT issued by `app/api/v1/auth.py::login` and returns the
+user as a plain dict (compatible with the existing endpoint signatures).
 """
+from __future__ import annotations
+
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.supabase import supabase_client
+from app.db.models import User
+from app.db.session import get_session
 
 security = HTTPBearer()
 
 
+def _user_to_dict(user: User) -> dict:
+    return {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "fitness_level": user.fitness_level,
+        "weight_kg": user.weight_kg,
+        "height_cm": user.height_cm,
+        "birth_date": user.birth_date.isoformat() if user.birth_date else None,
+        "goals": user.goals or [],
+        "timezone": user.timezone,
+        "preferences": user.preferences or {},
+    }
+
+
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    session: Session = Depends(get_session),
 ) -> dict:
-    """
-    Validate JWT token and return user
-    Supabase auth integration
-    """
+    """Decode the bearer token, load the user, return as dict."""
     token = credentials.credentials
-    
     try:
-        # Verify token with Supabase
-        user = supabase_client.auth.get_user(token)
-        
-        # Validate user and user.user before accessing
-        if not user or not user.user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication credentials"
-            )
-        
-        # Get full user profile
-        response = supabase_client.table("users").select("*").eq(
-            "auth_user_id", user.user.id
-        ).execute()
-        
-        if response.data and len(response.data) > 0:
-            return response.data[0]
-        
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User profile not found"
-        )
-        
-    except HTTPException:
-        raise
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials"
+            detail="Could not validate credentials",
         )
-    except Exception as e:
+
+    user_id_raw = payload.get("sub")
+    if not user_id_raw:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Authentication error: {str(e)}"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
         )
+    try:
+        user_id = int(user_id_raw)
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token subject",
+        )
+
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    return _user_to_dict(user)

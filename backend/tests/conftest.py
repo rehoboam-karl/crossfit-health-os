@@ -1,9 +1,20 @@
 """
-Pytest configuration and shared fixtures
-Provides mocked clients for all tests
+Pytest configuration and shared fixtures.
+
+Provides:
+- `mock_user`: dict representation of an authenticated user (INT id).
+- `override_auth`: replaces `get_current_user` with the mock user.
+- `mock_supabase`: legacy supabase client mock (still used by unmigrated endpoints).
+- `db_session`: SQLAlchemy session against an in-memory SQLite DB; the real
+  `get_session` dependency is overridden so endpoints see the same session.
+- `seeded_user`: creates a User row in `db_session` matching the mock_user id.
 """
+import os
 import sys
 from unittest.mock import Mock, AsyncMock, MagicMock, patch
+
+# Point the app at in-memory SQLite BEFORE importing app modules.
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
 # Mock supabase module before any app imports
 sys.modules['supabase'] = Mock()
@@ -13,13 +24,18 @@ sys.modules['supabase'].Client = Mock
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+from sqlmodel import SQLModel
 from uuid import uuid4, UUID
 from datetime import datetime, date
 
-# Import the FastAPI app
-from app.main import app
+# Register SQLModel tables on metadata before anything else imports them.
+import app.db.models  # noqa: F401
+from app.db import session as db_session_module
 from app.core.auth import get_current_user
-from app.db.supabase import supabase_client
+from app.main import app  # imported last so `app` binds to the FastAPI instance
 
 
 # ============================================
@@ -28,28 +44,30 @@ from app.db.supabase import supabase_client
 
 @pytest.fixture
 def mock_user():
-    """Mock authenticated user"""
+    """Mock authenticated user — id is INT to match auth.py/User table."""
     return {
-        "id": str(uuid4()),
-        "auth_user_id": str(uuid4()),
+        "id": 1,
+        "auth_user_id": str(uuid4()),  # legacy field, kept for unmigrated tests
         "email": "test@example.com",
         "name": "Test Athlete",
         "fitness_level": "intermediate",
         "birth_date": "1990-01-01",
         "weight_kg": 80.0,
         "height_cm": 175.0,
+        "goals": ["strength", "conditioning"],
+        "timezone": "America/Sao_Paulo",
         "preferences": {
             "goals": ["strength", "conditioning"],
             "methodology": "hwpo",
-            "weaknesses": []
-        }
+            "weaknesses": [],
+        },
     }
 
 
 @pytest.fixture
 def mock_user_uuid(mock_user):
-    """Return user ID as UUID"""
-    return UUID(mock_user["id"])
+    """Legacy alias — returns int id (was UUID before auth migration)."""
+    return mock_user["id"]
 
 
 # ============================================
@@ -61,14 +79,85 @@ def override_auth(mock_user):
     """Override authentication dependency to bypass auth checks"""
     async def _get_current_user_override():
         return mock_user
-    
+
     # Override the dependency
     app.dependency_overrides[get_current_user] = _get_current_user_override
-    
+
     yield mock_user
-    
+
     # Clean up
     app.dependency_overrides.clear()
+
+
+# ============================================
+# SQLAlchemy session (in-memory SQLite)
+# ============================================
+
+@pytest.fixture(autouse=True)
+def db_session():
+    """Fresh in-memory SQLite DB per test — schema created from SQLModel metadata.
+
+    `autouse=True` so any test (even those that don't list the fixture) gets
+    tables available. The fixture also overrides `app.db.session.get_session`
+    so FastAPI endpoints reach the same session.
+    """
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,  # single in-memory DB shared across connections
+    )
+    SQLModel.metadata.create_all(engine)
+    TestSession = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+
+    # Swap the module-level engine/SessionLocal so `get_session` and any
+    # helper that imports `SessionLocal` talk to this same DB.
+    prev_engine = db_session_module.engine
+    prev_sessionmaker = db_session_module.SessionLocal
+    db_session_module.engine = engine
+    db_session_module.SessionLocal = TestSession
+
+    def _override_get_session():
+        session = TestSession()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    from app.db.session import get_session as _real_get_session
+    app.dependency_overrides[_real_get_session] = _override_get_session
+
+    session = TestSession()
+    try:
+        yield session
+    finally:
+        session.close()
+        app.dependency_overrides.pop(_real_get_session, None)
+        db_session_module.engine = prev_engine
+        db_session_module.SessionLocal = prev_sessionmaker
+        engine.dispose()
+
+
+@pytest.fixture
+def seeded_user(db_session, mock_user):
+    """Insert the mock_user into the DB and return the persisted row."""
+    from app.db.models import User as UserDB
+
+    user = UserDB(
+        id=mock_user["id"],
+        email=mock_user["email"],
+        password_hash="$2b$12$placeholder",
+        name=mock_user["name"],
+        fitness_level=mock_user["fitness_level"],
+        weight_kg=mock_user["weight_kg"],
+        height_cm=mock_user["height_cm"],
+        goals=mock_user["goals"],
+        timezone=mock_user["timezone"],
+        preferences=mock_user["preferences"],
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
 
 
 # ============================================
@@ -86,7 +175,10 @@ class MockSupabaseQuery:
     """Mock Supabase query builder"""
     def __init__(self, table_name, mock_data=None):
         self.table_name = table_name
-        self.mock_data = mock_data or {}
+        # Preserve the shared dict reference — `mock_data or {}` would replace
+        # an empty (falsy) shared dict with a fresh one, breaking sequential
+        # insert/select flows on the same table.
+        self.mock_data = {} if mock_data is None else mock_data
         self._filters = {}
         self._single = False
         self._order_by = None
@@ -97,17 +189,20 @@ class MockSupabaseQuery:
         return self
     
     def insert(self, data):
-        # Return inserted data with generated ID
+        # Return inserted data with generated ID + timestamps (mirrors real Supabase defaults).
+        now = datetime.utcnow().isoformat()
         if isinstance(data, list):
             result = []
             for item in data:
-                item["id"] = str(uuid4())
-                item["created_at"] = datetime.utcnow().isoformat()
+                item.setdefault("id", str(uuid4()))
+                item.setdefault("created_at", now)
+                item.setdefault("updated_at", now)
                 result.append(item)
             self.mock_data["response"] = result
         else:
-            data["id"] = str(uuid4())
-            data["created_at"] = datetime.utcnow().isoformat()
+            data.setdefault("id", str(uuid4()))
+            data.setdefault("created_at", now)
+            data.setdefault("updated_at", now)
             self.mock_data["response"] = [data]
         return self
     
@@ -265,23 +360,14 @@ class MockSupabaseClient:
 
 @pytest.fixture
 def mock_supabase():
-    """Mock Supabase client"""
-    mock_client = MockSupabaseClient()
-    
-    with patch("app.db.supabase.supabase_client", mock_client):
-        # Also patch imports in other modules
-        with patch("app.core.auth.supabase_client", mock_client):
-            with patch("app.api.v1.training.supabase_client", mock_client):
-                with patch("app.api.v1.health.supabase_client", mock_client):
-                    with patch("app.api.v1.nutrition.supabase_client", mock_client):
-                        with patch("app.api.v1.schedule.supabase_client", mock_client):
-                            with patch("app.api.v1.review.supabase_client", mock_client):
-                                with patch("app.api.v1.users.supabase_client", mock_client):
-                                    with patch("app.core.engine.adaptive.supabase_client", mock_client):
-                                        with patch("app.core.engine.weekly_reviewer.supabase_client", mock_client):
-                                            with patch("app.core.integrations.calendar.supabase_client", mock_client):
-                                                with patch("app.core.integrations.healthkit.supabase_client", mock_client):
-                                                    yield mock_client
+    """No-op stub kept so legacy tests that accept the fixture still collect.
+
+    All production code paths have been migrated off supabase_client; this
+    fixture just hands back an in-memory stand-in with `set_mock_data` so
+    any remaining calls in tests don't crash during collection. Prefer using
+    the `db_session` + `seeded_user` fixtures for new tests.
+    """
+    yield MockSupabaseClient()
 
 
 # ============================================

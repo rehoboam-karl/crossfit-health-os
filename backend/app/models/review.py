@@ -78,7 +78,7 @@ class SessionFeedbackCreate(SessionFeedback):
 class SessionFeedbackResponse(SessionFeedback):
     """Session feedback response"""
     id: UUID
-    user_id: UUID
+    user_id: int
     created_at: datetime
 
 
@@ -121,7 +121,7 @@ class WeeklyReviewCreate(BaseModel):
 class WeeklyReview(BaseModel):
     """Complete weekly review from AI"""
     id: UUID
-    user_id: UUID
+    user_id: int
     week_number: int
     week_start_date: date
     week_end_date: date
@@ -179,7 +179,7 @@ class ConditioningProgress(BaseModel):
 class MonthlyAnalysis(BaseModel):
     """Monthly performance trends"""
     id: UUID
-    user_id: UUID
+    user_id: int
     month: str  # "2026-02"
     
     total_sessions: int

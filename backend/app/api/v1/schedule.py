@@ -1,544 +1,575 @@
 """
-Weekly Schedule API Endpoints
-Training schedule management and meal plan generation
+Scheduling API — macrocycles, microcycles, and planned sessions (SQLAlchemy).
 """
-from fastapi import APIRouter, HTTPException, Depends, status
-from typing import List
+from __future__ import annotations
+
+from datetime import date as _Date, datetime as _Datetime, time as _Time, timedelta
+from typing import List, Optional
 from uuid import UUID
-from pydantic import BaseModel, Field
-from datetime import date, datetime, time, timedelta
-
-from app.models.training import (
-    WeeklyScheduleCreate,
-    WeeklySchedule,
-    WeeklyMealPlanCreate,
-    WeeklyMealPlan,
-    DayOfWeek,
-    MealWindow,
-    MealType,
-    DailyMealPlan
-)
-from app.db.supabase import supabase_client
-from app.db.helpers import handle_supabase_response, handle_supabase_single
-from app.core.auth import get_current_user
-from app.core.engine.ai_programmer import ai_programmer
-
-class AIWeeklyProgramRequest(BaseModel):
-    """Request to generate weekly program via AI"""
-    methodology: str = Field("hwpo", description="Programming methodology: hwpo, mayhem, comptrain, custom")
-    week_number: int = Field(1, ge=1, le=52, description="Week number in mesocycle (1-52)")
-    focus_movements: list[str] = Field(default_factory=list, description="Movements to emphasize (e.g., ['squat', 'snatch'])")
-    include_previous_week: bool = Field(False, description="Use previous week data for progression")
-
-
-
-
 import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.core.auth import get_current_user
+from app.core.datetime_utils import snap_to_monday, user_today
+from app.core.engine.periodization import (
+    default_block_plan_for,
+    resolve_block_and_week_in_block,
+    total_weeks,
+)
+from app.db.models import (
+    Macrocycle as MacrocycleDB,
+    Microcycle as MicrocycleDB,
+    PlannedSession as PlannedSessionDB,
+)
+from app.db.session import get_session
+from app.models.training import (
+    BlockPlanItem,
+    Macrocycle,
+    MacrocycleCreate,
+    MacrocycleUpdate,
+    MacrocycleWithMicrocycles,
+    Methodology,
+    Microcycle,
+    MicrocycleUpdate,
+    PlannedSession,
+    PlannedSessionCreate,
+    PlannedSessionUpdate,
+    PlannedSessionStatus,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-@router.post("/weekly", response_model=WeeklySchedule, status_code=status.HTTP_201_CREATED)
-async def create_weekly_schedule(
-    schedule: WeeklyScheduleCreate,
-    current_user: dict = Depends(get_current_user)
+# ==========================================================
+# Helpers
+# ==========================================================
+
+def _serialize_block_plan(plan: List[BlockPlanItem]) -> list[dict]:
+    return [{"type": b.type.value, "weeks": b.weeks} for b in plan]
+
+
+def _parse_block_plan(raw: list[dict] | None) -> list[BlockPlanItem]:
+    if not raw:
+        return []
+    return [BlockPlanItem(type=item["type"], weeks=item["weeks"]) for item in raw]
+
+
+def _to_macro_schema(macro: MacrocycleDB, block_plan: List[BlockPlanItem]) -> Macrocycle:
+    return Macrocycle(
+        id=macro.id,
+        user_id=macro.user_id,
+        name=macro.name,
+        methodology=Methodology(macro.methodology),
+        start_date=macro.start_date,
+        end_date=macro.end_date,
+        block_plan=block_plan,
+        goal=macro.goal,
+        active=macro.active,
+        created_at=macro.created_at,
+        updated_at=macro.updated_at,
+    )
+
+
+def _to_micro_schema(
+    micro: MicrocycleDB,
+    block_plan: List[BlockPlanItem],
+    sessions: Optional[list[PlannedSessionDB]] = None,
+) -> Microcycle:
+    block_type, week_in_block, _ = resolve_block_and_week_in_block(
+        block_plan, micro.week_index_in_macro
+    )
+    session_schemas = [_to_session_schema(s) for s in (sessions or [])]
+    return Microcycle(
+        id=micro.id,
+        macrocycle_id=micro.macrocycle_id,
+        user_id=micro.user_id,
+        start_date=micro.start_date,
+        end_date=micro.end_date,
+        week_index_in_macro=micro.week_index_in_macro,
+        intensity_target=micro.intensity_target,
+        volume_target=micro.volume_target,
+        notes=micro.notes,
+        created_at=micro.created_at,
+        block_type=block_type,
+        week_index_in_block=week_in_block,
+        sessions=session_schemas,
+    )
+
+
+def _load_micro_sessions(db: Session, micro_id: UUID) -> list[PlannedSessionDB]:
+    return db.execute(
+        select(PlannedSessionDB)
+        .where(PlannedSessionDB.microcycle_id == micro_id)
+        .order_by(PlannedSessionDB.date, PlannedSessionDB.order_in_day)
+    ).scalars().all()
+
+
+def _to_session_schema(session: PlannedSessionDB) -> PlannedSession:
+    return PlannedSession(
+        id=session.id,
+        microcycle_id=session.microcycle_id,
+        user_id=session.user_id,
+        date=session.date,
+        order_in_day=session.order_in_day,
+        shift=session.shift,
+        start_time=session.start_time,
+        duration_minutes=session.duration_minutes,
+        workout_type=session.workout_type,
+        focus=session.focus,
+        notes=session.notes,
+        status=session.status,
+        generated_template_id=session.generated_template_id,
+        created_at=session.created_at,
+        updated_at=session.updated_at,
+    )
+
+
+def _get_owned_macro(session: Session, macro_id: UUID, user_id: int) -> MacrocycleDB:
+    macro = session.get(MacrocycleDB, macro_id)
+    if not macro:
+        raise HTTPException(status_code=404, detail="Macrocycle not found")
+    if macro.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return macro
+
+
+def _get_owned_micro(session: Session, micro_id: UUID, user_id: int) -> MicrocycleDB:
+    micro = session.get(MicrocycleDB, micro_id)
+    if not micro:
+        raise HTTPException(status_code=404, detail="Microcycle not found")
+    if micro.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return micro
+
+
+# ==========================================================
+# Macrocycles
+# ==========================================================
+
+@router.post("/macrocycles", response_model=MacrocycleWithMicrocycles, status_code=status.HTTP_201_CREATED)
+async def create_macrocycle(
+    payload: MacrocycleCreate,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """
-    Create weekly training schedule
-    
-    Example:
-    {
-        "name": "HWPO 5x per week",
-        "methodology": "hwpo",
-        "schedule": {
-            "monday": {
-                "day": "monday",
-                "sessions": [
-                    {"time": "06:00", "duration_minutes": 90, "workout_type": "strength"}
-                ],
-                "rest_day": false
-            },
-            "tuesday": {
-                "day": "tuesday",
-                "sessions": [
-                    {"time": "06:00", "duration_minutes": 60, "workout_type": "metcon"}
-                ],
-                "rest_day": false
-            },
-            ...
-            "sunday": {
-                "day": "sunday",
-                "sessions": [],
-                "rest_day": true
-            }
-        },
-        "start_date": "2026-02-10"
-    }
-    """
-    user_id = UUID(current_user["id"])
-    
-    # Deactivate previous active schedules
-    response = supabase_client.table("weekly_schedules").update(
-        {"active": False}
-    ).eq("user_id", str(user_id)).eq("active", True).execute()
-    
-    handle_supabase_response(response, "Failed to deactivate old schedules")
-    
-    # Create new schedule
-    schedule_data = schedule.model_dump(mode='json')
-    schedule_data["user_id"] = str(user_id)
-    schedule_data["created_at"] = datetime.utcnow().isoformat()
-    schedule_data["updated_at"] = datetime.utcnow().isoformat()
-    
-    response = supabase_client.table("weekly_schedules").insert(
-        schedule_data
-    ).execute()
-    
-    data = handle_supabase_response(response, "Failed to create schedule")
-    
-    if not data:
-        raise HTTPException(status_code=500, detail="Schedule created but no data returned")
-    
-    return WeeklySchedule(**data[0])
+    """Create a macrocycle and eagerly materialize its microcycles."""
+    user_id = int(current_user["id"])
 
-
-@router.get("/weekly/active", response_model=WeeklySchedule)
-async def get_active_schedule(
-    current_user: dict = Depends(get_current_user)
-):
-    """Get user's currently active weekly schedule"""
-    user_id = UUID(current_user["id"])
-    
-    response = supabase_client.table("weekly_schedules").select("*").eq(
-        "user_id", str(user_id)
-    ).eq("active", True).order("created_at", desc=True).limit(1).execute()
-    
-    data = handle_supabase_response(response, "Failed to fetch active schedule")
-    
-    if not data:
-        raise HTTPException(status_code=404, detail="No active schedule found")
-    
-    return WeeklySchedule(**data[0])
-
-
-@router.post("/weekly/generate-ai", status_code=status.HTTP_201_CREATED)
-async def generate_weekly_program_ai(
-    request: AIWeeklyProgramRequest,
-    schedule_id: UUID = None,
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Generate weekly training program using AI
-    
-    This endpoint creates an intelligent, progressive training program based on:
-    - User's fitness level, goals, and weaknesses
-    - Selected methodology (HWPO, Mayhem, CompTrain)
-    - Week number in mesocycle (for progression)
-    - Optional focus on specific movements
-    - Previous week performance (for progressive overload)
-    
-    Example:
-    ```json
-    {
-        "methodology": "hwpo",
-        "week_number": 3,
-        "focus_movements": ["snatch", "handstand_walk"],
-        "include_previous_week": true
-    }
-    ```
-    
-    If schedule_id provided, it will use that schedule's training days and durations.
-    Otherwise, uses user's active schedule.
-    """
-    user_id = UUID(current_user["id"])
-    
-    # Get user profile
-    user_response = supabase_client.table("users").select("*").eq(
-        "id", str(user_id)
-    ).single().execute()
-    
-    user_profile = handle_supabase_single(user_response, "User not found")
-    
-    # Get training schedule
-    if schedule_id:
-        schedule_response = supabase_client.table("weekly_schedules").select("*").eq(
-            "id", str(schedule_id)
-        ).single().execute()
-        schedule_data = handle_supabase_single(schedule_response, "Schedule not found")
-    else:
-        # Use active schedule
-        schedule_response = supabase_client.table("weekly_schedules").select("*").eq(
-            "user_id", str(user_id)
-        ).eq("active", True).order("created_at", desc=True).limit(1).execute()
-        
-        data = handle_supabase_response(schedule_response, "Failed to fetch schedule")
-        if not data:
-            raise HTTPException(
-                status_code=404,
-                detail="No active schedule found. Create one first with POST /weekly"
-            )
-        schedule_data = data[0]
-    
-    training_schedule = WeeklySchedule(**schedule_data)
-    
-    # Extract training days and durations from schedule
-    training_days = []
-    session_durations = {}
-    
-    for day_key, day_schedule in training_schedule.schedule.items():
-        if not day_schedule.rest_day and day_schedule.sessions:
-            day_enum = DayOfWeek(day_key.value if isinstance(day_key, DayOfWeek) else day_key)
-            training_days.append(day_enum)
-            
-            # Use duration of first session (can be enhanced)
-            total_duration = sum(s.duration_minutes for s in day_schedule.sessions)
-            session_durations[day_enum] = total_duration
-    
-    # Get previous week data if requested
-    previous_week_data = None
-    if request.include_previous_week and request.week_number > 1:
-        # TODO: Fetch actual previous week performance
-        previous_week_data = {
-            "note": "Previous week data integration coming soon",
-            "completed_workouts": 5,
-            "avg_rpe": 7.5
-        }
-    
-    # Generate program via AI
-    try:
-        from app.models.training import Methodology as MethodEnum
-        methodology_enum = MethodEnum(request.methodology.lower())
-    except ValueError:
+    block_plan: List[BlockPlanItem] = payload.block_plan or default_block_plan_for(payload.methodology)
+    if not block_plan:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid methodology. Choose: hwpo, mayhem, comptrain, custom"
+            detail="Custom methodology requires a non-empty block_plan",
         )
-    
-    try:
-        weekly_program = await ai_programmer.generate_weekly_program(
-            user_profile=user_profile,
-            methodology=methodology_enum,
-            training_days=training_days,
-            session_durations=session_durations,
-            week_number=request.week_number,
-            focus_movements=request.focus_movements,
-            previous_week_data=previous_week_data
-        )
-    except Exception as e:
-        logger.warning(f"AI program generation failed: {e}, using rule-based fallback")
-        weekly_program = ai_programmer._generate_fallback_program(training_days, session_durations)
-    
-    # Save generated workouts to database
-    saved_templates = []
-    for day, template in weekly_program.items():
-        template_data = {
-            "name": template.name,
-            "description": template.description,
-            "methodology": template.methodology.value,
-            "difficulty_level": template.difficulty_level,
-            "workout_type": template.workout_type.value,
-            "duration_minutes": template.duration_minutes,
-            "movements": [m.model_dump(mode='json') for m in template.movements],
-            "target_stimulus": template.target_stimulus,
-            "tags": template.tags + [f"week_{request.week_number}", f"ai_{request.methodology}"],
-            "equipment_required": template.equipment_required,
-            "is_public": False,
-            "created_at": datetime.utcnow().isoformat()
-        }
-        
-        response = supabase_client.table("workout_templates").insert(
-            template_data
-        ).execute()
-        
-        data = handle_supabase_response(response, f"Failed to save {day.value} workout")
-        if data:
-            saved_templates.append(data[0])
-    
-    return {
-        "status": "success",
-        "message": f"Generated {len(saved_templates)} AI-powered workouts for week {request.week_number}",
-        "methodology": request.methodology,
-        "week_number": request.week_number,
-        "training_days": [d.value for d in training_days],
-        "workouts": saved_templates,
-        "note": "Workouts saved to workout_templates. You can now schedule them in your weekly calendar."
-    }
+
+    weeks_total = total_weeks(block_plan)
+    if weeks_total <= 0:
+        raise HTTPException(status_code=400, detail="block_plan must sum to at least 1 week")
+
+    start_monday = snap_to_monday(payload.start_date)
+    end_date = start_monday + timedelta(days=weeks_total * 7 - 1)
+
+    # Deactivate any existing active macrocycle.
+    for existing in session.execute(
+        select(MacrocycleDB).where(MacrocycleDB.user_id == user_id, MacrocycleDB.active.is_(True))
+    ).scalars().all():
+        existing.active = False
+
+    macro = MacrocycleDB(
+        user_id=user_id,
+        name=payload.name,
+        methodology=payload.methodology.value,
+        start_date=start_monday,
+        end_date=end_date,
+        block_plan=_serialize_block_plan(block_plan),
+        goal=payload.goal,
+        active=True,
+    )
+    session.add(macro)
+    session.flush()  # get macro.id
+
+    for i in range(weeks_total):
+        wk_start = start_monday + timedelta(days=i * 7)
+        session.add(MicrocycleDB(
+            macrocycle_id=macro.id,
+            user_id=user_id,
+            start_date=wk_start,
+            end_date=wk_start + timedelta(days=6),
+            week_index_in_macro=i + 1,
+        ))
+
+    session.commit()
+    session.refresh(macro)
+
+    micros = session.execute(
+        select(MicrocycleDB).where(MicrocycleDB.macrocycle_id == macro.id).order_by(MicrocycleDB.week_index_in_macro)
+    ).scalars().all()
+
+    macro_schema = _to_macro_schema(macro, block_plan)
+    return MacrocycleWithMicrocycles(
+        **macro_schema.model_dump(),
+        microcycles=[_to_micro_schema(m, block_plan) for m in micros],
+    )
 
 
-@router.get("/weekly", response_model=List[WeeklySchedule])
-async def list_schedules(
-    limit: int = 10,
-    current_user: dict = Depends(get_current_user)
+@router.get("/macrocycles/active", response_model=MacrocycleWithMicrocycles)
+async def get_active_macrocycle(
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """List user's training schedules"""
-    user_id = UUID(current_user["id"])
-    
-    response = supabase_client.table("weekly_schedules").select("*").eq(
-        "user_id", str(user_id)
-    ).order("created_at", desc=True).limit(limit).execute()
-    
-    data = handle_supabase_response(response, "Failed to fetch schedules")
-    
-    return [WeeklySchedule(**s) for s in data]
+    user_id = int(current_user["id"])
+    macro = session.execute(
+        select(MacrocycleDB)
+        .where(MacrocycleDB.user_id == user_id, MacrocycleDB.active.is_(True))
+        .order_by(MacrocycleDB.created_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    if not macro:
+        raise HTTPException(status_code=404, detail="No active macrocycle")
+
+    block_plan = _parse_block_plan(macro.block_plan)
+    micros = session.execute(
+        select(MicrocycleDB).where(MicrocycleDB.macrocycle_id == macro.id).order_by(MicrocycleDB.week_index_in_macro)
+    ).scalars().all()
+
+    macro_schema = _to_macro_schema(macro, block_plan)
+    return MacrocycleWithMicrocycles(
+        **macro_schema.model_dump(),
+        microcycles=[_to_micro_schema(m, block_plan) for m in micros],
+    )
 
 
-@router.patch("/weekly/{schedule_id}", response_model=WeeklySchedule)
-async def update_schedule(
-    schedule_id: UUID,
-    schedule_update: WeeklyScheduleCreate,
-    current_user: dict = Depends(get_current_user)
+@router.get("/macrocycles/{macro_id}", response_model=MacrocycleWithMicrocycles)
+async def get_macrocycle(
+    macro_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """Update weekly schedule"""
-    user_id = UUID(current_user["id"])
-    
-    # Verify ownership
-    response = supabase_client.table("weekly_schedules").select("*").eq(
-        "id", str(schedule_id)
-    ).single().execute()
-    
-    existing = handle_supabase_single(response, "Schedule not found")
-    
-    if existing["user_id"] != str(user_id):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    # Update
-    update_data = schedule_update.model_dump(mode='json')
-    update_data["updated_at"] = datetime.utcnow().isoformat()
-    
-    response = supabase_client.table("weekly_schedules").update(
-        update_data
-    ).eq("id", str(schedule_id)).execute()
-    
-    data = handle_supabase_response(response, "Failed to update schedule")
-    
-    if not data:
-        raise HTTPException(status_code=500, detail="Update failed")
-    
-    return WeeklySchedule(**data[0])
+    user_id = int(current_user["id"])
+    macro = _get_owned_macro(session, macro_id, user_id)
+    block_plan = _parse_block_plan(macro.block_plan)
+    micros = session.execute(
+        select(MicrocycleDB).where(MicrocycleDB.macrocycle_id == macro.id).order_by(MicrocycleDB.week_index_in_macro)
+    ).scalars().all()
+    macro_schema = _to_macro_schema(macro, block_plan)
+    return MacrocycleWithMicrocycles(
+        **macro_schema.model_dump(),
+        microcycles=[_to_micro_schema(m, block_plan) for m in micros],
+    )
 
 
-@router.delete("/weekly/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_schedule(
-    schedule_id: UUID,
-    current_user: dict = Depends(get_current_user)
+@router.patch("/macrocycles/{macro_id}", response_model=Macrocycle)
+async def update_macrocycle(
+    macro_id: UUID,
+    payload: MacrocycleUpdate,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """Delete weekly schedule"""
-    user_id = UUID(current_user["id"])
-    
-    # Verify ownership
-    response = supabase_client.table("weekly_schedules").select("*").eq(
-        "id", str(schedule_id)
-    ).single().execute()
-    
-    existing = handle_supabase_single(response, "Schedule not found")
-    
-    if existing["user_id"] != str(user_id):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    # Delete
-    response = supabase_client.table("weekly_schedules").delete().eq(
-        "id", str(schedule_id)
-    ).execute()
-    
-    handle_supabase_response(response, "Failed to delete schedule")
-    
+    user_id = int(current_user["id"])
+    macro = _get_owned_macro(session, macro_id, user_id)
+
+    if payload.name is not None:
+        macro.name = payload.name
+    if payload.goal is not None:
+        macro.goal = payload.goal
+    if payload.active is not None:
+        macro.active = payload.active
+
+    existing_plan = _parse_block_plan(macro.block_plan)
+    new_plan = payload.block_plan or existing_plan
+
+    if payload.block_plan is not None:
+        macro.block_plan = _serialize_block_plan(new_plan)
+        new_weeks = total_weeks(new_plan)
+        macro.end_date = macro.start_date + timedelta(days=new_weeks * 7 - 1)
+
+        # Extend microcycles if plan grew.
+        existing_total = total_weeks(existing_plan)
+        if new_weeks > existing_total:
+            for i in range(existing_total, new_weeks):
+                wk = macro.start_date + timedelta(days=i * 7)
+                session.add(MicrocycleDB(
+                    macrocycle_id=macro.id,
+                    user_id=user_id,
+                    start_date=wk,
+                    end_date=wk + timedelta(days=6),
+                    week_index_in_macro=i + 1,
+                ))
+
+    session.commit()
+    session.refresh(macro)
+    return _to_macro_schema(macro, new_plan)
+
+
+@router.delete("/macrocycles/{macro_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_macrocycle(
+    macro_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = int(current_user["id"])
+    macro = _get_owned_macro(session, macro_id, user_id)
+    session.delete(macro)
+    session.commit()
     return None
 
 
-# ============================================
-# Meal Plan Generation (Auto-synced with Training)
-# ============================================
+# ==========================================================
+# Microcycles
+# ==========================================================
 
-@router.post("/weekly/{schedule_id}/meal-plan", response_model=WeeklyMealPlan)
-async def generate_meal_plan(
-    schedule_id: UUID,
-    pre_workout_offset_minutes: int = -60,
-    post_workout_offset_minutes: int = 30,
-    current_user: dict = Depends(get_current_user)
+@router.get("/microcycles/by-date", response_model=Microcycle)
+async def get_microcycle_by_date(
+    date: Optional[_Date] = Query(None),
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """
-    Generate meal plan automatically from training schedule
-    
-    Logic:
-    - Pre-workout meal: 60min before each session
-    - Post-workout meal: 30min after each session
-    - Standard meals: Breakfast (07:00), Lunch (12:00), Dinner (19:00)
-    - Adjusts meal times to avoid conflicts with workouts
-    """
-    user_id = UUID(current_user["id"])
-    
-    # Get training schedule
-    response = supabase_client.table("weekly_schedules").select("*").eq(
-        "id", str(schedule_id)
-    ).single().execute()
-    
-    schedule_data = handle_supabase_single(response, "Schedule not found")
-    
-    if schedule_data["user_id"] != str(user_id):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    training_schedule = WeeklySchedule(**schedule_data)
-    
-    # Generate meal plans for each day
-    meal_plans = {}
-    
-    for day_key, day_schedule in training_schedule.schedule.items():
-        meals = []
-        
-        if day_schedule.rest_day:
-            # Rest day: standard 3 meals
-            meals = [
-                MealWindow(
-                    meal_type=MealType.BREAKFAST,
-                    time=time(7, 0),
-                    duration_minutes=30
-                ),
-                MealWindow(
-                    meal_type=MealType.LUNCH,
-                    time=time(12, 0),
-                    duration_minutes=45
-                ),
-                MealWindow(
-                    meal_type=MealType.DINNER,
-                    time=time(19, 0),
-                    duration_minutes=45
-                )
-            ]
-        else:
-            # Training day: add pre/post workout meals
-            for session in day_schedule.sessions:
-                # Pre-workout meal
-                pre_workout_time = (
-                    datetime.combine(date.today(), session.time) + 
-                    timedelta(minutes=pre_workout_offset_minutes)
-                ).time()
-                
-                meals.append(MealWindow(
-                    meal_type=MealType.PRE_WORKOUT,
-                    time=pre_workout_time,
-                    duration_minutes=20,
-                    notes=f"Before {session.time} session"
-                ))
-                
-                # Post-workout meal
-                post_workout_time = (
-                    datetime.combine(date.today(), session.time) + 
-                    timedelta(minutes=session.duration_minutes + post_workout_offset_minutes)
-                ).time()
-                
-                meals.append(MealWindow(
-                    meal_type=MealType.POST_WORKOUT,
-                    time=post_workout_time,
-                    duration_minutes=30,
-                    notes=f"After {session.time} session"
-                ))
-            
-            # Add standard meals (smart spacing to avoid workout meal conflicts)
-            standard_meal_times = {
-                MealType.BREAKFAST: time(7, 0),
-                MealType.LUNCH: time(12, 0),
-                MealType.DINNER: time(19, 0)
-            }
+    user_id = int(current_user["id"])
+    target = date or user_today(current_user)
 
-            # Calculate workout meal time ranges (pre + workout + post)
-            workout_meal_ranges = []
-            for session in day_schedule.sessions:
-                # Pre-workout starts 60min before workout
-                range_start = (
-                    datetime.combine(date.today(), session.time) +
-                    timedelta(minutes=pre_workout_offset_minutes)
-                ).time()
-
-                # Post-workout ends 30min after workout + duration
-                range_end = (
-                    datetime.combine(date.today(), session.time) +
-                    timedelta(minutes=session.duration_minutes + post_workout_offset_minutes + 30)
-                ).time()
-
-                workout_meal_ranges.append((range_start, range_end))
-
-            # Add standard meals only if they don't conflict with workout meals
-            for meal_type, meal_time in standard_meal_times.items():
-                # Check if this meal time conflicts with any workout meal range
-                conflicts = False
-                for range_start, range_end in workout_meal_ranges:
-                    # Convert times to minutes for easier comparison
-                    meal_minutes = meal_time.hour * 60 + meal_time.minute
-                    start_minutes = range_start.hour * 60 + range_start.minute
-                    end_minutes = range_end.hour * 60 + range_end.minute
-
-                    # Handle day wrap-around
-                    if end_minutes < start_minutes:
-                        end_minutes += 24 * 60
-                        if meal_minutes < start_minutes:
-                            meal_minutes += 24 * 60
-
-                    # Check if meal falls within workout range (with 30min buffer)
-                    if start_minutes - 30 <= meal_minutes <= end_minutes + 30:
-                        conflicts = True
-                        break
-
-                # Only add meal if it doesn't conflict
-                if not conflicts:
-                    meals.append(MealWindow(
-                        meal_type=meal_type,
-                        time=meal_time,
-                        duration_minutes=30 if meal_type == MealType.BREAKFAST else 45
-                    ))
-        
-        # Sort meals by time
-        meals.sort(key=lambda m: m.time)
-        
-        meal_plans[day_key] = DailyMealPlan(
-            day=day_schedule.day,
-            meals=meals,
-            training_day=not day_schedule.rest_day
+    micro = session.execute(
+        select(MicrocycleDB)
+        .where(
+            MicrocycleDB.user_id == user_id,
+            MicrocycleDB.start_date <= target,
+            MicrocycleDB.end_date >= target,
         )
-    
-    # Save meal plan
-    meal_plan_data = {
-        "user_id": str(user_id),
-        "training_schedule_id": str(schedule_id),
-        "meal_plans": {k.value: v.model_dump(mode='json') for k, v in meal_plans.items()},
-        "pre_workout_offset_minutes": pre_workout_offset_minutes,
-        "post_workout_offset_minutes": post_workout_offset_minutes,
-        "created_at": datetime.utcnow().isoformat(),
-        "updated_at": datetime.utcnow().isoformat()
-    }
-    
-    response = supabase_client.table("weekly_meal_plans").insert(
-        meal_plan_data
-    ).execute()
-    
-    data = handle_supabase_response(response, "Failed to create meal plan")
-    
-    if not data:
-        raise HTTPException(status_code=500, detail="Meal plan created but no data returned")
-    
-    return WeeklyMealPlan(**data[0])
+        .limit(1)
+    ).scalar_one_or_none()
+    if not micro:
+        raise HTTPException(status_code=404, detail="No microcycle covers that date")
+
+    macro = session.get(MacrocycleDB, micro.macrocycle_id)
+    block_plan = _parse_block_plan(macro.block_plan if macro else [])
+    sessions = _load_micro_sessions(session, micro.id)
+    return _to_micro_schema(micro, block_plan, sessions)
 
 
-@router.get("/weekly/{schedule_id}/meal-plan", response_model=WeeklyMealPlan)
-async def get_meal_plan(
-    schedule_id: UUID,
-    current_user: dict = Depends(get_current_user)
+@router.get("/microcycles/{micro_id}", response_model=Microcycle)
+async def get_microcycle(
+    micro_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """Get meal plan for training schedule"""
-    user_id = UUID(current_user["id"])
-    
-    response = supabase_client.table("weekly_meal_plans").select("*").eq(
-        "training_schedule_id", str(schedule_id)
-    ).eq("user_id", str(user_id)).order("created_at", desc=True).limit(1).execute()
-    
-    data = handle_supabase_response(response, "Failed to fetch meal plan")
-    
-    if not data:
-        raise HTTPException(status_code=404, detail="No meal plan found for this schedule")
-    
-    return WeeklyMealPlan(**data[0])
+    user_id = int(current_user["id"])
+    micro = _get_owned_micro(session, micro_id, user_id)
+
+    macro = session.get(MacrocycleDB, micro.macrocycle_id)
+    block_plan = _parse_block_plan(macro.block_plan if macro else [])
+    sessions = _load_micro_sessions(session, micro.id)
+    return _to_micro_schema(micro, block_plan, sessions)
 
 
-# ============================================
-# AI-Powered Program Generation
-# ============================================
+@router.patch("/microcycles/{micro_id}", response_model=Microcycle)
+async def update_microcycle(
+    micro_id: UUID,
+    payload: MicrocycleUpdate,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = int(current_user["id"])
+    micro = _get_owned_micro(session, micro_id, user_id)
+
+    data = payload.model_dump(exclude_none=True)
+    for k, v in data.items():
+        setattr(micro, k, v)
+    session.commit()
+    session.refresh(micro)
+
+    macro = session.get(MacrocycleDB, micro.macrocycle_id)
+    block_plan = _parse_block_plan(macro.block_plan if macro else [])
+    sessions = _load_micro_sessions(session, micro.id)
+    return _to_micro_schema(micro, block_plan, sessions)
+
+
+@router.post("/microcycles/{micro_id}/copy-from/{source_id}", response_model=Microcycle)
+async def copy_microcycle(
+    micro_id: UUID,
+    source_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = int(current_user["id"])
+    target = _get_owned_micro(session, micro_id, user_id)
+    source = _get_owned_micro(session, source_id, user_id)
+
+    # Wipe target sessions
+    for s in session.execute(
+        select(PlannedSessionDB).where(PlannedSessionDB.microcycle_id == target.id)
+    ).scalars().all():
+        session.delete(s)
+    session.flush()
+
+    delta_days = (target.start_date - source.start_date).days
+    src_sessions = session.execute(
+        select(PlannedSessionDB).where(PlannedSessionDB.microcycle_id == source.id)
+    ).scalars().all()
+
+    for s in src_sessions:
+        session.add(PlannedSessionDB(
+            microcycle_id=target.id,
+            user_id=user_id,
+            date=s.date + timedelta(days=delta_days),
+            order_in_day=s.order_in_day,
+            shift=s.shift,
+            start_time=s.start_time,
+            duration_minutes=s.duration_minutes,
+            workout_type=s.workout_type,
+            focus=s.focus,
+            notes=s.notes,
+            status=PlannedSessionStatus.PLANNED.value,
+        ))
+
+    session.commit()
+
+    macro = session.get(MacrocycleDB, target.macrocycle_id)
+    block_plan = _parse_block_plan(macro.block_plan if macro else [])
+    sessions = _load_micro_sessions(session, target.id)
+    return _to_micro_schema(target, block_plan, sessions)
+
+
+# ==========================================================
+# Planned sessions
+# ==========================================================
+
+@router.post(
+    "/microcycles/{micro_id}/sessions",
+    response_model=PlannedSession,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_planned_session(
+    micro_id: UUID,
+    payload: PlannedSessionCreate,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = int(current_user["id"])
+    micro = _get_owned_micro(session, micro_id, user_id)
+
+    if not (micro.start_date <= payload.date <= micro.end_date):
+        raise HTTPException(
+            status_code=400,
+            detail=f"date {payload.date} is outside microcycle {micro.start_date}..{micro.end_date}",
+        )
+
+    row = PlannedSessionDB(
+        microcycle_id=micro.id,
+        user_id=user_id,
+        date=payload.date,
+        order_in_day=payload.order_in_day,
+        shift=payload.shift.value if payload.shift else None,
+        start_time=payload.start_time,
+        duration_minutes=payload.duration_minutes,
+        workout_type=payload.workout_type.value if payload.workout_type else None,
+        focus=payload.focus,
+        notes=payload.notes,
+        status=PlannedSessionStatus.PLANNED.value,
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return _to_session_schema(row)
+
+
+@router.patch("/planned-sessions/{session_id}", response_model=PlannedSession)
+async def update_planned_session(
+    session_id: UUID,
+    payload: PlannedSessionUpdate,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = int(current_user["id"])
+    row = session.get(PlannedSessionDB, session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Planned session not found")
+    if row.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    data = payload.model_dump(exclude_none=True, mode="python")
+    for k, v in data.items():
+        # Unwrap enums → string
+        if hasattr(v, "value"):
+            v = v.value
+        setattr(row, k, v)
+    session.commit()
+    session.refresh(row)
+    return _to_session_schema(row)
+
+
+@router.delete("/planned-sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_planned_session(
+    session_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = int(current_user["id"])
+    row = session.get(PlannedSessionDB, session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Planned session not found")
+    if row.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    session.delete(row)
+    session.commit()
+    return None
+
+
+# ==========================================================
+# AI generation
+# ==========================================================
+
+class GenerateMicrocycleResponse(BaseModel):
+    microcycle_id: UUID
+    generated_sessions: int
+    message: str
+
+
+@router.post("/microcycles/{micro_id}/generate", response_model=GenerateMicrocycleResponse)
+async def generate_microcycle_workouts(
+    micro_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+):
+    from app.core.engine.ai_programmer import ai_programmer
+
+    user_id = int(current_user["id"])
+    micro = _get_owned_micro(session, micro_id, user_id)
+    generated = await ai_programmer.generate_microcycle_program(
+        db=session,
+        microcycle=micro,
+        user_id=user_id,
+    )
+    return GenerateMicrocycleResponse(
+        microcycle_id=micro.id,
+        generated_sessions=generated,
+        message=f"Generated {generated} workout(s) for this microcycle",
+    )
+
+
+@router.post("/planned-sessions/{session_id}/regenerate", response_model=PlannedSession)
+async def regenerate_planned_session(
+    session_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+):
+    from app.core.engine.ai_programmer import ai_programmer
+
+    user_id = int(current_user["id"])
+    row = session.get(PlannedSessionDB, session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Planned session not found")
+    if row.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    await ai_programmer.regenerate_single_session(
+        db=session,
+        planned=row,
+        user_id=user_id,
+    )
+    session.commit()
+    session.refresh(row)
+    return _to_session_schema(row)

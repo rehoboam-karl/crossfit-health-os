@@ -1,271 +1,157 @@
 """
-Automation service - handles weekly program generation and scheduled tasks
-"""
-from datetime import datetime, date, timedelta
-from typing import Optional, Dict, Any, List
-import asyncio
+Automation service (SQLAlchemy).
 
-from app.db.supabase import supabase_client
+Daily/weekly automation hooks. Weekly program generation is now driven through
+the periodization endpoints (`/api/v1/schedule/microcycles/{id}/generate`);
+this service only handles cross-user batch operations like streak checks and
+onboarding email reminders.
+"""
+from datetime import date, datetime, timedelta
+from typing import Any, Dict, List
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.db.models import Notification as NotificationDB, User as UserDB, WorkoutSession as WorkoutSessionDB
+from app.db.session import SessionLocal
 
 
 class AutomationService:
-    """Service for automated tasks like weekly program generation."""
-    
+    """Batch/background tasks — always accept a Session or open one internally."""
+
     @staticmethod
-    def generate_weekly_program_for_user(user_id: str) -> Dict[str, Any]:
+    def generate_weekly_program_for_user(user_id: int, db: Session | None = None) -> Dict[str, Any]:
         """
-        Automatically generate weekly program for a user.
-        Called on schedule or manually.
+        Thin shim over the ai_programmer. Generates the next microcycle in the
+        user's active macrocycle (the one that contains today).
         """
+        from sqlalchemy import select as _select
+        from app.core.engine.ai_programmer import ai_programmer
+        from app.db.models import Macrocycle, Microcycle
+
+        close_after = db is None
+        if db is None:
+            db = SessionLocal()
         try:
-            # Get user profile
-            user_resp = supabase_client.table("users").select("*").eq(
-                "id", user_id
-            ).single().execute()
-            
-            if not user_resp.data:
-                return {"success": False, "error": "User not found"}
-            
-            user = user_resp.data
-            
-            # Get active schedule
-            schedule_resp = supabase_client.table("weekly_schedules").select("*").eq(
-                "user_id", user_id
-            ).eq("active", True).single().execute()
-            
-            if not schedule_resp.data:
-                return {"success": False, "error": "No active schedule"}
-            
-            schedule = schedule_resp.data
-            
-            # Get previous week's performance for progression
-            previous_week = AutomationService._get_previous_week_data(user_id)
-            
-            # Get AI-generated workouts (simplified - in production would call OpenAI)
-            workouts = AutomationService._generate_workouts(
-                user=user,
-                schedule=schedule,
-                previous_week=previous_week
+            macro = db.execute(
+                _select(Macrocycle).where(
+                    Macrocycle.user_id == int(user_id),
+                    Macrocycle.active.is_(True),
+                ).limit(1)
+            ).scalar_one_or_none()
+            if not macro:
+                return {"success": False, "error": "No active macrocycle"}
+
+            today = date.today()
+            micro = db.execute(
+                _select(Microcycle).where(
+                    Microcycle.macrocycle_id == macro.id,
+                    Microcycle.start_date <= today,
+                    Microcycle.end_date >= today,
+                ).limit(1)
+            ).scalar_one_or_none()
+            if not micro:
+                return {"success": False, "error": "No active microcycle covers today"}
+
+            import asyncio
+            generated = asyncio.run(
+                ai_programmer.generate_microcycle_program(db=db, microcycle=micro, user_id=int(user_id))
             )
-            
-            # Save to workout_templates
-            for workout in workouts:
-                workout["user_id"] = user_id
-                workout["week_start"] = schedule.get("start_date", date.today().isoformat())
-                workout["created_by"] = "automation"
-                
-                try:
-                    supabase_client.table("workout_templates").insert(workout).execute()
-                except Exception as e:
-                    print(f"Error saving workout: {e}")
-            
-            # Create notification
-            try:
-                supabase_client.table("notifications").insert({
-                    "user_id": user_id,
-                    "type": "weekly_program_ready",
-                    "title": "📅 New Week, New Program!",
-                    "body": f"Your {len(workouts)}-day program is ready. Let's crush Week {schedule.get('current_week', 1)}!",
-                    "data": {"workout_count": len(workouts)},
-                    "read": False,
-                    "created_at": datetime.utcnow().isoformat()
-                }).execute()
-            except:
-                pass
-            
-            return {
-                "success": True,
-                "workouts_generated": len(workouts),
-                "week": schedule.get("current_week", 1)
-            }
-            
+            db.add(NotificationDB(
+                user_id=int(user_id),
+                type="weekly_program_ready",
+                title="📅 New Week, New Program!",
+                body=f"Your {generated}-workout week is ready.",
+                data={"workout_count": generated},
+            ))
+            db.commit()
+            return {"success": True, "workouts_generated": generated}
         except Exception as e:
             return {"success": False, "error": str(e)}
-    
+        finally:
+            if close_after:
+                db.close()
+
     @staticmethod
-    def _get_previous_week_data(user_id: str) -> Dict:
-        """Get previous week's training data for progression."""
+    def check_and_notify_streaks(user_id: int, db: Session | None = None) -> Dict[str, Any]:
+        """Warn if the user has a streak at risk (no workout today)."""
+        close_after = db is None
+        if db is None:
+            db = SessionLocal()
         try:
-            # Get last 7 days of sessions
-            week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
-            
-            sessions = supabase_client.table("workout_sessions").select("*").eq(
-                "user_id", user_id
-            ).gte("started_at", week_ago).execute()
-            
-            if not sessions.data:
-                return {}
-            
-            # Calculate averages
-            total_volume = 0
-            total_rpe = 0
-            count = len(sessions.data)
-            
-            for session in sessions.data:
-                total_rpe += session.get("rpe_score", 0)
-                # Volume calculation would come from movements
-            
-            return {
-                "sessions_completed": count,
-                "avg_rpe": total_rpe / count if count > 0 else 5,
-                "volume_change": 0  # Would calculate from movements
-            }
-        except:
-            return {}
-    
-    @staticmethod
-    def _generate_workouts(user: Dict, schedule: Dict, previous_week: Dict) -> List[Dict]:
-        """Generate workouts based on schedule and user profile."""
-        workouts = []
-        
-        methodology = schedule.get("methodology", "hwpo")
-        days_map = {
-            "monday": "monday", "tuesday": "tuesday", "wednesday": "wednesday",
-            "thursday": "thursday", "friday": "friday", "saturday": "saturday", "sunday": "sunday"
-        }
-        
-        for day_name, day_key in days_map.items():
-            day_data = schedule.get("schedule", {}).get(day_key, {})
-            
-            if day_data.get("rest_day", True):
-                continue
-            
-            sessions = day_data.get("sessions", [])
-            if not sessions:
-                continue
-            
-            for session in sessions:
-                workout_type = session.get("workout_type", "mixed")
-                
-                # Generate workout based on type and methodology
-                workout = AutomationService._create_workout_template(
-                    day=day_name,
-                    workout_type=workout_type,
-                    methodology=methodology,
-                    user=user,
-                    previous_week=previous_week
+            today = date.today()
+            yesterday = today - timedelta(days=1)
+            rows = db.execute(
+                select(WorkoutSessionDB).where(
+                    WorkoutSessionDB.user_id == int(user_id),
+                    WorkoutSessionDB.completed_at.is_not(None),
+                    WorkoutSessionDB.completed_at >= datetime.combine(today - timedelta(days=30), datetime.min.time()),
                 )
-                
-                if workout:
-                    workouts.append(workout)
-        
-        return workouts
-    
-    @staticmethod
-    def _create_workout_template(
-        day: str,
-        workout_type: str,
-        methodology: str,
-        user: Dict,
-        previous_week: Dict
-    ) -> Optional[Dict]:
-        """Create a single workout template."""
-        
-        # Simplified workout templates based on methodology
-        templates = {
-            "hwpo": {
-                "strength": {
-                    "name": f"HWPO {day.title()} Strength",
-                    "description": "Main lift followed by accessory work",
-                    "movements": [
-                        {"movement": "back_squat", "sets": 5, "reps": 5, "intensity": "65-75%"},
-                        {"movement": "bench_press", "sets": 5, "reps": 5, "intensity": "65-75%"},
-                        {"movement": "pull_ups", "sets": 3, "reps": "AMRAP"}
-                    ]
-                },
-                "metcon": {
-                    "name": f"HWPO {day.title()} Metcon",
-                    "description": "High-intensity conditioning",
-                    "movements": [
-                        {"movement": "wall_balls", "sets": 4, "reps": 21, "intensity": "moderate"},
-                        {"movement": "box_jumps", "sets": 4, "reps": 15},
-                        {"movement": "row_calories", "sets": 4, "reps": 250}
-                    ]
-                },
-                "mixed": {
-                    "name": f"HWPO {day.title()} Mixed",
-                    "description": "Strength and conditioning combined",
-                    "movements": [
-                        {"movement": "clean_and_jerk", "sets": 5, "reps": 3, "intensity": "70-80%"},
-                        {"movement": "front_squat", "sets": 3, "reps": 5, "intensity": "70%"},
-                        {"movement": "burpees", "sets": 5, "reps": 12}
-                    ]
-                }
-            }
-        }
-        
-        template = templates.get(methodology, templates["hwpo"]).get(workout_type, templates["hwpo"]["mixed"])
-        
-        return {
-            "name": template["name"],
-            "description": template["description"],
-            "workout_type": workout_type,
-            "day_of_week": day,
-            "duration_minutes": 60,
-            "movements": template["movements"],
-            "methodology": methodology,
-            "notes": f"Generated for {user.get('name', 'user')}"
-        }
-    
+            ).scalars().all()
+            completed_dates = {r.completed_at.date() for r in rows}
+            current = 0
+            cursor = today if today in completed_dates else yesterday
+            while cursor in completed_dates:
+                current += 1
+                cursor -= timedelta(days=1)
+            if current >= 2 and today not in completed_dates:
+                db.add(NotificationDB(
+                    user_id=int(user_id),
+                    type="streak_warning",
+                    title="🔥 Don't Lose Your Streak!",
+                    body=f"You've been on a {current}-day streak. Train today to keep it alive!",
+                    data={"streak": current},
+                ))
+                db.commit()
+                return {"success": True, "warned": True, "streak": current}
+            return {"success": True, "warned": False, "streak": current}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+        finally:
+            if close_after:
+                db.close()
+
     @staticmethod
     def run_weekly_generation() -> Dict[str, Any]:
-        """Run weekly generation for all active users."""
-        try:
-            # Get all users with active schedules
-            users_resp = supabase_client.table("users").select("id").eq(
-                "onboarding_completed", True
-            ).execute()
-            
-            if not users_resp.data:
-                return {"success": True, "users_processed": 0}
-            
-            results = []
-            for user in users_resp.data:
-                result = AutomationService.generate_weekly_program_for_user(user["id"])
-                results.append(result)
-            
-            successful = sum(1 for r in results if r.get("success"))
-            
+        """Run weekly generation for all users with onboarding completed
+        (`preferences["onboarding_completed"] is True`)."""
+        with SessionLocal() as db:
+            users = db.execute(select(UserDB)).scalars().all()
+            processed = 0
+            successful = 0
+            for user in users:
+                if not (user.preferences or {}).get("onboarding_completed"):
+                    continue
+                processed += 1
+                result = AutomationService.generate_weekly_program_for_user(user.id, db=db)
+                if result.get("success"):
+                    successful += 1
             return {
                 "success": True,
-                "users_processed": len(users_resp.data),
-                "programs_generated": successful
+                "users_processed": processed,
+                "programs_generated": successful,
             }
-            
-        except Exception as e:
-            return {"success": False, "error": str(e)}
 
 
 def run_daily_tasks():
     """Run all daily automated tasks."""
     today = date.today()
-    
-    # Monday = day for weekly generation
-    if today.weekday() == 0:  # Monday
+    if today.weekday() == 0:
         result = AutomationService.run_weekly_generation()
         print(f"Weekly generation: {result}")
-    
-    # Daily streak check
-    try:
-        users_resp = supabase_client.table("users").select("id").eq(
-            "onboarding_completed", True
-        ).execute()
-        
-        for user in users_resp.data or []:
-            AutomationService.check_and_notify_streaks(user["id"])
-    except Exception as e:
-        print(f"Streak check error: {e}")
+
+    with SessionLocal() as db:
+        users = db.execute(select(UserDB)).scalars().all()
+        for user in users:
+            if (user.preferences or {}).get("onboarding_completed"):
+                AutomationService.check_and_notify_streaks(user.id, db=db)
 
 
 def run_automated_onboarding_email():
-    """Send welcome email to new users who haven't completed onboarding."""
-    try:
-        users_resp = supabase_client.table("users").select("id, email, name").eq(
-            "onboarding_completed", False
-        ).execute()
-        
-        for user in users_resp.data or []:
-            # Would integrate with email service
-            print(f"Would send onboarding email to {user.get('email')}")
-    except Exception as e:
-        print(f"Onboarding email error: {e}")
+    """Send welcome email to users who haven't completed onboarding (placeholder)."""
+    with SessionLocal() as db:
+        users = db.execute(select(UserDB)).scalars().all()
+        for user in users:
+            if (user.preferences or {}).get("onboarding_completed"):
+                continue
+            print(f"Would send onboarding email to {user.email}")

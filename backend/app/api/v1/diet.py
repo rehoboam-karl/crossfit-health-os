@@ -1,324 +1,198 @@
 """
-Custom Diet API - Handle user-uploaded diet plans
+Custom Diet API — handle user-uploaded diet plan PDFs (SQLAlchemy).
+
+Storage-to-bucket upload is intentionally dropped in this slice: we keep the
+parsed JSON + filename in `user_diet_plans` (no file_url) until a new storage
+backend is wired in.
 """
-import os
-import uuid
+import io
+import logging
+import re
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
-from typing import Optional
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
-from app.db.supabase import supabase_client
+from app.db.models import UserDietPlan as UserDietPlanDB
+from app.db.session import get_session
 from app.services.diet_parser import parse_diet_pdf
 
 router = APIRouter(prefix="/api/v1/diet", tags=["diet"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/upload")
 async def upload_diet_pdf(
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
 ):
-    """
-    Upload a diet plan PDF and parse it
-    
-    The system will:
-    1. Store the PDF
-    2. Extract calories, macros, meal times
-    3. Create reminder schedule based on meal times
-    """
-    user_id = current_user["id"]
-    
-    # Validate file
-    if not file.filename.endswith('.pdf'):
+    """Upload a diet plan PDF, parse it, and store the structured data."""
+    user_id = int(current_user["id"])
+
+    if not (file.filename or "").lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
-    
-    # Read PDF content
+
     content = await file.read()
-    
-    if len(content) > 10 * 1024 * 1024:  # 10MB limit
+    if len(content) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large (max 10MB)")
-    
+
     try:
-        # Extract text from PDF (simplified - in production use pdfplumber)
-        pdf_text = extract_pdf_text(content)
-        
+        pdf_text = _extract_pdf_text(content)
         if not pdf_text or len(pdf_text) < 50:
             raise HTTPException(
-                status_code=400, 
-                detail="Could not extract text from PDF. Please ensure the PDF contains selectable text."
+                status_code=400,
+                detail="Could not extract text from PDF. Ensure the PDF contains selectable text.",
             )
-        
-        # Parse the diet plan
+
         diet_data = parse_diet_pdf(pdf_text)
-        
-        # Save file to storage
-        file_id = str(uuid.uuid4())
-        filename = f"diet_{user_id}_{file_id}.pdf"
-        
-        # Store in Supabase Storage or local
-        try:
-            storage_path = f"diet_plans/{user_id}/{filename}"
-            supabase_client.storage.from_("diet_plans").upload(
-                path=storage_path,
-                file=content
+
+        # Deactivate previous plans.
+        existing = db.execute(
+            select(UserDietPlanDB).where(
+                UserDietPlanDB.user_id == user_id, UserDietPlanDB.active.is_(True)
             )
-            file_url = f"{supabase_client.storage_url}/diet_plans/{storage_path}"
-        except Exception as e:
-            logger.warning(f"Storage upload failed: {e}")
-            file_url = None
-        
-        # Save to database
-        diet_record = {
-            "user_id": user_id,
-            "file_name": file.filename,
-            "file_url": file_url,
-            "daily_calories": diet_data.get("daily_calories"),
-            "protein_g": diet_data.get("macros", {}).get("protein_g"),
-            "carbs_g": diet_data.get("macros", {}).get("carbs_g"),
-            "fat_g": diet_data.get("macros", {}).get("fat_g"),
-            "meals": diet_data.get("meals"),
-            "supplements": diet_data.get("supplements"),
-            "notes": diet_data.get("notes"),
-            "parsed_data": diet_data,
-            "uploaded_at": datetime.utcnow().isoformat(),
-            "active": True
-        }
-        
-        # Deactivate previous plans
-        try:
-            supabase_client.table("user_diet_plans").update(
-                {"active": False}
-            ).eq("user_id", user_id).execute()
-        except:
-            pass
-        
-        # Insert new plan
-        response = supabase_client.table("user_diet_plans").insert(diet_record).execute()
-        
-        if not response.data:
-            raise HTTPException(status_code=500, detail="Failed to save diet plan")
-        
-        # Create meal reminders based on parsed meal times
-        await create_meal_reminders(user_id, diet_data.get("meals", []))
-        
+        ).scalars().all()
+        for p in existing:
+            p.active = False
+
+        plan = UserDietPlanDB(
+            user_id=user_id,
+            file_name=file.filename,
+            file_url=None,
+            daily_calories=diet_data.get("daily_calories"),
+            protein_g=(diet_data.get("macros") or {}).get("protein_g"),
+            carbs_g=(diet_data.get("macros") or {}).get("carbs_g"),
+            fat_g=(diet_data.get("macros") or {}).get("fat_g"),
+            meals=diet_data.get("meals") or [],
+            supplements=diet_data.get("supplements") or [],
+            notes=diet_data.get("notes"),
+            parsed_data=diet_data,
+            uploaded_at=datetime.utcnow(),
+            active=True,
+        )
+        db.add(plan)
+        db.commit()
+        db.refresh(plan)
+
         return {
             "success": True,
-            "plan_id": response.data[0].get("id"),
-            "file_name": file.filename,
+            "plan_id": str(plan.id),
+            "file_name": plan.file_name,
             "parsed": {
-                "daily_calories": diet_data.get("daily_calories"),
-                "macros": diet_data.get("macros"),
-                "meals_count": len(diet_data.get("meals", [])),
-                "supplements": diet_data.get("supplements")[:5] if diet_data.get("supplements") else [],
+                "daily_calories": plan.daily_calories,
+                "macros": {
+                    "protein_g": plan.protein_g,
+                    "carbs_g": plan.carbs_g,
+                    "fat_g": plan.fat_g,
+                },
+                "meals_count": len(plan.meals or []),
+                "supplements": (plan.supplements or [])[:5],
             },
-            "message": "Diet plan uploaded and parsed successfully!"
+            "message": "Diet plan uploaded and parsed successfully!",
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
+        logger.error(f"Diet upload failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error processing PDF: {e}")
 
 
 @router.get("/current")
-async def get_current_diet_plan(current_user: dict = Depends(get_current_user)):
-    """Get the user's current active diet plan"""
-    user_id = current_user["id"]
-    
-    try:
-        response = supabase_client.table("user_diet_plans").select("*").eq(
-            "user_id", user_id
-        ).eq("active", True).single().execute()
-        
-        if not response.data:
-            return {
-                "has_plan": False,
-                "message": "No diet plan uploaded yet"
-            }
-        
-        plan = response.data
-        
-        # Format meals for display
-        meals = plan.get("meals", [])
-        formatted_meals = []
-        for meal in meals:
-            formatted_meals.append({
-                "name": meal.get("name", "").replace("_", " ").title(),
-                "time": meal.get("time", ""),
-                "foods": meal.get("foods", [])[:3],
-                "calories": meal.get("calories")
-            })
-        
-        return {
-            "has_plan": True,
-            "plan": {
-                "id": plan.get("id"),
-                "file_name": plan.get("file_name"),
-                "uploaded_at": plan.get("uploaded_at"),
-                "daily_calories": plan.get("daily_calories"),
-                "macros": {
-                    "protein_g": plan.get("protein_g"),
-                    "carbs_g": plan.get("carbs_g"),
-                    "fat_g": plan.get("fat_g")
-                },
-                "meals": formatted_meals,
-                "supplements": plan.get("supplements", [])[:5],
-                "notes": plan.get("notes")
-            }
-        }
-        
-    except Exception as e:
-        return {
-            "has_plan": False,
-            "error": str(e)
-        }
+async def get_current_diet_plan(
+    db: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = int(current_user["id"])
+    plan = db.execute(
+        select(UserDietPlanDB).where(
+            UserDietPlanDB.user_id == user_id, UserDietPlanDB.active.is_(True)
+        ).order_by(UserDietPlanDB.uploaded_at.desc()).limit(1)
+    ).scalar_one_or_none()
+
+    if not plan:
+        return {"has_plan": False, "message": "No diet plan uploaded yet"}
+
+    formatted_meals = []
+    for meal in plan.meals or []:
+        formatted_meals.append({
+            "name": (meal.get("name") or "").replace("_", " ").title(),
+            "time": meal.get("time", ""),
+            "foods": (meal.get("foods") or [])[:3],
+            "calories": meal.get("calories"),
+        })
+
+    return {
+        "has_plan": True,
+        "plan": {
+            "id": str(plan.id),
+            "file_name": plan.file_name,
+            "uploaded_at": plan.uploaded_at.isoformat() if plan.uploaded_at else None,
+            "daily_calories": plan.daily_calories,
+            "macros": {
+                "protein_g": plan.protein_g,
+                "carbs_g": plan.carbs_g,
+                "fat_g": plan.fat_g,
+            },
+            "meals": formatted_meals,
+            "supplements": (plan.supplements or [])[:5],
+            "notes": plan.notes,
+        },
+    }
 
 
 @router.delete("/current")
-async def delete_diet_plan(current_user: dict = Depends(get_current_user)):
-    """Delete the user's current diet plan"""
-    user_id = current_user["id"]
-    
-    try:
-        supabase_client.table("user_diet_plans").update(
-            {"active": False}
-        ).eq("user_id", user_id).eq("active", True).execute()
-        
-        # Also delete reminders
-        try:
-            supabase_client.table("scheduled_notifications").delete().eq(
-                "user_id", user_id
-            ).eq("type", "meal_reminder").execute()
-        except:
-            pass
-        
-        return {
-            "success": True,
-            "message": "Diet plan deleted"
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+async def delete_diet_plan(
+    db: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = int(current_user["id"])
+    rows = db.execute(
+        select(UserDietPlanDB).where(
+            UserDietPlanDB.user_id == user_id, UserDietPlanDB.active.is_(True)
+        )
+    ).scalars().all()
+    for p in rows:
+        p.active = False
+    db.commit()
+    return {"success": True, "message": "Diet plan deleted"}
 
 
 @router.get("/reminders")
 async def get_diet_reminders(current_user: dict = Depends(get_current_user)):
-    """Get configured meal reminders"""
-    user_id = current_user["id"]
-    
-    try:
-        response = supabase_client.table("scheduled_notifications").select("*").eq(
-            "user_id", user_id
-        ).eq("type", "meal_reminder").eq("enabled", True).execute()
-        
-        reminders = []
-        for r in (response.data or []):
-            reminders.append({
-                "id": r.get("id"),
-                "meal": r.get("meal_name"),
-                "time": r.get("schedule_time"),
-                "enabled": r.get("enabled")
-            })
-        
-        return {"reminders": reminders}
-        
-    except Exception as e:
-        return {"reminders": [], "error": str(e)}
+    """Meal reminders are not persisted in this slice — return empty."""
+    return {"reminders": []}
 
 
-@router.post("/reminders/{reminder_id}/toggle")
-async def toggle_reminder(
-    reminder_id: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """Enable/disable a meal reminder"""
-    user_id = current_user["id"]
-    
-    try:
-        # Get current state
-        response = supabase_client.table("scheduled_notifications").select("enabled").eq(
-            "id", reminder_id
-        ).eq("user_id", user_id).single().execute()
-        
-        if not response.data:
-            raise HTTPException(status_code=404, detail="Reminder not found")
-        
-        new_state = not response.data.get("enabled", True)
-        
-        supabase_client.table("scheduled_notifications").update(
-            {"enabled": new_state}
-        ).eq("id", reminder_id).execute()
-        
-        return {
-            "success": True,
-            "enabled": new_state
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# ==========================================================
+# Helpers
+# ==========================================================
 
-
-async def create_meal_reminders(user_id: str, meals: list):
-    """Create scheduled notifications for each meal"""
-    try:
-        for meal in meals:
-            meal_time = meal.get("time", "08:00")
-            meal_name = meal.get("name", "Meal")
-            
-            # Convert 12h to 24h if needed
-            if "am" in meal_time.lower() or "pm" in meal_time.lower():
-                meal_time = convert_to_24h(meal_time)
-            
-            reminder = {
-                "user_id": user_id,
-                "type": "meal_reminder",
-                "meal_name": meal_name,
-                "schedule_day": "monday,tuesday,wednesday,thursday,friday,saturday,sunday",  # Every day
-                "schedule_time": meal_time,
-                "enabled": True
-            }
-            
-            supabase_client.table("scheduled_notifications").insert(reminder).execute()
-            
-    except Exception as e:
-        logger.warning(f"Failed to create meal reminders: {e}")
-
-
-def convert_to_24h(time_str: str) -> str:
-    """Convert 12-hour time to 24-hour format"""
-    try:
-        # Extract time and AM/PM
-        import re
-        match = re.match(r'(\d{1,2}):?(\d{2})?\s*(am|pm)', time_str.lower())
-        if not match:
-            return time_str
-        
-        hour = int(match.group(1))
-        minute = int(match.group(2) or 0)
-        period = match.group(3)
-        
-        if period == "pm" and hour != 12:
-            hour += 12
-        elif period == "am" and hour == 12:
-            hour = 0
-        
-        return f"{hour:02d}:{minute:02d}"
-    except:
+def _convert_to_24h(time_str: str) -> str:
+    match = re.match(r"(\d{1,2}):?(\d{2})?\s*(am|pm)", (time_str or "").lower())
+    if not match:
         return time_str
+    hour = int(match.group(1))
+    minute = int(match.group(2) or 0)
+    period = match.group(3)
+    if period == "pm" and hour != 12:
+        hour += 12
+    elif period == "am" and hour == 12:
+        hour = 0
+    return f"{hour:02d}:{minute:02d}"
 
 
-def extract_pdf_text(content: bytes) -> str:
-    """
-    Extract text from PDF bytes
-    In production, use pdfplumber or PyMuPDF
-    """
+# Public aliases kept for legacy tests.
+convert_to_24h = _convert_to_24h
+
+
+def _extract_pdf_text(content: bytes) -> str:
     try:
         import pdfplumber
-        
-        import io
         with pdfplumber.open(io.BytesIO(content)) as pdf:
             text = ""
             for page in pdf.pages:
@@ -327,23 +201,16 @@ def extract_pdf_text(content: bytes) -> str:
                     text += page_text + "\n"
             return text
     except ImportError:
-        # Fallback: try PyMuPDF
-        try:
-            import fitz  # PyMuPDF
-            
-            import io
-            doc = fitz.open(io.BytesIO(content))
-            text = ""
-            for page in doc:
-                text += page.get_text() + "\n"
-            return text
-        except ImportError:
-            logger.error("No PDF library available. Install pdfplumber or PyMuPDF")
-            return ""
-    except Exception as e:
-        logger.error(f"PDF extraction error: {e}")
+        pass
+    try:
+        import fitz  # PyMuPDF
+        doc = fitz.open(stream=content, filetype="pdf")
+        text = ""
+        for page in doc:
+            text += page.get_text() + "\n"
+        return text
+    except Exception:
         return ""
 
 
-import logging
-logger = logging.getLogger(__name__)
+extract_pdf_text = _extract_pdf_text

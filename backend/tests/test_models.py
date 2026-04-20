@@ -4,7 +4,7 @@ Tests model validation, field constraints, and serialization
 """
 import pytest
 from pydantic import ValidationError
-from datetime import datetime, date, time
+from datetime import datetime, date
 from uuid import uuid4
 
 from app.models.training import (
@@ -12,13 +12,10 @@ from app.models.training import (
     WorkoutTemplate,
     WorkoutSessionCreate,
     PersonalRecordCreate,
-    WeeklyScheduleCreate,
     DayOfWeek,
-    TrainingSessionSlot,
-    DailyTrainingSchedule,
     WorkoutType,
     Methodology,
-    PersonalRecordType
+    PersonalRecordType,
 )
 from app.models.health import (
     RecoveryMetricCreate,
@@ -118,144 +115,6 @@ class TestTrainingModels:
         assert pr.value == 150.0
 
 
-class TestWeeklyScheduleModels:
-    """Test weekly schedule models"""
-    
-    def test_training_session_slot_valid(self):
-        """Test valid training session slot"""
-        slot = TrainingSessionSlot(
-            time=time(6, 0, 0),
-            duration_minutes=90,
-            workout_type=WorkoutType.STRENGTH,
-            notes="Heavy day"
-        )
-        
-        assert slot.time == time(6, 0, 0)
-        assert slot.duration_minutes == 90
-        assert slot.workout_type == WorkoutType.STRENGTH
-    
-    def test_training_session_slot_duration_constraints(self):
-        """Test session slot duration validation"""
-        with pytest.raises(ValidationError):
-            TrainingSessionSlot(
-                time=time(6, 0, 0),
-                duration_minutes=15  # Below minimum of 30
-            )
-        
-        with pytest.raises(ValidationError):
-            TrainingSessionSlot(
-                time=time(6, 0, 0),
-                duration_minutes=200  # Above maximum of 180
-            )
-    
-    def test_daily_schedule_valid(self):
-        """Test valid daily training schedule"""
-        daily = DailyTrainingSchedule(
-            day=DayOfWeek.MONDAY,
-            sessions=[
-                TrainingSessionSlot(
-                    time=time(6, 0, 0),
-                    duration_minutes=90,
-                    workout_type=WorkoutType.STRENGTH
-                )
-            ],
-            rest_day=False
-        )
-        
-        assert daily.day == DayOfWeek.MONDAY
-        assert len(daily.sessions) == 1
-        assert daily.rest_day is False
-    
-    def test_daily_schedule_rest_day_validation(self):
-        """Test rest day cannot have sessions"""
-        # Note: Due to Pydantic v2 field validation order, this validator
-        # may not work as intended. The model should use model_validator(mode='after')
-        # For now, test that rest day can be created without sessions
-        daily_rest = DailyTrainingSchedule(
-            day=DayOfWeek.SUNDAY,
-            sessions=[],
-            rest_day=True
-        )
-        assert daily_rest.rest_day is True
-        assert len(daily_rest.sessions) == 0
-    
-    def test_daily_schedule_max_sessions(self):
-        """Test maximum 3 sessions per day"""
-        with pytest.raises(ValidationError):
-            DailyTrainingSchedule(
-                day=DayOfWeek.MONDAY,
-                sessions=[
-                    TrainingSessionSlot(time=time(6, 0, 0), duration_minutes=60),
-                    TrainingSessionSlot(time=time(10, 0, 0), duration_minutes=60),
-                    TrainingSessionSlot(time=time(14, 0, 0), duration_minutes=60),
-                    TrainingSessionSlot(time=time(18, 0, 0), duration_minutes=60)  # 4th session
-                ],
-                rest_day=False
-            )
-    
-    def test_weekly_schedule_create_valid(self):
-        """Test valid weekly schedule creation"""
-        schedule = WeeklyScheduleCreate(
-            name="HWPO 5x/week",
-            methodology=Methodology.HWPO,
-            schedule={
-                DayOfWeek.MONDAY: DailyTrainingSchedule(
-                    day=DayOfWeek.MONDAY,
-                    sessions=[TrainingSessionSlot(time=time(6, 0, 0), duration_minutes=90)],
-                    rest_day=False
-                ),
-                DayOfWeek.TUESDAY: DailyTrainingSchedule(
-                    day=DayOfWeek.TUESDAY,
-                    sessions=[TrainingSessionSlot(time=time(6, 0, 0), duration_minutes=60)],
-                    rest_day=False
-                ),
-                DayOfWeek.WEDNESDAY: DailyTrainingSchedule(
-                    day=DayOfWeek.WEDNESDAY,
-                    sessions=[],
-                    rest_day=True
-                ),
-                DayOfWeek.THURSDAY: DailyTrainingSchedule(
-                    day=DayOfWeek.THURSDAY,
-                    sessions=[TrainingSessionSlot(time=time(6, 0, 0), duration_minutes=75)],
-                    rest_day=False
-                ),
-                DayOfWeek.FRIDAY: DailyTrainingSchedule(
-                    day=DayOfWeek.FRIDAY,
-                    sessions=[TrainingSessionSlot(time=time(6, 0, 0), duration_minutes=60)],
-                    rest_day=False
-                ),
-                DayOfWeek.SATURDAY: DailyTrainingSchedule(
-                    day=DayOfWeek.SATURDAY,
-                    sessions=[TrainingSessionSlot(time=time(9, 0, 0), duration_minutes=90)],
-                    rest_day=False
-                ),
-                DayOfWeek.SUNDAY: DailyTrainingSchedule(
-                    day=DayOfWeek.SUNDAY,
-                    sessions=[],
-                    rest_day=True
-                )
-            },
-            start_date=date(2026, 2, 10),
-            active=True
-        )
-        
-        assert schedule.name == "HWPO 5x/week"
-        assert schedule.methodology == Methodology.HWPO
-        assert len(schedule.schedule) == 7
-    
-    def test_weekly_schedule_end_date_validation(self):
-        """Test end date must be after start date"""
-        with pytest.raises(ValidationError):
-            WeeklyScheduleCreate(
-                name="Invalid Schedule",
-                methodology=Methodology.HWPO,
-                schedule={},
-                start_date=date(2026, 2, 10),
-                end_date=date(2026, 2, 5),  # Before start date
-                active=True
-            )
-
-
 class TestHealthModels:
     """Test health domain models"""
     
@@ -293,19 +152,19 @@ class TestHealthModels:
             )
     
     def test_biomarker_reading_create(self):
-        """Test biomarker reading creation"""
+        """Test biomarker reading creation (free-form name, not FK)"""
         biomarker = BiomarkerReadingCreate(
-            biomarker_type_id=uuid4(),
+            biomarker_name="glucose_fasting",
             test_date=date(2026, 2, 1),
             value=95.0,
             unit="mg/dL",
             lab_name="LabCorp",
-            notes="Fasting glucose"
+            notes="Fasting glucose",
         )
-        
         assert biomarker.value == 95.0
         assert biomarker.unit == "mg/dL"
         assert biomarker.lab_name == "LabCorp"
+        assert biomarker.biomarker_name == "glucose_fasting"
 
 
 class TestEnumModels:

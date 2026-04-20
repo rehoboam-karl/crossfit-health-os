@@ -13,7 +13,7 @@ class TestAdaptiveEngine:
     
     @pytest.mark.asyncio
     async def test_generate_workout_optimal_readiness(
-        self, authenticated_client: AsyncClient, mock_supabase, mock_user_uuid
+        self, authenticated_client: AsyncClient, db_session, seeded_user
     ):
         """Test workout generation with readiness >= 80 (optimal)"""
         from unittest.mock import patch, AsyncMock
@@ -47,7 +47,7 @@ class TestAdaptiveEngine:
             mock_gen.return_value = mock_response
             
             payload = {
-                "user_id": str(mock_user_uuid),
+                "user_id": seeded_user.id,
                 "date": date.today().isoformat(),
                 "force_rest": False
             }
@@ -64,7 +64,7 @@ class TestAdaptiveEngine:
     
     @pytest.mark.asyncio
     async def test_generate_workout_normal_readiness(
-        self, authenticated_client: AsyncClient, mock_supabase, mock_user_uuid
+        self, authenticated_client: AsyncClient, db_session, seeded_user
     ):
         """Test workout generation with readiness 60-79 (normal)"""
         from unittest.mock import patch, AsyncMock
@@ -103,7 +103,7 @@ class TestAdaptiveEngine:
             mock_gen.return_value = mock_response
             
             payload = {
-                "user_id": str(mock_user_uuid),
+                "user_id": seeded_user.id,
                 "date": date.today().isoformat(),
                 "force_rest": False
             }
@@ -120,7 +120,7 @@ class TestAdaptiveEngine:
     
     @pytest.mark.asyncio
     async def test_generate_workout_moderate_fatigue(
-        self, authenticated_client: AsyncClient, mock_supabase, mock_user_uuid
+        self, authenticated_client: AsyncClient, db_session, seeded_user
     ):
         """Test workout generation with readiness 40-59 (reduced volume)"""
         from unittest.mock import patch, AsyncMock
@@ -153,7 +153,7 @@ class TestAdaptiveEngine:
             mock_gen.return_value = mock_response
             
             payload = {
-                "user_id": str(mock_user_uuid),
+                "user_id": seeded_user.id,
                 "date": date.today().isoformat(),
                 "force_rest": False
             }
@@ -170,7 +170,7 @@ class TestAdaptiveEngine:
     
     @pytest.mark.asyncio
     async def test_generate_workout_high_fatigue(
-        self, authenticated_client: AsyncClient, mock_supabase, mock_user_uuid
+        self, authenticated_client: AsyncClient, db_session, seeded_user
     ):
         """Test workout generation with readiness < 40 (active recovery)"""
         from unittest.mock import patch, AsyncMock
@@ -203,7 +203,7 @@ class TestAdaptiveEngine:
             mock_gen.return_value = mock_response
             
             payload = {
-                "user_id": str(mock_user_uuid),
+                "user_id": seeded_user.id,
                 "date": date.today().isoformat(),
                 "force_rest": False
             }
@@ -224,7 +224,7 @@ class TestWorkoutSessions:
     
     @pytest.mark.asyncio
     async def test_create_workout_session(
-        self, authenticated_client: AsyncClient, mock_supabase
+        self, authenticated_client: AsyncClient, db_session, seeded_user
     ):
         """Test creating a new workout session"""
         payload = {
@@ -244,58 +244,50 @@ class TestWorkoutSessions:
     
     @pytest.mark.asyncio
     async def test_complete_workout_session(
-        self, authenticated_client: AsyncClient, mock_supabase, mock_user_uuid
+        self, authenticated_client: AsyncClient, db_session, seeded_user
     ):
-        """Test completing a workout session"""
-        session_id = str(uuid4())
-        
-        # Mock existing session
-        mock_supabase.set_mock_data("workout_sessions", {
-            "id": session_id,
-            "user_id": str(mock_user_uuid),
-            "workout_type": "strength",
-            "movements": [],
-            "started_at": datetime.utcnow().isoformat(),
-            "location": "gym",
-            "notes": "Test session"
-        })
-        
+        """Test completing a workout session (seed via SQLAlchemy first)."""
+        from app.db.models import WorkoutSession as WorkoutSessionDB
+
+        row = WorkoutSessionDB(
+            user_id=seeded_user.id,
+            workout_type="strength",
+            started_at=datetime.utcnow(),
+        )
+        db_session.add(row)
+        db_session.commit()
+        db_session.refresh(row)
+
         payload = {
             "completed_at": datetime.utcnow().isoformat(),
             "duration_minutes": 60,
             "rpe_score": 8,
             "score": 100,
-            "score_type": "weight"
+            "score_type": "weight",
         }
-        
         response = await authenticated_client.patch(
-            f"/api/v1/training/sessions/{session_id}",
-            json=payload
+            f"/api/v1/training/sessions/{row.id}", json=payload
         )
-        
         assert response.status_code == 200
-    
+
     @pytest.mark.asyncio
     async def test_list_workout_sessions(
-        self, authenticated_client: AsyncClient, mock_supabase, mock_user_uuid
+        self, authenticated_client: AsyncClient, db_session, seeded_user
     ):
-        """Test listing workout sessions"""
-        sessions = [
-            {
-                "id": str(uuid4()),
-                "user_id": str(mock_user_uuid),
-                "workout_type": "strength",
-                "started_at": datetime.utcnow().isoformat(),
-                "movements": []
-            }
-        ]
-        mock_supabase.set_mock_data("workout_sessions", sessions)
-        
+        from app.db.models import WorkoutSession as WorkoutSessionDB
+        db_session.add(WorkoutSessionDB(
+            user_id=seeded_user.id,
+            workout_type="strength",
+            started_at=datetime.utcnow(),
+        ))
+        db_session.commit()
+
         response = await authenticated_client.get("/api/v1/training/sessions")
-        
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
+        assert len(data) == 1
+        assert data[0]["workout_type"] == "strength"
 
 
 class TestPersonalRecords:
@@ -303,7 +295,7 @@ class TestPersonalRecords:
     
     @pytest.mark.asyncio
     async def test_create_pr(
-        self, authenticated_client: AsyncClient, mock_supabase
+        self, authenticated_client: AsyncClient, db_session, seeded_user
     ):
         """Test creating a personal record"""
         payload = {
@@ -323,27 +315,24 @@ class TestPersonalRecords:
     
     @pytest.mark.asyncio
     async def test_list_prs(
-        self, authenticated_client: AsyncClient, mock_supabase, mock_user_uuid
+        self, authenticated_client: AsyncClient, db_session, seeded_user
     ):
-        """Test listing personal records"""
-        prs = [
-            {
-                "id": str(uuid4()),
-                "user_id": str(mock_user_uuid),
-                "movement_name": "back_squat",
-                "record_type": "1rm",
-                "value": 150.0,
-                "unit": "kg",
-                "achieved_at": datetime.utcnow().isoformat()
-            }
-        ]
-        mock_supabase.set_mock_data("personal_records", prs)
-        
+        from app.db.models import PersonalRecord as PRDB
+        db_session.add(PRDB(
+            user_id=seeded_user.id,
+            movement_name="back_squat",
+            record_type="1rm",
+            value=150.0,
+            unit="kg",
+        ))
+        db_session.commit()
+
         response = await authenticated_client.get("/api/v1/training/prs")
-        
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
+        assert len(data) == 1
+        assert data[0]["value"] == 150.0
 
 
 class TestTrainingStats:
@@ -351,39 +340,22 @@ class TestTrainingStats:
     
     @pytest.mark.asyncio
     async def test_get_training_summary(
-        self, authenticated_client: AsyncClient, mock_supabase, mock_user_uuid
+        self, authenticated_client: AsyncClient, db_session, seeded_user
     ):
-        """Test getting training summary stats"""
-        # Mock workout sessions
-        sessions = [
-            {
-                "id": str(uuid4()),
-                "user_id": str(mock_user_uuid),
-                "workout_type": "strength",
-                "movements": [],
-                "started_at": datetime.utcnow().isoformat(),
-                "duration_minutes": 60,
-                "rpe_score": 7,
-                "location": "gym"
-            },
-            {
-                "id": str(uuid4()),
-                "user_id": str(mock_user_uuid),
-                "workout_type": "metcon",
-                "movements": [],
-                "started_at": datetime.utcnow().isoformat(),
-                "duration_minutes": 45,
-                "rpe_score": 8,
-                "location": "gym"
-            }
-        ]
-        mock_supabase.set_mock_data("workout_sessions", sessions)
-        
+        from app.db.models import WorkoutSession as WorkoutSessionDB
+        for wt, dur, rpe in [("strength", 60, 7), ("metcon", 45, 8)]:
+            db_session.add(WorkoutSessionDB(
+                user_id=seeded_user.id,
+                workout_type=wt,
+                started_at=datetime.utcnow(),
+                duration_minutes=dur,
+                rpe_score=rpe,
+            ))
+        db_session.commit()
+
         response = await authenticated_client.get("/api/v1/training/stats/summary?days=30")
-        
         assert response.status_code == 200
         data = response.json()
-        assert "total_workouts" in data
-        assert "avg_duration_minutes" in data
-        assert "avg_rpe" in data
-        assert "workout_types" in data
+        assert data["total_workouts"] == 2
+        assert data["workout_types"] == {"strength": 1, "metcon": 1}
+        assert data["avg_rpe"] == 7.5

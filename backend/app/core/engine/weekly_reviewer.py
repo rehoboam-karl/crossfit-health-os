@@ -19,8 +19,17 @@ from app.models.review import (
     VolumeAssessment,
     IntensityChange
 )
-from app.db.supabase import supabase_client
-from app.db.helpers import handle_supabase_response
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.db.models import (
+    RecoveryMetric as RecoveryMetricDB,
+    SessionFeedback as SessionFeedbackDB,
+    User as UserDB,
+    WeeklyReview as WeeklyReviewDB,
+    WorkoutSession as WorkoutSessionDB,
+)
+from app.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +58,12 @@ class WeeklyReviewEngine:
     
     async def generate_weekly_review(
         self,
-        user_id: UUID,
+        user_id: int,
         week_number: int,
         week_start: date,
         week_end: date,
-        athlete_notes: Optional[str] = None
+        athlete_notes: Optional[str] = None,
+        db: Optional[Session] = None,
     ) -> WeeklyReview:
         """
         Generate comprehensive weekly review with AI analysis
@@ -68,104 +78,113 @@ class WeeklyReviewEngine:
         Returns:
             WeeklyReview object with analysis and recommendations
         """
-        # Collect all data for the week
-        weekly_data = await self._collect_weekly_data(user_id, week_start, week_end)
+        owns_session = db is None
+        if db is None:
+            db = SessionLocal()
+
+        try:
+            # Collect all data for the week
+            weekly_data = self._collect_weekly_data(db, user_id, week_start, week_end)
+
+            # Get user profile
+            user_profile = self._get_user_profile(db, user_id)
         
-        # Get user profile
-        user_profile = await self._get_user_profile(user_id)
-        
-        # Generate review using AI
-        if self.anthropic_client:
-            review_data = await self._generate_review_claude(
-                user_profile, weekly_data, week_number, athlete_notes
+            # Generate review using AI
+            if self.anthropic_client:
+                review_data = await self._generate_review_claude(
+                    user_profile, weekly_data, week_number, athlete_notes
+                )
+                model_used = "claude-3-5-sonnet"
+            elif self.openai_client:
+                review_data = await self._generate_review_openai(
+                    user_profile, weekly_data, week_number, athlete_notes
+                )
+                model_used = "gpt-4o"
+            else:
+                review_data = self._generate_review_fallback(weekly_data, week_number)
+                model_used = "rule-based"
+
+            # Build review and persist
+            from datetime import datetime as _dt_now
+            saved_review = self._save_review(
+                db=db,
+                user_id=user_id,
+                week_number=week_number,
+                week_start=week_start,
+                week_end=week_end,
+                review_data=review_data,
+                model_used=model_used,
             )
-            model_used = "claude-3-5-sonnet"
-        elif self.openai_client:
-            review_data = await self._generate_review_openai(
-                user_profile, weekly_data, week_number, athlete_notes
-            )
-            model_used = "gpt-4o"
-        else:
-            # Fallback to rule-based review
-            review_data = self._generate_review_fallback(weekly_data, week_number)
-            model_used = "rule-based"
-        
-        # Create WeeklyReview object
-        review = WeeklyReview(
-            id=UUID("00000000-0000-0000-0000-000000000000"),  # Will be replaced on save
-            user_id=user_id,
-            week_number=week_number,
-            week_start_date=week_start,
-            week_end_date=week_end,
-            ai_model_used=model_used,
-            created_at=date.today(),
-            **review_data
-        )
-        
-        # Save to database
-        saved_review = await self._save_review(review)
-        
-        return saved_review
+            return saved_review
+        finally:
+            if owns_session:
+                db.close()
     
-    async def _collect_weekly_data(
+    def _collect_weekly_data(
         self,
-        user_id: UUID,
+        db: Session,
+        user_id: int,
         week_start: date,
-        week_end: date
+        week_end: date,
     ) -> Dict:
-        """
-        Collect all relevant data for the week
-        """
-        # Get workout sessions
-        sessions_response = supabase_client.table("workout_sessions").select("*").eq(
-            "user_id", str(user_id)
-        ).gte("started_at", week_start.isoformat()).lte(
-            "started_at", week_end.isoformat()
-        ).execute()
-        
-        sessions = handle_supabase_response(sessions_response, "Failed to fetch sessions")
-        
-        # Get recovery metrics
-        recovery_response = supabase_client.table("recovery_metrics").select("*").eq(
-            "user_id", str(user_id)
-        ).gte("date", week_start.isoformat()).lte(
-            "date", week_end.isoformat()
-        ).execute()
-        
-        recovery_metrics = handle_supabase_response(recovery_response, "Failed to fetch recovery")
-        
-        # Get session feedback
-        feedback_response = supabase_client.table("session_feedback").select("*").eq(
-            "user_id", str(user_id)
-        ).gte("date", week_start.isoformat()).lte(
-            "date", week_end.isoformat()
-        ).execute()
-        
-        feedback = handle_supabase_response(feedback_response, "Failed to fetch feedback")
-        
-        # Calculate aggregates
-        completed_sessions = len([s for s in sessions if s.get("completed_at")])
-        avg_rpe = sum(f.get("rpe_score", 0) for f in feedback) / len(feedback) if feedback else 7
-        avg_readiness = sum(r.get("readiness_score", 70) for r in recovery_metrics) / len(recovery_metrics) if recovery_metrics else 70
-        
+        """Collect sessions, recovery, feedback for the week."""
+        from datetime import datetime as _dt
+
+        sessions = db.execute(
+            select(WorkoutSessionDB).where(
+                WorkoutSessionDB.user_id == user_id,
+                WorkoutSessionDB.started_at >= _dt.combine(week_start, _dt.min.time()),
+                WorkoutSessionDB.started_at <= _dt.combine(week_end, _dt.max.time()),
+            )
+        ).scalars().all()
+
+        recovery = db.execute(
+            select(RecoveryMetricDB).where(
+                RecoveryMetricDB.user_id == user_id,
+                RecoveryMetricDB.date >= week_start,
+                RecoveryMetricDB.date <= week_end,
+            )
+        ).scalars().all()
+
+        feedback = db.execute(
+            select(SessionFeedbackDB).where(
+                SessionFeedbackDB.user_id == user_id,
+                SessionFeedbackDB.date >= week_start,
+                SessionFeedbackDB.date <= week_end,
+            )
+        ).scalars().all()
+
+        completed = len([s for s in sessions if s.completed_at])
+        avg_rpe = sum(f.rpe_score for f in feedback) / len(feedback) if feedback else 7
+        avg_readiness = (
+            sum((r.readiness_score or 70) for r in recovery) / len(recovery)
+            if recovery else 70
+        )
+
         return {
-            "sessions": sessions,
-            "recovery_metrics": recovery_metrics,
-            "feedback": feedback,
+            "sessions": [_ws_to_dict(s) for s in sessions],
+            "recovery_metrics": [_rm_to_dict(r) for r in recovery],
+            "feedback": [_fb_to_dict(f) for f in feedback],
             "planned_sessions": len(sessions),
-            "completed_sessions": completed_sessions,
-            "adherence_rate": (completed_sessions / len(sessions) * 100) if sessions else 0,
+            "completed_sessions": completed,
+            "adherence_rate": (completed / len(sessions) * 100) if sessions else 0,
             "avg_rpe": avg_rpe,
-            "avg_readiness": avg_readiness
+            "avg_readiness": avg_readiness,
         }
-    
-    async def _get_user_profile(self, user_id: UUID) -> Dict:
-        """Get user profile"""
-        response = supabase_client.table("users").select("*").eq(
-            "id", str(user_id)
-        ).single().execute()
-        
-        return handle_supabase_response(response, "Failed to fetch user profile")
+
+    def _get_user_profile(self, db: Session, user_id: int) -> Dict:
+        user = db.get(UserDB, user_id)
+        if not user:
+            return {}
+        return {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "fitness_level": user.fitness_level,
+            "weight_kg": user.weight_kg,
+            "goals": user.goals or [],
+            "preferences": user.preferences or {},
+        }
     
     async def _generate_review_claude(
         self,
@@ -434,22 +453,121 @@ Provide review in this JSON format:
             "coach_message": f"Week {week_number} completed. Keep training consistently!"
         }
     
-    async def _save_review(self, review: WeeklyReview) -> WeeklyReview:
-        """Save review to database"""
-        review_data = review.model_dump(mode='json', exclude={'id'})
-        review_data["user_id"] = str(review.user_id)
-        review_data["created_at"] = review.created_at.isoformat()
-        
-        response = supabase_client.table("weekly_reviews").insert(
-            review_data
-        ).execute()
-        
-        data = handle_supabase_response(response, "Failed to save review")
-        
-        if data:
-            return WeeklyReview(**data[0])
-        
-        return review
+    def _save_review(
+        self,
+        db: Session,
+        user_id: int,
+        week_number: int,
+        week_start: date,
+        week_end: date,
+        review_data: Dict,
+        model_used: str,
+    ) -> WeeklyReview:
+        """Persist review row + return API schema."""
+        def _to_json(value):
+            if value is None:
+                return None
+            if hasattr(value, "model_dump"):
+                return value.model_dump(mode="json")
+            if isinstance(value, list):
+                return [_to_json(v) for v in value]
+            return value
+
+        next_adj = review_data.get("next_week_adjustments")
+        adjustments_json = _to_json(next_adj) or {}
+
+        row = WeeklyReviewDB(
+            user_id=user_id,
+            week_number=week_number,
+            week_start_date=week_start,
+            week_end_date=week_end,
+            summary=review_data.get("summary", ""),
+            planned_sessions=review_data.get("planned_sessions", 0),
+            completed_sessions=review_data.get("completed_sessions", 0),
+            adherence_rate=review_data.get("adherence_rate", 0),
+            avg_rpe=review_data.get("avg_rpe", 0),
+            avg_readiness=review_data.get("avg_readiness", 0),
+            overall_satisfaction=review_data.get("overall_satisfaction"),
+            strengths=_to_json(review_data.get("strengths", [])) or [],
+            weaknesses=_to_json(review_data.get("weaknesses", [])) or [],
+            recovery_status=(review_data.get("recovery_status").value
+                             if hasattr(review_data.get("recovery_status"), "value")
+                             else review_data.get("recovery_status", "adequate")),
+            volume_assessment=(review_data.get("volume_assessment").value
+                               if hasattr(review_data.get("volume_assessment"), "value")
+                               else review_data.get("volume_assessment", "appropriate")),
+            progressions_detected=review_data.get("progressions_detected", []),
+            next_week_adjustments=adjustments_json,
+            coach_message=review_data.get("coach_message", ""),
+            ai_model_used=model_used,
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+
+        # Build API schema from row
+        return WeeklyReview(
+            id=row.id,
+            user_id=row.user_id,
+            week_number=row.week_number,
+            week_start_date=row.week_start_date,
+            week_end_date=row.week_end_date,
+            summary=row.summary,
+            planned_sessions=row.planned_sessions,
+            completed_sessions=row.completed_sessions,
+            adherence_rate=row.adherence_rate,
+            avg_rpe=row.avg_rpe,
+            avg_readiness=row.avg_readiness,
+            overall_satisfaction=row.overall_satisfaction,
+            strengths=[PerformanceHighlight(**s) for s in (row.strengths or [])],
+            weaknesses=[PerformanceChallenge(**w) for w in (row.weaknesses or [])],
+            recovery_status=RecoveryStatus(row.recovery_status),
+            volume_assessment=VolumeAssessment(row.volume_assessment),
+            progressions_detected=row.progressions_detected or [],
+            next_week_adjustments=NextWeekAdjustments(**(row.next_week_adjustments or {})),
+            coach_message=row.coach_message,
+            created_at=row.created_at,
+            ai_model_used=row.ai_model_used,
+        )
+
+
+# -------- DB→dict adapters (kept at module level so the engine methods stay tidy) --------
+
+def _ws_to_dict(s) -> dict:
+    return {
+        "id": str(s.id),
+        "user_id": s.user_id,
+        "workout_type": s.workout_type,
+        "started_at": s.started_at.isoformat() if s.started_at else None,
+        "completed_at": s.completed_at.isoformat() if s.completed_at else None,
+        "duration_minutes": s.duration_minutes,
+        "rpe_score": s.rpe_score,
+        "score": s.score,
+    }
+
+
+def _rm_to_dict(r) -> dict:
+    return {
+        "id": str(r.id),
+        "user_id": r.user_id,
+        "date": r.date.isoformat() if r.date else None,
+        "sleep_quality": r.sleep_quality,
+        "hrv_ms": r.hrv_ms,
+        "stress_level": r.stress_level,
+        "readiness_score": r.readiness_score,
+    }
+
+
+def _fb_to_dict(f) -> dict:
+    return {
+        "id": str(f.id),
+        "user_id": f.user_id,
+        "session_id": str(f.session_id),
+        "date": f.date.isoformat() if f.date else None,
+        "rpe_score": f.rpe_score,
+        "difficulty": f.difficulty,
+        "technique_quality": f.technique_quality,
+    }
 
 
 # Global instance

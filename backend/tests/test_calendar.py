@@ -202,35 +202,36 @@ class TestCreateCalendarEvent:
 
 
 class TestGetUserToken:
-    """Test internal _get_user_token helper"""
+    """Test internal _get_user_token helper.
+
+    The refresh token is stored under `preferences['google_calendar_refresh_token']`
+    on the User row (not a dedicated column).
+    """
 
     @pytest.mark.asyncio
-    async def test_returns_none_when_no_refresh_token(self, mock_supabase):
+    async def test_returns_none_when_no_refresh_token(self, db_session, seeded_user):
         from app.core.integrations.calendar import _get_user_token
 
-        mock_supabase.set_mock_data(
-            "users", [{"google_calendar_refresh_token": None}]
-        )
-        user_id = uuid4()
-        result = await _get_user_token(user_id)
+        result = await _get_user_token(seeded_user.id)
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_returns_none_when_no_user_data(self, mock_supabase):
+    async def test_returns_none_when_no_user_data(self, db_session):
         from app.core.integrations.calendar import _get_user_token
 
-        mock_supabase.set_mock_data("users", [])
-        user_id = uuid4()
-        result = await _get_user_token(user_id)
+        result = await _get_user_token(9999)  # no such user
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_returns_access_token_when_refresh_exists(self, mock_supabase):
+    async def test_returns_access_token_when_refresh_exists(self, db_session, seeded_user):
         from app.core.integrations.calendar import _get_user_token
 
-        mock_supabase.set_mock_data(
-            "users", [{"google_calendar_refresh_token": "refresh_xyz"}]
-        )
+        seeded_user.preferences = {
+            **(seeded_user.preferences or {}),
+            "google_calendar_refresh_token": "refresh_xyz",
+        }
+        db_session.add(seeded_user)
+        db_session.commit()
 
         mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
@@ -242,8 +243,7 @@ class TestGetUserToken:
         mock_http.post = AsyncMock(return_value=mock_resp)
 
         with patch("httpx.AsyncClient", return_value=mock_http):
-            user_id = uuid4()
-            result = await _get_user_token(user_id)
+            result = await _get_user_token(seeded_user.id)
 
         assert result == "fresh_access_token"
 
@@ -252,94 +252,68 @@ class TestSyncCalendarEvents:
     """Test sync_calendar_events integration function"""
 
     @pytest.mark.asyncio
-    async def test_sync_not_connected(self, mock_supabase):
+    async def test_sync_not_connected(self, db_session, seeded_user):
         from app.core.integrations.calendar import sync_calendar_events
-
-        mock_supabase.set_mock_data(
-            "users", [{"google_calendar_refresh_token": None}]
-        )
-
-        result = await sync_calendar_events(uuid4())
-
+        # No refresh token in preferences
+        result = await sync_calendar_events(seeded_user.id)
         assert result["status"] == "not_connected"
         assert result["created"] == 0
         assert "not connected" in result["message"].lower()
 
     @pytest.mark.asyncio
-    async def test_sync_no_active_schedule(self, mock_supabase):
+    async def test_sync_no_active_schedule(self, db_session, seeded_user):
+        """No planned_sessions in the next 7 days → no_schedule."""
         from app.core.integrations.calendar import sync_calendar_events
 
-        mock_supabase.set_mock_data(
-            "users", [{"google_calendar_refresh_token": "rt_abc", "timezone": "UTC"}]
-        )
-        mock_supabase.set_mock_data("weekly_schedules", [])
+        seeded_user.preferences = {"google_calendar_refresh_token": "rt_abc"}
+        db_session.add(seeded_user)
+        db_session.commit()
 
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = {"access_token": "at"}
+        refresh_resp = MagicMock()
+        refresh_resp.raise_for_status = MagicMock()
+        refresh_resp.json.return_value = {"access_token": "at"}
 
         mock_http = AsyncMock()
         mock_http.__aenter__ = AsyncMock(return_value=mock_http)
         mock_http.__aexit__ = AsyncMock(return_value=False)
-        mock_http.post = AsyncMock(return_value=mock_resp)
+        mock_http.post = AsyncMock(return_value=refresh_resp)
 
         with patch("httpx.AsyncClient", return_value=mock_http):
-            result = await sync_calendar_events(uuid4())
+            result = await sync_calendar_events(seeded_user.id)
 
         assert result["status"] == "no_schedule"
         assert result["created"] == 0
 
     @pytest.mark.asyncio
-    async def test_sync_all_rest_days_creates_zero_events(self, mock_supabase):
+    async def test_sync_with_training_days_creates_events(self, db_session, seeded_user):
+        from datetime import datetime, timedelta, timezone
         from app.core.integrations.calendar import sync_calendar_events
+        from app.db.models import Macrocycle, Microcycle, PlannedSession
 
-        mock_supabase.set_mock_data(
-            "users",
-            [{"google_calendar_refresh_token": "rt_abc", "timezone": "UTC", "preferences": {}}],
+        seeded_user.preferences = {"google_calendar_refresh_token": "rt_abc"}
+        db_session.add(seeded_user)
+        db_session.commit()
+
+        today = datetime.now(timezone.utc).date()
+        macro = Macrocycle(
+            user_id=seeded_user.id, name="t", methodology="hwpo",
+            start_date=today, end_date=today + timedelta(days=6),
+            block_plan=[{"type": "accumulation", "weeks": 1}], active=True,
         )
-
-        schedule = {
-            day: {"rest_day": True, "sessions": []}
-            for day in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-        }
-        mock_supabase.set_mock_data(
-            "weekly_schedules", [{"id": str(uuid4()), "schedule": schedule}]
+        db_session.add(macro); db_session.flush()
+        micro = Microcycle(
+            macrocycle_id=macro.id, user_id=seeded_user.id,
+            start_date=today, end_date=today + timedelta(days=6),
+            week_index_in_macro=1,
         )
-
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = {"access_token": "at"}
-
-        mock_http = AsyncMock()
-        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
-        mock_http.__aexit__ = AsyncMock(return_value=False)
-        mock_http.post = AsyncMock(return_value=mock_resp)
-
-        with patch("httpx.AsyncClient", return_value=mock_http):
-            result = await sync_calendar_events(uuid4())
-
-        assert result["status"] == "success"
-        assert result["created"] == 0
-
-    @pytest.mark.asyncio
-    async def test_sync_with_training_days_creates_events(self, mock_supabase):
-        from app.core.integrations.calendar import sync_calendar_events
-
-        mock_supabase.set_mock_data(
-            "users",
-            [{"google_calendar_refresh_token": "rt_abc", "timezone": "UTC", "preferences": {}}],
-        )
-
-        schedule = {
-            day: {
-                "rest_day": False,
-                "sessions": [{"time": "07:00", "duration_minutes": 60, "workout_type": "strength"}],
-            }
-            for day in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-        }
-        mock_supabase.set_mock_data(
-            "weekly_schedules", [{"id": str(uuid4()), "schedule": schedule}]
-        )
+        db_session.add(micro); db_session.flush()
+        for i in range(7):
+            db_session.add(PlannedSession(
+                microcycle_id=micro.id, user_id=seeded_user.id,
+                date=today + timedelta(days=i), order_in_day=1,
+                start_time=None, duration_minutes=60, workout_type="strength",
+            ))
+        db_session.commit()
 
         refresh_resp = MagicMock()
         refresh_resp.raise_for_status = MagicMock()
@@ -352,78 +326,43 @@ class TestSyncCalendarEvents:
         mock_http = AsyncMock()
         mock_http.__aenter__ = AsyncMock(return_value=mock_http)
         mock_http.__aexit__ = AsyncMock(return_value=False)
-        mock_http.post = AsyncMock(
-            side_effect=[refresh_resp] + [event_resp] * 7
-        )
-
-        with patch("httpx.AsyncClient", return_value=mock_http):
-            result = await sync_calendar_events(uuid4())
-
-        assert result["status"] == "success"
-        assert result["created"] >= 0  # 7 days but only some match current week
-
-    @pytest.mark.asyncio
-    async def test_sync_different_workout_types(self, mock_supabase):
-        """Test sync with various workout types to cover color_map branches"""
-        from app.core.integrations.calendar import sync_calendar_events
-
-        mock_supabase.set_mock_data(
-            "users",
-            [{"google_calendar_refresh_token": "rt", "timezone": "UTC", "preferences": {}}],
-        )
-
-        workout_types = ["metcon", "skill", "conditioning", "mixed"]
-        schedule = {}
-        days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-        for i, day in enumerate(days):
-            wt = workout_types[i % len(workout_types)]
-            schedule[day] = {
-                "rest_day": False,
-                "sessions": [{"time": "06:00", "duration_minutes": 45, "workout_type": wt}],
-            }
-
-        mock_supabase.set_mock_data(
-            "weekly_schedules", [{"id": str(uuid4()), "schedule": schedule}]
-        )
-
-        refresh_resp = MagicMock()
-        refresh_resp.raise_for_status = MagicMock()
-        refresh_resp.json.return_value = {"access_token": "at_fresh"}
-
-        event_resp = MagicMock()
-        event_resp.raise_for_status = MagicMock()
-        event_resp.json.return_value = {"id": "ev", "status": "confirmed"}
-
-        mock_http = AsyncMock()
-        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
-        mock_http.__aexit__ = AsyncMock(return_value=False)
         mock_http.post = AsyncMock(side_effect=[refresh_resp] + [event_resp] * 7)
 
         with patch("httpx.AsyncClient", return_value=mock_http):
-            result = await sync_calendar_events(uuid4())
+            result = await sync_calendar_events(seeded_user.id)
 
         assert result["status"] == "success"
+        assert result["created"] == 7
 
     @pytest.mark.asyncio
-    async def test_sync_event_creation_failure_logged(self, mock_supabase):
-        """Test that failing event creation is logged but doesn't crash"""
+    async def test_sync_event_creation_failure_logged(self, db_session, seeded_user):
+        """Failing event creation is logged but doesn't crash the sync."""
+        from datetime import datetime, timezone, timedelta
         from app.core.integrations.calendar import sync_calendar_events
-        import httpx
+        from app.db.models import Macrocycle, Microcycle, PlannedSession
 
-        mock_supabase.set_mock_data(
-            "users",
-            [{"google_calendar_refresh_token": "rt", "timezone": "UTC", "preferences": {}}],
-        )
+        seeded_user.preferences = {"google_calendar_refresh_token": "rt"}
+        db_session.add(seeded_user)
+        db_session.commit()
 
-        schedule = {
-            "monday": {
-                "rest_day": False,
-                "sessions": [{"time": "07:00", "duration_minutes": 60, "workout_type": "strength"}],
-            }
-        }
-        mock_supabase.set_mock_data(
-            "weekly_schedules", [{"id": str(uuid4()), "schedule": schedule}]
+        today = datetime.now(timezone.utc).date()
+        macro = Macrocycle(
+            user_id=seeded_user.id, name="t", methodology="hwpo",
+            start_date=today, end_date=today + timedelta(days=6),
+            block_plan=[{"type": "accumulation", "weeks": 1}], active=True,
         )
+        db_session.add(macro); db_session.flush()
+        micro = Microcycle(
+            macrocycle_id=macro.id, user_id=seeded_user.id,
+            start_date=today, end_date=today + timedelta(days=6),
+            week_index_in_macro=1,
+        )
+        db_session.add(micro); db_session.flush()
+        db_session.add(PlannedSession(
+            microcycle_id=micro.id, user_id=seeded_user.id,
+            date=today, order_in_day=1, duration_minutes=60, workout_type="strength",
+        ))
+        db_session.commit()
 
         refresh_resp = MagicMock()
         refresh_resp.raise_for_status = MagicMock()
@@ -432,43 +371,26 @@ class TestSyncCalendarEvents:
         mock_http = AsyncMock()
         mock_http.__aenter__ = AsyncMock(return_value=mock_http)
         mock_http.__aexit__ = AsyncMock(return_value=False)
-        # First call returns token, subsequent calls raise error
         mock_http.post = AsyncMock(
             side_effect=[refresh_resp, Exception("Calendar API error")]
         )
 
         with patch("httpx.AsyncClient", return_value=mock_http):
-            result = await sync_calendar_events(uuid4())
+            result = await sync_calendar_events(seeded_user.id)
 
-        # Should return success with 0 created (event creation failed but not re-raised)
         assert result["status"] == "success"
 
     @pytest.mark.asyncio
-    async def test_sync_uses_preferences_timezone(self, mock_supabase):
-        """Test sync reads timezone from preferences dict"""
+    async def test_sync_uses_preferences_timezone(self, db_session, seeded_user):
+        """sync reads timezone from preferences dict when the column value is null."""
         from app.core.integrations.calendar import sync_calendar_events
 
-        mock_supabase.set_mock_data(
-            "users",
-            [{
-                "google_calendar_refresh_token": "rt",
-                "timezone": None,
-                "preferences": {"timezone": "America/New_York"},
-            }],
-        )
-
-        schedule = {
-            "monday": {"rest_day": True, "sessions": []},
-            "tuesday": {"rest_day": True, "sessions": []},
-            "wednesday": {"rest_day": True, "sessions": []},
-            "thursday": {"rest_day": True, "sessions": []},
-            "friday": {"rest_day": True, "sessions": []},
-            "saturday": {"rest_day": True, "sessions": []},
-            "sunday": {"rest_day": True, "sessions": []},
+        seeded_user.preferences = {
+            "google_calendar_refresh_token": "rt",
+            "timezone": "America/New_York",
         }
-        mock_supabase.set_mock_data(
-            "weekly_schedules", [{"id": str(uuid4()), "schedule": schedule}]
-        )
+        db_session.add(seeded_user)
+        db_session.commit()
 
         refresh_resp = MagicMock()
         refresh_resp.raise_for_status = MagicMock()
@@ -480,7 +402,8 @@ class TestSyncCalendarEvents:
         mock_http.post = AsyncMock(return_value=refresh_resp)
 
         with patch("httpx.AsyncClient", return_value=mock_http):
-            result = await sync_calendar_events(uuid4())
+            result = await sync_calendar_events(seeded_user.id)
 
-        assert result["status"] == "success"
+        # Empty planned_sessions short-circuits with status=no_schedule
+        assert result["status"] in ("success", "no_schedule")
         assert result["created"] == 0

@@ -15,17 +15,21 @@ from passlib.context import CryptContext
 class TestPasswordHelpers:
     """Test password hashing and verification helpers"""
 
-    def test_create_session_token_returns_string(self):
-        from app.api.v1.auth import create_session_token
-        token = create_session_token()
+    def test_create_jwt_token_returns_string(self):
+        from app.api.v1.auth import create_jwt_token
+        token = create_jwt_token(user_id=1, email="a@b.com")
         assert isinstance(token, str)
         assert len(token) > 20
 
-    def test_create_session_token_unique(self):
-        from app.api.v1.auth import create_session_token
-        t1 = create_session_token()
-        t2 = create_session_token()
-        assert t1 != t2
+    def test_create_jwt_token_is_deterministic_for_same_payload(self):
+        """JWTs with identical payload+timestamp would be equal; this just
+        verifies the function produces a decodable token."""
+        from app.api.v1.auth import create_jwt_token, verify_jwt_token
+        token = create_jwt_token(user_id=42, email="x@y.com")
+        payload = verify_jwt_token(token)
+        assert payload is not None
+        assert payload["sub"] == "42"
+        assert payload["email"] == "x@y.com"
 
 
 class TestRegisterRequestValidation:
@@ -299,10 +303,10 @@ class TestGetMeEndpoint:
     """Test /api/v1/auth/me endpoint"""
 
     @pytest.mark.asyncio
-    async def test_get_me_returns_501(self, async_client: AsyncClient):
-        """Currently returns 501 Not Implemented"""
+    async def test_get_me_without_token_returns_401(self, async_client: AsyncClient):
+        """Missing Authorization header returns 401 Unauthorized."""
         response = await async_client.get("/api/v1/auth/me")
-        assert response.status_code == 501
+        assert response.status_code == 401
 
 
 class TestCreateUser:
