@@ -15,10 +15,10 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     SECRET_KEY: str
     
-    # Supabase
-    SUPABASE_URL: str
-    SUPABASE_ANON_KEY: str
-    SUPABASE_SERVICE_KEY: str
+    # Supabase (optional — legacy, app now uses DATABASE_URL)
+    SUPABASE_URL: str = ""
+    SUPABASE_ANON_KEY: str = ""
+    SUPABASE_SERVICE_KEY: str = ""
     
     # Database (fallback for local Postgres)
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/crossfit"

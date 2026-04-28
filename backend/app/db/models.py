@@ -71,6 +71,7 @@ class WorkoutTemplate(SQLModel, table=True):
     movements: List[dict] = Field(default_factory=list, sa_column=_json_column())
     target_stimulus: Optional[str] = None
     rep_scheme: Optional[str] = None
+    warm_up: Optional[str] = None
     tags: List[str] = Field(default_factory=list, sa_column=_json_column())
     equipment_required: List[str] = Field(default_factory=list, sa_column=_json_column())
     is_public: bool = False
@@ -131,6 +132,16 @@ class Macrocycle(SQLModel, table=True):
     # List[{"type": "accumulation", "weeks": 3}, ...]
     block_plan: List[dict] = Field(default_factory=list, sa_column=_json_column())
     goal: Optional[str] = None
+    # Training availability settings
+    available_minutes_per_session: int = Field(
+        default=60,
+        ge=15, le=240,
+        description="Default target session duration in minutes"
+    )
+    training_days_per_week: int = Field(
+        default=5, ge=1, le=7,
+        description="How many days per week the athlete can train"
+    )
     active: bool = True
     created_at: _Datetime = Field(default_factory=_Datetime.utcnow)
     updated_at: _Datetime = Field(default_factory=_Datetime.utcnow)

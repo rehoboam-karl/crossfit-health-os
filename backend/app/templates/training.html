@@ -36,6 +36,19 @@
         </div>
     </div>
 
+    <!-- Next Workout Banner -->
+    <div id="next-workout-banner" class="card shadow-sm mb-4 border-primary" style="display:none;">
+        <div class="card-body d-flex align-items-center justify-content-between">
+            <div>
+                <h5 class="fw-bold mb-1"><i class="fas fa-calendar-check me-2 text-primary"></i>Próximo Treino</h5>
+                <div id="next-workout-info" class="text-muted small"></div>
+            </div>
+            <button class="btn btn-primary" id="start-next-workout-btn">
+                <i class="fas fa-play me-2"></i>Start
+            </button>
+        </div>
+    </div>
+
     <!-- Recent Workouts (loaded dynamically) -->
     <div class="row g-3 mb-4" id="workouts-container">
         <div class="col-12 text-center py-4">
@@ -162,6 +175,30 @@
         bsToast.show();
     }
     
+    // Load next upcoming workout
+    async function loadNextWorkout() {
+        try {
+            const data = await CHOS.api.get('/api/v1/training/workouts/next');
+            if (!data) return; // no upcoming workout
+            const banner = $('#next-workout-banner');
+            const info = $('#next-workout-info');
+            const dateStr = data.next_session_date ? new Date(data.next_session_date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }) : 'N/A';
+            const shiftLabel = { morning: 'Manhã', afternoon: 'Tarde', evening: 'Noite' }[data.next_session_shift] || data.next_session_shift || '';
+            info.html(`<strong>${data.workout_type?.toUpperCase() || '?'}</strong> · ${data.duration_minutes || '?'}min · ${shiftLabel} · ${dateStr}`);
+            banner.show();
+            $('#start-next-workout-btn').on('click', function() {
+                // Show workout detail modal or start workout
+                displayGeneratedWorkout({ name: data.name, workout_type: data.workout_type, duration_minutes: data.duration_minutes, description: data.description, movements: data.movements || [] }, data);
+            });
+        } catch(e) {
+            // Silently skip — no next workout
+        }
+    }
+
+    $(function() {
+        loadNextWorkout();
+    });
+
     // Generate adaptive workout
     $('#generate-workout-btn').on('click', async function() {
         showLoading();

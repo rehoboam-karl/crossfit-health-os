@@ -50,6 +50,7 @@ const ScheduleUI = (function () {
         viewDate: null,     // a date inside the currently-displayed week
         drawerSessions: [], // sessions in the open drawer
         drawerDate: null,
+        templateCache: {},  // template_id -> workout template data
     };
 
     // ----- Date helpers (local time — never UTC) -----------------------------
@@ -202,6 +203,8 @@ const ScheduleUI = (function () {
                     const shift = SHIFT_LABELS[s.shift] || (s.start_time ? s.start_time.slice(0, 5) : "");
                     const stateBadge = s.status === "generated"
                         ? '<span class="chos-badge chos-badge-success ms-1" title="Treino gerado"><i class="fas fa-check"></i></span>'
+                        : s.status === "skipped"
+                        ? '<span class="chos-badge chos-badge-danger ms-1" title="Dia de descanso"><i class="fas fa-bed"></i></span>'
                         : "";
                     return `
                         <div class="mb-1 p-2 rounded border border-${color} bg-light small">
@@ -210,7 +213,8 @@ const ScheduleUI = (function () {
                             ${s.focus ? `<div class="fst-italic small">${s.focus}</div>` : ""}
                         </div>`;
                 }).join("")
-                : '<div class="text-muted small fst-italic">Descanso</div>';
+                : '<div class="text-muted small fst-italic">Descanso</div>\
+                   <button class="btn btn-sm btn-outline-secondary w-100 mt-1" onclick="ScheduleUI.toggleRestDay(\'${iso}\')" title="Marcar como descanso oficial"><i class="fas fa-bed me-1"></i>Descanso</button>';
 
             html += `
                 <div class="col-md">
@@ -267,7 +271,11 @@ const ScheduleUI = (function () {
         const method = document.getElementById("macro-input-methodology").value;
         const plan = METHODOLOGY_PLANS[method] || [];
         const startStr = document.getElementById("macro-input-start").value;
-        const start = startStr ? mondayOf(parseISODate(startStr)) : mondayOf(new Date());
+        const start = startStr ? parseISODate(startStr) : mondayOf(new Date());
+        if (!startStr) {
+            document.getElementById("block-plan-preview").innerHTML = '<div class="text-muted">Informe a data de início.</div>';
+            return;
+        }
         let html = "", cursor = new Date(start), weekIdx = 0;
         if (!plan.length) {
             html = '<div class="text-muted">Custom: você pode adicionar blocos manualmente após criar.</div>';
@@ -289,6 +297,34 @@ const ScheduleUI = (function () {
     }
 
     function showCreateMacrocycle() {
+        // If an active macrocycle exists, ask what to do
+        if (state.macrocycle) {
+            const end = parseISODate(state.macrocycle.end_date);
+            document.getElementById("confirm-macro-name").textContent = state.macrocycle.name;
+            document.getElementById("confirm-macro-dates").textContent =
+                formatLongPt(parseISODate(state.macrocycle.start_date)) +
+                " – " + formatLongPt(end);
+            // Pre-compute the posterior start date (day after current ends)
+            const posteriorStart = addDays(end, 1);
+            document.getElementById("btn-macro-posterior").dataset.posteriorDate = toISODate(posteriorStart);
+            new bootstrap.Modal("#macroConfirmModal").show();
+            return;
+        }
+        // No active macrocycle — open directly
+        refreshBlockPlanPreview();
+        new bootstrap.Modal("#createMacroModal").show();
+    }
+
+    function openCreateMacroPosterior() {
+        const posteriorDate = document.getElementById("btn-macro-posterior").dataset.posteriorDate;
+        document.getElementById("macro-input-start").value = posteriorDate;
+        bootstrap.Modal.getInstance("#macroConfirmModal").hide();
+        refreshBlockPlanPreview();
+        new bootstrap.Modal("#createMacroModal").show();
+    }
+
+    function openCreateMacroSubstituir() {
+        bootstrap.Modal.getInstance("#macroConfirmModal").hide();
         refreshBlockPlanPreview();
         new bootstrap.Modal("#createMacroModal").show();
     }
@@ -298,9 +334,18 @@ const ScheduleUI = (function () {
         const methodology = document.getElementById("macro-input-methodology").value;
         const startStr = document.getElementById("macro-input-start").value;
         const goal = document.getElementById("macro-input-goal").value.trim() || null;
+        const minutes = parseInt(document.getElementById("macro-input-minutes").value, 10);
+        const days = parseInt(document.getElementById("macro-input-days").value, 10);
         if (!startStr) { CHOS.toast.error("Informe a data de início."); return; }
 
-        const payload = { name, methodology, start_date: startStr, goal };
+        const payload = {
+            name,
+            methodology,
+            start_date: startStr,
+            goal,
+            available_minutes_per_session: minutes,
+            training_days_per_week: days,
+        };
         const plan = METHODOLOGY_PLANS[methodology];
         if (plan && plan.length) payload.block_plan = plan;
 
@@ -317,6 +362,31 @@ const ScheduleUI = (function () {
             .always(function () { CHOS.loading.button("#btn-save-macro", false); });
     }
 
+    // ----- Toggle rest day (mark/unmark a training day as rest) -----------
+    function toggleRestDay(isoDate) {
+        if (!state.currentMicro) return;
+        const allSessions = state.currentMicro.sessions || [];
+        const restMarker = allSessions.find(function(s){return s.date === isoDate && s.status === "skipped";});
+        if (restMarker) {
+            CHOS.api.delete(`/api/v1/schedule/planned-sessions/${restMarker.id}`)
+                .done(function(){ loadActiveMacro(); })
+                .fail(function(){ CHOS.toast.error("Erro ao remover descanso."); });
+        } else {
+            CHOS.api.post("/api/v1/schedule/planned-sessions", {
+                microcycle_id: state.currentMicro.id,
+                date: isoDate,
+                order_in_day: 1,
+                shift: "morning",
+                duration_minutes: 0,
+                workout_type: "rest",
+                focus: "Descanso",
+                status: "skipped",
+            })
+                .done(function(){ loadActiveMacro(); })
+                .fail(function(){ CHOS.toast.error("Erro ao marcar descanso."); });
+        }
+    }
+
     // ----- Day drawer (CRUD sessions) ---------------------------------------
     function openDayDrawer(isoDate) {
         if (!state.currentMicro) return;
@@ -324,13 +394,64 @@ const ScheduleUI = (function () {
         const d = parseISODate(isoDate);
         document.getElementById("drawer-title").textContent = formatLongPt(d);
 
-        const existing = (state.currentMicro.sessions || []).filter(function (s) { return s.date === isoDate; });
+        const allSessions = state.currentMicro.sessions || [];
+        const existing = allSessions.filter(function (s) { return s.date === isoDate; });
         existing.sort(function (a, b) { return a.order_in_day - b.order_in_day; });
         state.drawerSessions = existing.map(function (s) {
             return { ...s, _isNew: false, _deleted: false };
         });
         renderDrawerSessions();
         new bootstrap.Modal("#dayDrawer").show();
+    }
+
+    // ----- Template loading (with cache) --------------------------------
+    function getTemplate(templateId) {
+        return state.templateCache[templateId] || null;
+    }
+
+    function loadTemplate(templateId) {
+        if (!templateId || state.templateCache[templateId]) return;
+        CHOS.api.get(`/api/v1/training/templates/${templateId}`).then(function(data) {
+            state.templateCache[templateId] = data;
+            renderDrawerSessions(); // re-render with loaded template
+        }).catch(function(err) {
+            console.error("Failed to load template", templateId, err);
+        });
+    }
+
+    function renderMovements(movements) {
+        if (!movements || !movements.length) return '<div class="text-muted small fst-italic">Sem movimentos definidos</div>';
+        return movements.map(function(m) {
+            const sets = m.sets ? `<span class="badge bg-secondary">${m.sets}x</span>` : '';
+            const reps = m.reps ? `<span>${m.reps} ${m.reps_unit || ''}</span>` : '';
+            const weight = m.weight_kg ? `<span class="text-muted">@ ${m.weight_kg}kg</span>` : '';
+            const duration = m.duration_seconds ? `<span class="text-muted">${m.duration_seconds}s</span>` : '';
+            const rest = m.rest ? `<span class="text-muted small">rest: ${m.rest}</span>` : '';
+            const intensity = m.intensity ? `<span class="badge bg-info">${m.intensity}</span>` : '';
+            const notes = m.notes ? `<div class="text-muted small">${m.notes}</div>` : '';
+            return `<div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="fw-bold">${m.movement}</span>
+                ${sets} ${reps} ${weight} ${duration} ${intensity} ${rest}
+                ${notes}
+            </div>`;
+        }).join('');
+    }
+
+    function renderWorkoutDetail(template) {
+        const movementsHtml = renderMovements(template.movements || []);
+        const warmup = template.warm_up || template.warmup || '';
+        const stimulus = template.target_stimulus || '';
+        const equipment = (template.equipment_required || []).join(', ') || 'Nenhum';
+        return `
+            <div class="mt-2 p-2 bg-light rounded" style="border-left: 3px solid #0d6efd;">
+                ${template.description ? `<div class="mb-2 text-muted small">${template.description}</div>` : ''}
+                ${stimulus ? `<div class="mb-1"><span class="fw-bold small">Stimulus:</span> <span class="text-muted small">${stimulus}</span></div>` : ''}
+                ${warmup ? `<div class="mb-1"><span class="fw-bold small">Aquecimento:</span> <span class="text-muted small">${warmup}</span></div>` : ''}
+                <div class="mb-1"><span class="fw-bold small">Equipamento:</span> <span class="text-muted small">${equipment}</span></div>
+                <div class="mb-1"><span class="fw-bold small">Dificuldade:</span> <span class="badge bg-secondary">${template.difficulty_level || 'rx'}</span></div>
+                <div class="mt-2"><span class="fw-bold small">Movimentos:</span></div>
+                <div class="ms-2">${movementsHtml}</div>
+            </div>`;
     }
 
     function renderDrawerSessions() {
@@ -342,16 +463,21 @@ const ScheduleUI = (function () {
         let html = "";
         state.drawerSessions.forEach(function (s, idx) {
             if (s._deleted) return;
+            const template = s.generated_template_id ? getTemplate(s.generated_template_id) : null;
+            const templateLoading = s.generated_template_id && !state.templateCache[s.generated_template_id];
+            const workoutDetail = template ? renderWorkoutDetail(template) : '';
+            const loadingSpinner = templateLoading ? '<div class="spinner-border spinner-border-sm text-primary ms-2" role="status"></div>' : '';
             html += `
                 <div class="chos-card mb-2" data-idx="${idx}">
                     <div class="card-body p-2">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="fw-bold">Sessão ${s.order_in_day}</span>
+                            <span class="fw-bold">Sessão ${s.order_in_day} ${loadingSpinner}</span>
                             <button class="chos-btn chos-btn-sm chos-btn-outline" onclick="ScheduleUI.deleteSessionRow(${idx})">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
-                        <div class="row g-2">
+                        ${workoutDetail}
+                        <div class="row g-2 mt-1">
                             <div class="col-md-3">
                                 <label class="chos-label small">Shift</label>
                                 <select class="form-select form-select-sm" data-field="shift">
@@ -381,6 +507,13 @@ const ScheduleUI = (function () {
                 </div>`;
         });
         container.innerHTML = html;
+
+        // Kick off template loads for any session that has a generated_template_id
+        state.drawerSessions.forEach(function(s) {
+            if (s.generated_template_id && !state.templateCache[s.generated_template_id]) {
+                loadTemplate(s.generated_template_id);
+            }
+        });
 
         // Auto-save on field change
         container.querySelectorAll("[data-field]").forEach(function (el) {
@@ -500,6 +633,7 @@ const ScheduleUI = (function () {
         saveMacrocycle: saveMacrocycle,
         refreshBlockPlanPreview: refreshBlockPlanPreview,
         openDayDrawer: openDayDrawer,
+        toggleRestDay: toggleRestDay,
         addSessionRow: addSessionRow,
         deleteSessionRow: deleteSessionRow,
         generateWeek: generateWeek,
@@ -513,6 +647,7 @@ function goToToday() { return ScheduleUI.goToToday(); }
 function showCreateMacrocycle() { return ScheduleUI.showCreateMacrocycle(); }
 function saveMacrocycle() { return ScheduleUI.saveMacrocycle(); }
 function refreshBlockPlanPreview() { return ScheduleUI.refreshBlockPlanPreview(); }
+function toggleRestDay(iso) { return ScheduleUI.toggleRestDay(iso); }
 function addSessionRow() { return ScheduleUI.addSessionRow(); }
 function generateWeek() { return ScheduleUI.generateWeek(); }
 function copyFromPreviousWeek() { return ScheduleUI.copyFromPreviousWeek(); }

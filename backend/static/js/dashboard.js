@@ -83,7 +83,7 @@ async function loadQuickStats() {
         
         // 3. Current Week (from schedule)
         try {
-            const schedule = await CHOS.api.get('/api/v1/schedule/weekly/active');
+            const schedule = await CHOS.api.get('/api/v1/schedule/macrocycles/active');
             if (schedule) {
                 // Calculate week number from start_date
                 const startDate = new Date(schedule.start_date);

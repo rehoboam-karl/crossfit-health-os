@@ -39,6 +39,7 @@ from app.models.training import (
     PlannedSessionCreate,
     PlannedSessionUpdate,
     PlannedSessionStatus,
+    WorkoutType,
 )
 
 router = APIRouter()
@@ -171,7 +172,10 @@ async def create_macrocycle(
     if weeks_total <= 0:
         raise HTTPException(status_code=400, detail="block_plan must sum to at least 1 week")
 
-    start_monday = snap_to_monday(payload.start_date)
+    start_date_raw = payload.start_date
+    # Only snap to Monday if the chosen date isn't already a Monday.
+    # This preserves the user's exact start date when they intentionally pick a Monday.
+    start_monday = start_date_raw if start_date_raw.weekday() == 0 else snap_to_monday(start_date_raw)
     end_date = start_monday + timedelta(days=weeks_total * 7 - 1)
 
     # Deactivate any existing active macrocycle.
@@ -189,19 +193,48 @@ async def create_macrocycle(
         block_plan=_serialize_block_plan(block_plan),
         goal=payload.goal,
         active=True,
+        available_minutes_per_session=payload.available_minutes_per_session,
+        training_days_per_week=payload.training_days_per_week,
     )
     session.add(macro)
     session.flush()  # get macro.id
 
+    # Build default training days based on availability
+    days_per_week = payload.training_days_per_week
+    # Map days-per-week to (day_offset, workout_type, focus)
+    # day_offset: Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6
+    _DAY_SCHEDULES = {
+        3: [(0, WorkoutType.STRENGTH, "Strength day"), (2, WorkoutType.METCON, "Conditioning"), (4, WorkoutType.METCON, "Conditioning / measurable")],
+        4: [(0, WorkoutType.STRENGTH, "Strength"), (1, WorkoutType.METCON, "Metabolic"), (3, WorkoutType.STRENGTH, "Strength"), (4, WorkoutType.METCON, "Conditioning")],
+        5: [(0, WorkoutType.STRENGTH, "Strength"), (1, WorkoutType.METCON, "Conditioning"), (2, WorkoutType.METCON, "Mixed"), (3, WorkoutType.STRENGTH, "Strength"), (4, WorkoutType.METCON, "Conditioning")],
+        6: [(0, WorkoutType.STRENGTH, "Strength"), (1, WorkoutType.METCON, "Conditioning"), (2, WorkoutType.METCON, "Mixed"), (3, WorkoutType.STRENGTH, "Strength"), (4, WorkoutType.METCON, "Conditioning"), (5, WorkoutType.METCON, "Long")],
+        7: [(0, WorkoutType.STRENGTH, "Strength"), (1, WorkoutType.METCON, "Conditioning"), (2, WorkoutType.METCON, "Mixed"), (3, WorkoutType.STRENGTH, "Strength"), (4, WorkoutType.METCON, "Conditioning"), (5, WorkoutType.METCON, "Mixed"), (6, WorkoutType.METCON, "Long")],
+    }
+    default_days = _DAY_SCHEDULES.get(days_per_week, _DAY_SCHEDULES[5])
+
     for i in range(weeks_total):
         wk_start = start_monday + timedelta(days=i * 7)
-        session.add(MicrocycleDB(
+        micro = MicrocycleDB(
             macrocycle_id=macro.id,
             user_id=user_id,
             start_date=wk_start,
             end_date=wk_start + timedelta(days=6),
             week_index_in_macro=i + 1,
-        ))
+        )
+        session.add(micro)
+        session.flush()
+        for order, (day_offset, workout_type, focus) in enumerate(default_days, start=1):
+            session.add(PlannedSessionDB(
+                microcycle_id=micro.id,
+                user_id=user_id,
+                date=wk_start + timedelta(days=day_offset),
+                order_in_day=order,
+                shift="morning",
+                workout_type=workout_type.value,
+                focus=focus,
+                duration_minutes=payload.available_minutes_per_session,
+                status="planned",
+            ))
 
     session.commit()
     session.refresh(macro)

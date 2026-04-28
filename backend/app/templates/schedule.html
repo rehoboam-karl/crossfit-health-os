@@ -80,6 +80,30 @@
         </div>
     </div>
 
+    <!-- Confirm Replace / Extend Macrocycle Modal -->
+    <div class="modal fade" id="macroConfirmModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Macrociclo já existe</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Já existe um macrociclo ativo: <strong id="confirm-macro-name"></strong></p>
+                    <p class="text-muted small" id="confirm-macro-dates"></p>
+                    <div class="d-grid gap-2 mt-3">
+                        <button class="chos-btn chos-btn-outline" id="btn-macro-posterior" onclick="openCreateMacroPosterior()">
+                            <i class="fas fa-arrow-right me-1"></i>Criar macrociclo posterior
+                        </button>
+                        <button class="chos-btn chos-btn-danger" id="btn-macro-substituir" onclick="openCreateMacroSubstituir()">
+                            <i class="fas fa-exchange-alt me-1"></i>Substituir o atual
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Create Macrocycle Modal -->
     <div class="modal fade" id="createMacroModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
@@ -105,12 +129,33 @@
                         </div>
                         <div class="col-md-6">
                             <label class="chos-label">Data de início</label>
-                            <input type="date" id="macro-input-start" class="chos-input">
-                            <span class="chos-form-help">Ajustada para a segunda-feira da semana informada.</span>
+                            <input type="date" id="macro-input-start" class="chos-input" onchange="refreshBlockPlanPreview()">
+                            <span class="chos-form-help">Escolha uma segunda-feira. O macrociclo inicia nesse dia.</span>
                         </div>
                         <div class="col-md-6">
                             <label class="chos-label">Objetivo</label>
                             <input type="text" id="macro-input-goal" class="chos-input" placeholder="Ex: Competir no Open">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="chos-label">Duração dos treinos <small class="text-muted">(min)</small></label>
+                            <select id="macro-input-minutes" class="form-select chos-input">
+                                <option value="30">30 min</option>
+                                <option value="45">45 min</option>
+                                <option value="60" selected>60 min</option>
+                                <option value="90">90 min</option>
+                                <option value="120">120 min</option>
+                                <option value="180">180 min</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="chos-label">Dias de treino <small class="text-muted">(por semana)</small></label>
+                            <select id="macro-input-days" class="form-select chos-input">
+                                <option value="3">3 dias</option>
+                                <option value="4">4 dias</option>
+                                <option value="5" selected>5 dias</option>
+                                <option value="6">6 dias</option>
+                                <option value="7">7 dias</option>
+                            </select>
                         </div>
                     </div>
                     <div class="chos-card bg-light">

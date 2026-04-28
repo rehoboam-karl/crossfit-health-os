@@ -7,13 +7,16 @@ from uuid import UUID
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import and_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
 from app.core.engine.adaptive import adaptive_engine
 from app.db.models import (
+    Macrocycle as MacrocycleDB,
+    Microcycle as MicrocycleDB,
     PersonalRecord as PersonalRecordDB,
+    PlannedSession as PlannedSessionDB,
     WorkoutSession as WorkoutSessionDB,
     WorkoutTemplate as WorkoutTemplateDB,
 )
@@ -80,6 +83,7 @@ def _template_to_schema(row: WorkoutTemplateDB) -> WorkoutTemplate:
         movements=[Movement(**m) for m in (row.movements or [])],
         target_stimulus=row.target_stimulus,
         rep_scheme=row.rep_scheme,
+        warm_up=row.warm_up,
         tags=row.tags or [],
         equipment_required=row.equipment_required or [],
         video_url=None,
@@ -110,15 +114,47 @@ async def generate_adaptive_workout(
         raise HTTPException(status_code=500, detail=f"Failed to generate workout: {e}")
 
 
-@router.get("/workouts/today", response_model=AdaptiveWorkoutResponse)
-async def get_todays_workout(
+@router.get("/workouts/next", response_model=Optional[WorkoutTemplate])
+async def get_next_workout(
     db: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user),
 ):
-    user_id = int(current_user["id"])
-    return await adaptive_engine.generate_workout(
-        db=db, user_id=user_id, target_date=_Date.today(), force_rest=False
-    )
+    """Get the next scheduled workout from the active macrocycle. Returns None if no upcoming workout."""
+    uid = int(current_user["id"])
+    today = _Date.today()
+    # Find active macrocycle
+    macro = db.execute(
+        select(MacrocycleDB).where(
+            and_(MacrocycleDB.user_id == uid, MacrocycleDB.active.is_(True))
+        )
+    ).scalar_one_or_none()
+    if not macro:
+        return None
+    # Find next session with a generated template (status = generated or planned)
+    session = db.execute(
+        select(PlannedSessionDB)
+        .where(
+            and_(
+                PlannedSessionDB.microcycle_id.in_(
+                    select(MicrocycleDB.id).where(MicrocycleDB.macrocycle_id == macro.id)
+                ),
+                PlannedSessionDB.generated_template_id.isnot(None),
+                PlannedSessionDB.status.in_(["generated", "planned"]),
+                PlannedSessionDB.date >= today,
+            )
+        )
+        .order_by(PlannedSessionDB.date, PlannedSessionDB.order_in_day)
+        .limit(1)
+    ).scalar_one_or_none()
+    if not session or not session.generated_template_id:
+        return None
+    template = db.get(WorkoutTemplateDB, session.generated_template_id)
+    if not template:
+        return None
+    result = _template_to_schema(template)
+    result.next_session_date = str(session.date)  # type: ignore
+    result.next_session_shift = session.shift  # type: ignore
+    return result
 
 
 # ==========================================================
@@ -270,14 +306,34 @@ async def list_personal_records(
 # Templates (public)
 # ==========================================================
 
+@router.get("/templates/{template_id}", response_model=WorkoutTemplate)
+async def get_workout_template(
+    template_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_session),
+):
+    """Get a single workout template by ID. Returns user's own or public templates."""
+    row = db.get(WorkoutTemplateDB, template_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Template not found")
+    uid = int(current_user["id"])
+    if not row.is_public and row.owner_user_id != uid:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return _template_to_schema(row)
+
+
 @router.get("/templates", response_model=List[WorkoutTemplate])
 async def list_workout_templates(
     methodology: Optional[str] = None,
     workout_type: Optional[str] = None,
     limit: int = 50,
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_session),
 ):
-    stmt = select(WorkoutTemplateDB).where(WorkoutTemplateDB.is_public.is_(True))
+    current_uid = int(current_user["id"])
+    stmt = select(WorkoutTemplateDB).where(
+        or_(WorkoutTemplateDB.is_public.is_(True), WorkoutTemplateDB.owner_user_id == current_uid)
+    )
     if methodology:
         stmt = stmt.where(WorkoutTemplateDB.methodology == methodology)
     if workout_type:

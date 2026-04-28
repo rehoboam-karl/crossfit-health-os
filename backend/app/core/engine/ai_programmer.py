@@ -405,6 +405,7 @@ Return JSON: {{"session_id":"…","name":"…","description":"…","workout_type
             duration_minutes=template.duration_minutes,
             movements=[m.model_dump(mode="json") for m in template.movements],
             target_stimulus=template.target_stimulus,
+            warm_up=getattr(template, "warm_up", None),
             tags=(template.tags or []) + ["ai_generated"],
             equipment_required=template.equipment_required or [],
             is_public=False,
@@ -539,6 +540,7 @@ Return JSON: {{"session_id":"…","name":"…","description":"…","workout_type
                 Movement(movement="back_squat", sets=5, reps=5, intensity="80%", rest="3min"),
                 Movement(movement="bench_press", sets=4, reps=8, intensity="75%", rest="2min"),
             ]
+            warmup = "5 min bike/running + 3x5 back squat light + 3x3 bench press at 50%"
             name = "Strength Session (fallback)"
             stimulus = "Build maximal strength"
         elif wt == WorkoutType.METCON:
@@ -550,6 +552,7 @@ Return JSON: {{"session_id":"…","name":"…","description":"…","workout_type
                 Movement(movement="thruster", reps=9, weight_kg=42.5),
                 Movement(movement="pull_up", reps=9),
             ]
+            warmup = "500m row easy + 3 rounds: 5 thrusters + 3 pull-ups + 30s hollow hold"
             name = "Metcon Session (fallback)"
             stimulus = "High intensity couplet"
         elif wt == WorkoutType.SKILL:
@@ -558,6 +561,7 @@ Return JSON: {{"session_id":"…","name":"…","description":"…","workout_type
                 Movement(movement="muscle_up", sets=5, reps=3, rest="2min"),
                 Movement(movement="double_under", sets=5, reps=50, rest="60s"),
             ]
+            warmup = "4 rounds: 10 cal row + 5 kip swings + 30s handstand hold against wall"
             name = "Skill Session (fallback)"
             stimulus = "Skill acquisition"
         elif wt == WorkoutType.CONDITIONING:
@@ -565,6 +569,7 @@ Return JSON: {{"session_id":"…","name":"…","description":"…","workout_type
                 Movement(movement="run", distance_meters=400, sets=6, rest="90s"),
                 Movement(movement="cal_row", sets=5, reps=20, reps_unit="cal", rest="60s"),
             ]
+            warmup = "4 rounds: 1 min easy bike + 10 air squats + 5 burpees"
             name = "Conditioning Session (fallback)"
             stimulus = "Aerobic capacity"
         else:
@@ -572,6 +577,7 @@ Return JSON: {{"session_id":"…","name":"…","description":"…","workout_type
                 Movement(movement="deadlift", sets=3, reps=8, intensity="75%", rest="2min"),
                 Movement(movement="cal_bike", reps=40, reps_unit="cal"),
             ]
+            warmup = "3 rounds: 10 cal row + 5 deadlifts at 50% + 10 wall balls"
             name = "Mixed Modal (fallback)"
             stimulus = "Balanced stimulus"
 
@@ -584,8 +590,9 @@ Return JSON: {{"session_id":"…","name":"…","description":"…","workout_type
             workout_type=wt,
             duration_minutes=duration,
             movements=movements,
+            warm_up=warmup,
             target_stimulus=stimulus,
-            tags=["fallback"],
+            tags=["fallback", "ai_generated"],
             equipment_required=[],
             created_at=_Datetime.utcnow(),
             is_public=False,

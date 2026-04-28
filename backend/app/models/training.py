@@ -85,6 +85,7 @@ class WorkoutTemplateBase(BaseModel):
     movements: List[Movement]
     target_stimulus: Optional[str] = None
     rep_scheme: Optional[str] = None
+    warm_up: Optional[str] = Field(default=None, description="Warm-up instructions for the session")
     tags: List[str] = []
     equipment_required: List[str] = []
     video_url: Optional[str] = None
@@ -101,7 +102,10 @@ class WorkoutTemplate(WorkoutTemplateBase):
     created_at: datetime
     is_public: bool
     created_by_coach_id: Optional[UUID] = None
-    
+    # Extra fields injected by /workouts/next endpoint (use alias to allow both names)
+    next_session_date: Optional[str] = Field(default=None)
+    next_session_shift: Optional[str] = Field(default=None)
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -318,6 +322,8 @@ class MacrocycleCreate(BaseModel):
         description="If omitted, uses METHODOLOGY_BLOCK_PLANS default for the methodology"
     )
     goal: Optional[str] = None
+    available_minutes_per_session: int = Field(default=60, ge=15, le=240, description="Default target session duration in minutes")
+    training_days_per_week: int = Field(default=5, ge=1, le=7, description="How many days per week the athlete can train")
 
 
 class Macrocycle(BaseModel):
@@ -330,6 +336,8 @@ class Macrocycle(BaseModel):
     end_date: date
     block_plan: List[BlockPlanItem]
     goal: Optional[str] = None
+    available_minutes_per_session: int = 60
+    training_days_per_week: int = 5
     active: bool
     created_at: datetime
     updated_at: datetime
