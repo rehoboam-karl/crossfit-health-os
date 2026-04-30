@@ -68,11 +68,14 @@ class TestRecoveryMetrics:
         assert data["readiness_score"] == 75
 
     @pytest.mark.asyncio
-    async def test_get_latest_recovery_not_found(
+    async def test_get_latest_recovery_empty(
         self, authenticated_client: AsyncClient, db_session, seeded_user
     ):
+        # No records yet → endpoint returns 200 with null body so the UI's
+        # empty-state path doesn't show a 404 in the user's devtools.
         response = await authenticated_client.get("/api/v1/health/recovery/latest")
-        assert response.status_code == 404
+        assert response.status_code == 200
+        assert response.json() is None
 
     @pytest.mark.asyncio
     async def test_recovery_metric_validation(

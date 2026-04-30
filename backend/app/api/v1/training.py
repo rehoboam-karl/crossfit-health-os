@@ -114,6 +114,54 @@ async def generate_adaptive_workout(
         raise HTTPException(status_code=500, detail=f"Failed to generate workout: {e}")
 
 
+@router.get("/today")
+async def get_today_workout(
+    db: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+):
+    """Return the planned workout for today, or `{workout: null}` if none.
+
+    Shape matches the dashboard JS contract:
+        {"workout": <WorkoutTemplate>|null}
+    The dashboard's "Generate Today's Workout" CTA fires when workout is null.
+    """
+    uid = int(current_user["id"])
+    today = _Date.today()
+
+    macro = db.execute(
+        select(MacrocycleDB).where(
+            and_(MacrocycleDB.user_id == uid, MacrocycleDB.active.is_(True))
+        )
+    ).scalar_one_or_none()
+    if not macro:
+        return {"workout": None}
+
+    session = db.execute(
+        select(PlannedSessionDB)
+        .where(
+            and_(
+                PlannedSessionDB.microcycle_id.in_(
+                    select(MicrocycleDB.id).where(MicrocycleDB.macrocycle_id == macro.id)
+                ),
+                PlannedSessionDB.date == today,
+                PlannedSessionDB.generated_template_id.isnot(None),
+                PlannedSessionDB.status.in_(["generated", "planned"]),
+            )
+        )
+        .order_by(PlannedSessionDB.order_in_day)
+        .limit(1)
+    ).scalar_one_or_none()
+
+    if not session or not session.generated_template_id:
+        return {"workout": None}
+
+    template = db.get(WorkoutTemplateDB, session.generated_template_id)
+    if not template:
+        return {"workout": None}
+
+    return {"workout": _template_to_schema(template).model_dump(mode="json")}
+
+
 @router.get("/workouts/next", response_model=Optional[WorkoutTemplate])
 async def get_next_workout(
     db: Session = Depends(get_session),

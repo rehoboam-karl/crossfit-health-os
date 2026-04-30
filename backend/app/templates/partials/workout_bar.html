@@ -1,0 +1,12 @@
+<!-- Persistent workout bar. Hidden by default; shown by JS when an active
+     workout exists in localStorage (see /static/js/workout-bar.js). -->
+<a href="/dashboard/workouts" class="chos-workout-bar" id="chos-workout-bar" aria-label="{{ t('nav.workout_bar.label') }}" style="text-decoration: none;">
+   <span class="wb-dot"></span>
+   <div class="wb-info">
+      <div class="wb-title" id="chos-workout-bar-title">—</div>
+      <div class="wb-time"><span id="chos-workout-bar-time">00:00</span> · <span id="chos-workout-bar-meta">—</span></div>
+   </div>
+   <button type="button" class="chos-btn chos-btn-ghost chos-btn-sm" id="chos-workout-bar-stop" aria-label="{{ t('nav.workout_bar.stop') }}" onclick="event.preventDefault(); event.stopPropagation(); window.CHOS && CHOS.workoutBar && CHOS.workoutBar.clear();">
+      <i class="fas fa-times"></i>
+   </button>
+</a>

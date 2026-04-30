@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Schedule - CrossFit Health OS{% endblock %}
+{% block title %}{{ t("schedule.page_title") }} - CrossFit Health OS{% endblock %}
 
 {% block navbar %}
 {% include "partials/navbar.html" %}
@@ -9,30 +9,39 @@
 {% block content %}
 <div class="container-fluid py-4">
 
-    <!-- Page Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h2 fw-bold mb-1">Training Calendar</h1>
-            <p class="text-muted mb-0">Programa o calendário primeiro, depois pede pra IA gerar os treinos.</p>
-        </div>
-        <button class="chos-btn chos-btn-primary chos-btn-lg" onclick="showCreateMacrocycle()">
-            <i class="fas fa-layer-group"></i>
-            <span class="btn-text">Novo Macrociclo</span>
+    <!-- Page Header — tighter than before; subtitle removed (intent is clear from
+         the empty-state desc when no macrocycle exists). -->
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+        <h1 class="h3 fw-bold mb-0">{{ t("schedule.page_title") }}</h1>
+        <button class="chos-btn chos-btn-primary" onclick="showCreateMacrocycle()" aria-label="{{ t('schedule.btn.new_macro') }}">
+            <i class="fas fa-plus"></i>
+            <span class="d-none d-sm-inline ms-1">{{ t("schedule.btn.new_macro") }}</span>
         </button>
     </div>
 
-    <!-- Active Macrocycle Banner -->
-    <div id="macro-banner" class="chos-card mb-4 d-none">
-        <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-3">
-            <div>
-                <h5 class="fw-bold mb-1" id="macro-name">—</h5>
-                <div class="text-muted small">
-                    <span id="macro-dates">—</span> · <span id="macro-methodology">—</span>
+    <!-- Active macrocycle banner — compact card with progress bar. -->
+    <div id="macro-banner" class="chos-card chos-card-feature is-recovery mb-4 d-none">
+        <div class="card-body">
+            <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
+                <div style="min-width: 0;">
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                        <span class="chos-badge chos-badge-primary text-uppercase" id="macro-methodology">—</span>
+                        <span class="chos-badge" style="background: var(--surface-sunken); color: var(--color-text-secondary);" id="macro-block-badge">—</span>
+                    </div>
+                    <h5 class="fw-bold mb-1 text-truncate" id="macro-name">—</h5>
+                    <div class="text-secondary small num" id="macro-dates">—</div>
                 </div>
             </div>
-            <div class="text-end">
-                <span class="chos-badge chos-badge-primary" id="macro-block-badge">—</span>
-                <div class="text-muted small mt-1" id="macro-week-label">—</div>
+
+            <!-- Macro progress bar -->
+            <div class="mt-3">
+                <div class="d-flex justify-content-between align-items-end small mb-1">
+                    <span class="text-secondary fw-medium" id="macro-week-label">—</span>
+                    <span class="text-secondary num" id="macro-progress-text">—</span>
+                </div>
+                <div class="chos-progress" style="height: 6px;">
+                    <div class="chos-progress-fill primary" id="macro-progress-bar" style="width: 0%"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -41,43 +50,44 @@
     <div id="empty-state" class="chos-card mb-4 d-none">
         <div class="card-body chos-empty-state text-center">
             <i class="fas fa-calendar-plus empty-icon"></i>
-            <h5 class="empty-title mt-3">Sem macrociclo ativo</h5>
-            <p class="empty-desc">Crie um macrociclo pra começar a planejar semanas com datas reais e blocos de periodização.</p>
+            <h5 class="empty-title mt-3">{{ t("schedule.empty.title") }}</h5>
+            <p class="empty-desc">{{ t("schedule.empty.desc") }}</p>
             <button class="chos-btn chos-btn-primary" onclick="showCreateMacrocycle()">
-                <i class="fas fa-plus me-2"></i>Criar Macrociclo
+                <i class="fas fa-plus me-2"></i>{{ t("schedule.btn.create_macro") }}
             </button>
         </div>
     </div>
 
     <!-- Calendar -->
-    <div id="calendar-container" class="chos-card d-none">
-        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <div class="d-flex align-items-center gap-2">
-                <button class="chos-btn chos-btn-sm chos-btn-outline" onclick="navigateWeek(-1)" title="Semana anterior">
+    <div id="calendar-container" class="d-none">
+        <!-- Week selector: chevrons + week range + Today as a pill group -->
+        <div class="d-flex align-items-center justify-content-between mb-3 gap-2 flex-wrap">
+            <div class="d-flex align-items-center gap-1">
+                <button class="chos-btn chos-btn-ghost chos-btn-sm" onclick="navigateWeek(-1)" aria-label="{{ t('schedule.btn.prev_week') }}">
                     <i class="fas fa-chevron-left"></i>
                 </button>
-                <h4 class="mb-0 fw-bold" id="week-label">—</h4>
-                <button class="chos-btn chos-btn-sm chos-btn-outline" onclick="navigateWeek(1)" title="Próxima semana">
+                <h5 class="mb-0 fw-semibold mx-2 text-center num" id="week-label" style="min-width: 180px;">—</h5>
+                <button class="chos-btn chos-btn-ghost chos-btn-sm" onclick="navigateWeek(1)" aria-label="{{ t('schedule.btn.next_week') }}">
                     <i class="fas fa-chevron-right"></i>
                 </button>
-                <button class="chos-btn chos-btn-sm chos-btn-outline" onclick="goToToday()" title="Hoje">
-                    Hoje
+                <button class="chos-btn chos-btn-outline chos-btn-sm ms-2" onclick="goToToday()">
+                    {{ t("schedule.btn.today") }}
                 </button>
             </div>
             <div class="d-flex gap-2">
-                <button class="chos-btn chos-btn-sm chos-btn-outline" id="btn-copy-prev" onclick="copyFromPreviousWeek()" disabled>
-                    <i class="fas fa-copy me-1"></i>Copiar semana anterior
+                <button class="chos-btn chos-btn-ghost chos-btn-sm" id="btn-copy-prev" onclick="copyFromPreviousWeek()" disabled aria-label="{{ t('schedule.btn.copy_prev_week') }}" title="{{ t('schedule.btn.copy_prev_week') }}">
+                    <i class="fas fa-copy"></i>
+                    <span class="d-none d-md-inline ms-1">{{ t("schedule.btn.copy_prev_week") }}</span>
                 </button>
-                <button class="chos-btn chos-btn-sm chos-btn-primary" id="btn-generate-week" onclick="generateWeek()">
+                <button class="chos-btn chos-btn-primary chos-btn-sm" id="btn-generate-week" onclick="generateWeek()">
                     <i class="fas fa-magic"></i>
-                    <span class="btn-text">Gerar treinos</span>
+                    <span class="btn-text ms-1">{{ t("schedule.btn.generate_week") }}</span>
                     <span class="btn-spinner"><i class="fas fa-spinner fa-spin"></i></span>
                 </button>
             </div>
         </div>
-        <div class="card-body">
-            <div class="row g-2" id="calendar-grid"></div>
-        </div>
+
+        <div class="row g-2" id="calendar-grid"></div>
     </div>
 
     <!-- Confirm Replace / Extend Macrocycle Modal -->
@@ -85,18 +95,18 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title fw-bold">Macrociclo já existe</h5>
+                    <h5 class="modal-title fw-bold">{{ t("schedule.modal.macro_exists_title") }}</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <p>Já existe um macrociclo ativo: <strong id="confirm-macro-name"></strong></p>
+                    <p>{{ t("schedule.modal.macro_exists_body") }} <strong id="confirm-macro-name"></strong></p>
                     <p class="text-muted small" id="confirm-macro-dates"></p>
                     <div class="d-grid gap-2 mt-3">
                         <button class="chos-btn chos-btn-outline" id="btn-macro-posterior" onclick="openCreateMacroPosterior()">
-                            <i class="fas fa-arrow-right me-1"></i>Criar macrociclo posterior
+                            <i class="fas fa-arrow-right me-1"></i>{{ t("schedule.btn.create_macro_after") }}
                         </button>
                         <button class="chos-btn chos-btn-danger" id="btn-macro-substituir" onclick="openCreateMacroSubstituir()">
-                            <i class="fas fa-exchange-alt me-1"></i>Substituir o atual
+                            <i class="fas fa-exchange-alt me-1"></i>{{ t("schedule.btn.replace_current") }}
                         </button>
                     </div>
                 </div>
@@ -109,35 +119,35 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title fw-bold">Criar Macrociclo</h5>
+                    <h5 class="modal-title fw-bold">{{ t("schedule.modal.create_macro_title") }}</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
-                            <label class="chos-label">Nome</label>
-                            <input type="text" id="macro-input-name" class="chos-input" placeholder="Ex: Preparação Open 2026" value="HWPO Cycle">
+                            <label class="chos-label">{{ t("schedule.modal.field_name") }}</label>
+                            <input type="text" id="macro-input-name" class="chos-input" placeholder="{{ t('schedule.modal.name_placeholder') }}" value="HWPO Cycle">
                         </div>
                         <div class="col-md-6">
-                            <label class="chos-label">Metodologia</label>
+                            <label class="chos-label">{{ t("schedule.modal.field_methodology") }}</label>
                             <select id="macro-input-methodology" class="form-select chos-input" onchange="refreshBlockPlanPreview()">
-                                <option value="hwpo" selected>HWPO (12 sem)</option>
-                                <option value="mayhem">Mayhem (43 sem)</option>
-                                <option value="comptrain">CompTrain (12 sem)</option>
-                                <option value="custom">Custom</option>
+                                <option value="hwpo" selected>{{ t("schedule.modal.method_hwpo", n=12) }}</option>
+                                <option value="mayhem">{{ t("schedule.modal.method_mayhem", n=43) }}</option>
+                                <option value="comptrain">{{ t("schedule.modal.method_comptrain", n=12) }}</option>
+                                <option value="custom">{{ t("schedule.modal.method_custom") }}</option>
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label class="chos-label">Data de início</label>
+                            <label class="chos-label">{{ t("schedule.modal.field_start_date") }}</label>
                             <input type="date" id="macro-input-start" class="chos-input" onchange="refreshBlockPlanPreview()">
-                            <span class="chos-form-help">Escolha uma segunda-feira. O macrociclo inicia nesse dia.</span>
+                            <span class="chos-form-help">{{ t("schedule.modal.field_start_help") }}</span>
                         </div>
                         <div class="col-md-6">
-                            <label class="chos-label">Objetivo</label>
-                            <input type="text" id="macro-input-goal" class="chos-input" placeholder="Ex: Competir no Open">
+                            <label class="chos-label">{{ t("schedule.modal.field_goal") }}</label>
+                            <input type="text" id="macro-input-goal" class="chos-input" placeholder="{{ t('schedule.modal.goal_placeholder') }}">
                         </div>
                         <div class="col-md-6">
-                            <label class="chos-label">Duração dos treinos <small class="text-muted">(min)</small></label>
+                            <label class="chos-label">{{ t("schedule.modal.field_duration") }} <small class="text-muted">{{ t("schedule.modal.field_duration_unit") }}</small></label>
                             <select id="macro-input-minutes" class="form-select chos-input">
                                 <option value="30">30 min</option>
                                 <option value="45">45 min</option>
@@ -148,28 +158,28 @@
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label class="chos-label">Dias de treino <small class="text-muted">(por semana)</small></label>
+                            <label class="chos-label">{{ t("schedule.modal.field_days") }} <small class="text-muted">{{ t("schedule.modal.field_days_unit") }}</small></label>
                             <select id="macro-input-days" class="form-select chos-input">
-                                <option value="3">3 dias</option>
-                                <option value="4">4 dias</option>
-                                <option value="5" selected>5 dias</option>
-                                <option value="6">6 dias</option>
-                                <option value="7">7 dias</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5" selected>5</option>
+                                <option value="6">6</option>
+                                <option value="7">7</option>
                             </select>
                         </div>
                     </div>
                     <div class="chos-card bg-light">
                         <div class="card-body">
-                            <h6 class="fw-bold mb-2">Block Plan</h6>
+                            <h6 class="fw-bold mb-2">{{ t("schedule.modal.block_plan_title") }}</h6>
                             <div id="block-plan-preview" class="small"></div>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button class="chos-btn chos-btn-outline" data-bs-dismiss="modal">Cancelar</button>
+                    <button class="chos-btn chos-btn-outline" data-bs-dismiss="modal">{{ t("common.actions.cancel") }}</button>
                     <button class="chos-btn chos-btn-primary" id="btn-save-macro" onclick="saveMacrocycle()">
                         <i class="fas fa-save me-1"></i>
-                        <span class="btn-text">Criar Macrociclo</span>
+                        <span class="btn-text">{{ t("schedule.btn.create_macro") }}</span>
                         <span class="btn-spinner"><i class="fas fa-spinner fa-spin"></i></span>
                     </button>
                 </div>
@@ -188,11 +198,11 @@
                 <div class="modal-body">
                     <div id="drawer-sessions"></div>
                     <button class="chos-btn chos-btn-outline w-100 mt-3" id="btn-add-session" onclick="addSessionRow()">
-                        <i class="fas fa-plus me-1"></i>Adicionar sessão
+                        <i class="fas fa-plus me-1"></i>{{ t("schedule.btn.add_session") }}
                     </button>
                 </div>
                 <div class="modal-footer">
-                    <button class="chos-btn chos-btn-outline" data-bs-dismiss="modal">Fechar</button>
+                    <button class="chos-btn chos-btn-outline" data-bs-dismiss="modal">{{ t("common.actions.close") }}</button>
                 </div>
             </div>
         </div>
@@ -201,7 +211,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="/static/js/calendar.js"></script>
+<script src="/static/js/calendar.js?v={{ asset_version() }}"></script>
 <script>
 $(document).ready(function() {
     CHOS.initDashboard();

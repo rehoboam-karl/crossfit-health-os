@@ -121,11 +121,17 @@ async def list_recovery_metrics(
     return [_rm_to_schema(r) for r in rows]
 
 
-@router.get("/recovery/latest", response_model=RecoveryMetric)
+@router.get("/recovery/latest", response_model=Optional[RecoveryMetric])
 async def get_latest_recovery(
     db: Session = Depends(get_session),
     current_user: dict = Depends(get_current_user),
 ):
+    """Return the user's most recent recovery record, or `null` if none yet.
+
+    Used by the dashboard/health/training pages to render a "today's readiness"
+    card; treating "no data" as 200-with-null keeps the empty-state path on
+    the client clean and stops new users from seeing 404s in their devtools.
+    """
     user_id = int(current_user["id"])
     row = db.execute(
         select(RecoveryMetricDB)
@@ -134,7 +140,7 @@ async def get_latest_recovery(
         .limit(1)
     ).scalar_one_or_none()
     if not row:
-        raise HTTPException(status_code=404, detail="No recovery data found")
+        return None
     return _rm_to_schema(row)
 
 

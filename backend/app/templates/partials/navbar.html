@@ -11,44 +11,60 @@
             <ul class="navbar-nav me-auto">
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if active_page == 'dashboard' }}" href="/dashboard">
-                        <i class="fas fa-home me-1"></i> Dashboard
+                        <i class="fas fa-home me-1"></i> {{ t("nav.menu.dashboard") }}
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if active_page == 'workouts' }}" href="/dashboard/workouts">
-                        <i class="fas fa-dumbbell me-1"></i> Workouts
+                        <i class="fas fa-dumbbell me-1"></i> {{ t("nav.menu.workouts") }}
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if active_page == 'schedule' }}" href="/dashboard/schedule">
-                        <i class="fas fa-calendar me-1"></i> Schedule
+                        <i class="fas fa-calendar me-1"></i> {{ t("nav.menu.schedule") }}
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if active_page == 'reviews' }}" href="/dashboard/reviews">
-                        <i class="fas fa-chart-line me-1"></i> Reviews
+                        <i class="fas fa-chart-line me-1"></i> {{ t("nav.menu.reviews") }}
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if active_page == 'health' }}" href="/dashboard/health">
-                        <i class="fas fa-heartbeat me-1"></i> Health
+                        <i class="fas fa-heartbeat me-1"></i> {{ t("nav.menu.health") }}
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if active_page == 'nutrition' }}" href="/dashboard/nutrition">
-                        <i class="fas fa-utensils me-1"></i> Nutrition
+                        <i class="fas fa-utensils me-1"></i> {{ t("nav.menu.nutrition") }}
                     </a>
                 </li>
             </ul>
-            <ul class="navbar-nav">
+            <ul class="navbar-nav align-items-center">
+                <li class="nav-item">
+                    <button type="button" class="chos-theme-toggle" data-action="toggle-theme" aria-label="Toggle theme" title="Toggle theme">
+                        <i class="fas fa-moon icon-moon"></i>
+                        <i class="fas fa-sun icon-sun"></i>
+                    </button>
+                </li>
                 <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-user-circle me-1"></i> <span id="user-name">User</span>
+                    <a class="nav-link dropdown-toggle" href="#" id="languageDropdown" role="button" data-bs-toggle="dropdown" title="{{ t('nav.language.label') }}">
+                        <i class="fas fa-globe me-1"></i>
+                        <span class="text-uppercase small">{{ locale() }}</span>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end">
-                        <li><a class="dropdown-item" href="/dashboard/profile"><i class="fas fa-cog me-2"></i> Settings</a></li>
+                        <li><a class="dropdown-item {{ 'active' if locale() == 'pt-BR' }}" href="?lang=pt-BR">{{ t("nav.language.pt-BR") }}</a></li>
+                        <li><a class="dropdown-item {{ 'active' if locale() == 'en' }}" href="?lang=en">{{ t("nav.language.en") }}</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-user-circle me-1"></i> <span id="user-name">{{ t("nav.user_menu.default_name") }}</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="/dashboard/profile"><i class="fas fa-cog me-2"></i> {{ t("nav.user_menu.settings") }}</a></li>
                         <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item" href="#" id="logout-btn"><i class="fas fa-sign-out-alt me-2"></i> Logout</a></li>
+                        <li><a class="dropdown-item" href="/logout" id="logout-btn"><i class="fas fa-sign-out-alt me-2"></i> {{ t("nav.user_menu.logout") }}</a></li>
                     </ul>
                 </li>
             </ul>

@@ -262,7 +262,7 @@ const CHOS = {
                return CHOS.auth.refreshAccessToken().then(function() {
                   return doRequest();
                }).then(null, function() {
-                  CHOS.toast.error('Session expired. Please login again.');
+                  CHOS.toast.error((window.t ? t('common.session_expired') : 'Session expired. Please login again.'));
                   setTimeout(() => { window.location.href = '/login'; }, 1500);
                   return $.Deferred().reject(xhr);
                });
@@ -295,10 +295,10 @@ const CHOS = {
             if (Array.isArray(errors)) {
                errors.forEach(e => CHOS.toast.error(e.msg));
             } else {
-               CHOS.toast.error('Validation error');
+               CHOS.toast.error((window.t ? t('common.validation_error') : 'Validation error'));
             }
          } else if (xhr.status >= 500) {
-            CHOS.toast.error('Server error. Please try again later.');
+            CHOS.toast.error((window.t ? t('common.server_error') : 'Server error. Please try again later.'));
          }
       }
    },
@@ -306,9 +306,29 @@ const CHOS = {
    // ============================================
    // Formatters
    // ============================================
+   // HTML-escape any value being injected into innerHTML/template strings.
+   escape(value) {
+      if (value == null) return '';
+      const s = String(value);
+      return s.replace(/[&<>"']/g, ch => ({
+         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[ch]);
+   },
+
+   // Convert snake_case identifiers (back_squat) to display form (Back Squat).
+   // Backend movement IDs come back as enum-style strings; users shouldn't see
+   // the raw form.
+   humanize(s) {
+      if (!s) return '';
+      return String(s)
+         .replace(/_/g, ' ')
+         .replace(/\b\w/g, c => c.toUpperCase());
+   },
+
    format: {
       date(dateStr) {
-         return new Date(dateStr).toLocaleDateString('pt-BR', {
+         const locale = window.LOCALE || 'pt-BR';
+         return new Date(dateStr).toLocaleDateString(locale, {
             day: '2-digit', month: '2-digit', year: 'numeric'
          });
       },

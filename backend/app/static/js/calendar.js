@@ -37,12 +37,15 @@ const ScheduleUI = (function () {
         mixed: "warning",
     };
 
-    const SHIFT_LABELS = {
-        morning: "Manhã",
-        afternoon: "Tarde",
-        evening: "Noite",
-        custom: "Custom",
-    };
+    function shiftLabel(shift) {
+        if (!shift) return "";
+        return t("schedule.shift." + shift) || shift;
+    }
+    // Back-compat: existing code reads SHIFT_LABELS[s.shift]; resolve via t() so
+    // values stay in sync with the active locale.
+    const SHIFT_LABELS = new Proxy({}, {
+        get: function (_target, prop) { return shiftLabel(prop); },
+    });
 
     let state = {
         macrocycle: null,   // active macrocycle (with microcycles)
@@ -79,11 +82,11 @@ const ScheduleUI = (function () {
     }
 
     function formatShortPt(d) {
-        return d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });
+        return tDate(d, { weekday: "short", day: "2-digit", month: "2-digit" });
     }
 
     function formatLongPt(d) {
-        return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long" });
+        return tDate(d, { day: "2-digit", month: "long" });
     }
 
     function isSameDay(a, b) {
@@ -145,12 +148,24 @@ const ScheduleUI = (function () {
         document.getElementById("macro-methodology").textContent = m.methodology.toUpperCase();
 
         const micro = state.currentMicro;
-        if (micro) {
-            document.getElementById("macro-block-badge").textContent =
-                `Bloco: ${micro.block_type || "—"}`;
-            document.getElementById("macro-week-label").textContent =
-                `Semana ${micro.week_index_in_block || "?"}/${totalWeeksInBlock(m, micro)} · Semana ${micro.week_index_in_macro} do macro`;
-        }
+        if (!micro) return;
+
+        document.getElementById("macro-block-badge").textContent =
+            t("schedule.block_badge", { block: micro.block_type || "—" });
+
+        // Total weeks across the macro (sum of block_plan).
+        const totalWeeks = (m.block_plan || []).reduce((acc, b) => acc + (b.weeks || 0), 0) || 1;
+        const weekIdx = micro.week_index_in_macro;
+        const pct = Math.min(100, Math.round((weekIdx / totalWeeks) * 100));
+
+        document.getElementById("macro-week-label").textContent =
+            t("schedule.week_label", {
+                wk_in_block: micro.week_index_in_block || "?",
+                total_in_block: totalWeeksInBlock(m, micro),
+                wk_in_macro: weekIdx,
+            });
+        document.getElementById("macro-progress-text").textContent = `${weekIdx}/${totalWeeks}`;
+        document.getElementById("macro-progress-bar").style.width = pct + "%";
     }
 
     function totalWeeksInBlock(macro, micro) {
@@ -197,40 +212,113 @@ const ScheduleUI = (function () {
             sessions.sort(function (a, b) { return a.order_in_day - b.order_in_day; });
             const isToday = isSameDay(d, today);
 
+            // Map workout_type to category modifier class for unified coloring.
+            const catModifier = {
+                strength: 'is-strength',
+                metcon: 'is-cardio',
+                conditioning: 'is-recovery',
+                skill: 'is-nutrition',
+                mixed: 'is-recovery'
+            };
+
             const sessionHtml = sessions.length
                 ? sessions.map(function (s) {
-                    const color = WORKOUT_COLORS[s.workout_type] || "secondary";
                     const shift = SHIFT_LABELS[s.shift] || (s.start_time ? s.start_time.slice(0, 5) : "");
                     const stateBadge = s.status === "generated"
-                        ? '<span class="chos-badge chos-badge-success ms-1" title="Treino gerado"><i class="fas fa-check"></i></span>'
+                        ? `<span class="chos-badge chos-badge-success ms-1" title="${t("schedule.session.generated_tooltip")}"><i class="fas fa-check"></i></span>`
                         : s.status === "skipped"
-                        ? '<span class="chos-badge chos-badge-danger ms-1" title="Dia de descanso"><i class="fas fa-bed"></i></span>'
+                        ? `<span class="chos-badge ms-1" style="background: var(--surface-sunken); color: var(--color-text-secondary);" title="${t("schedule.session.rest_tooltip")}"><i class="fas fa-bed"></i></span>`
                         : "";
+                    const wtLabel = s.workout_type ? t("schedule.workout_type." + s.workout_type) : "?";
+                    const safeFocus = s.focus ? CHOS.escape(s.focus) : "";
+                    const isRest = s.status === "skipped";
+                    const catCls = isRest ? '' : (catModifier[s.workout_type] || 'is-recovery');
                     return `
-                        <div class="mb-1 p-2 rounded border border-${color} bg-light small">
-                            <div class="fw-bold text-${color}">${(s.workout_type || "?").toUpperCase()} ${stateBadge}</div>
-                            <div class="text-muted"><i class="fas fa-clock me-1"></i>${shift} · ${s.duration_minutes || "?"}min</div>
-                            ${s.focus ? `<div class="fst-italic small">${s.focus}</div>` : ""}
+                        <div class="chos-session-item ${catCls} ${isRest ? 'is-rest' : ''}" data-session-id="${s.id}">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <span class="chos-cat ${catCls}" style="font-size: 0.75rem;">${wtLabel.toUpperCase()}</span>
+                                ${stateBadge}
+                            </div>
+                            <div class="text-secondary small mt-1"><i class="fas fa-clock me-1"></i>${shift} · ${s.duration_minutes || "?"}${t("schedule.session.duration_min")}</div>
+                            ${safeFocus ? `<div class="fst-italic small text-body mt-1">${safeFocus}</div>` : ""}
                         </div>`;
                 }).join("")
-                : '<div class="text-muted small fst-italic">Descanso</div>\
-                   <button class="btn btn-sm btn-outline-secondary w-100 mt-1" onclick="ScheduleUI.toggleRestDay(\'${iso}\')" title="Marcar como descanso oficial"><i class="fas fa-bed me-1"></i>Descanso</button>';
+                : `<div class="d-flex flex-column align-items-center justify-content-center h-100" style="min-height: 80px;">
+                       <div class="text-secondary small fst-italic mb-2">${t("schedule.session.rest")}</div>
+                       <button class="chos-btn chos-btn-ghost chos-btn-sm" onclick="event.stopPropagation(); ScheduleUI.toggleRestDay('${iso}')" title="${t("schedule.btn.mark_rest_day")}"><i class="fas fa-bed me-1"></i>${t("schedule.btn.rest_label")}</button>
+                   </div>`;
 
+            const dragEnabled = sessions.length <= 1;
+            const todayCls = isToday ? 'chos-day-today' : '';
             html += `
                 <div class="col-md">
-                    <div class="chos-card h-100 ${isToday ? "border border-warning border-2" : ""}" onclick="ScheduleUI.openDayDrawer('${iso}')" style="cursor:pointer">
-                        <div class="card-body p-2">
-                            <div class="fw-bold ${isToday ? "text-warning" : ""} mb-2">${formatShortPt(d)}${isToday ? " · hoje" : ""}</div>
-                            ${sessionHtml}
+                    <div class="chos-card chos-day-card ${todayCls} h-100" onclick="ScheduleUI.openDayDrawer('${iso}')" style="cursor:pointer">
+                        <div class="card-body" style="padding: var(--space-3);">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <span class="fw-semibold small ${isToday ? 'text-primary' : 'text-secondary'}" style="text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.7rem;">${formatShortPt(d)}</span>
+                                ${isToday ? `<span class="chos-badge chos-badge-primary" style="font-size: 0.65rem;">${t("schedule.today_suffix")}</span>` : ""}
+                            </div>
+                            <div class="chos-day-dropzone" data-date="${iso}" data-drag-enabled="${dragEnabled}">${sessionHtml}</div>
                         </div>
                     </div>
                 </div>`;
         }
         document.getElementById("calendar-grid").innerHTML = html;
+        wireDragAndDrop();
 
         // Enable "copy previous" only if there is a previous microcycle
         const prevMicro = findAdjacentMicro(micro, -1);
         document.getElementById("btn-copy-prev").disabled = !prevMicro;
+    }
+
+    // ----- Drag-and-drop session move/swap ----------------------------------
+    function wireDragAndDrop() {
+        if (typeof Sortable === "undefined") return;
+        const zones = document.querySelectorAll(".chos-day-dropzone");
+        zones.forEach(function (zone) {
+            if (zone.dataset.dragEnabled !== "true") return;
+            // Stop click events from session items bubbling to the cell's
+            // onclick=openDayDrawer — drag handles need their own click semantics.
+            zone.querySelectorAll(".chos-session-item").forEach(function (item) {
+                item.addEventListener("click", function (ev) { ev.stopPropagation(); });
+            });
+            Sortable.create(zone, {
+                group: "chos-days",
+                draggable: ".chos-session-item",
+                animation: 150,
+                ghostClass: "sortable-ghost",
+                onAdd: function (evt) {
+                    const fromZone = evt.from;
+                    const toZone = evt.to;
+                    const movedItem = evt.item;
+                    const sourceId = movedItem.getAttribute("data-session-id");
+                    const targetDate = toZone.getAttribute("data-date");
+                    // The destination's pre-existing session, if any. After
+                    // SortableJS inserts the moved item, any sibling .chos-session-item
+                    // that isn't the moved one is the swap target.
+                    const sibling = Array.from(toZone.querySelectorAll(".chos-session-item"))
+                        .find(function (el) { return el !== movedItem; });
+                    const targetId = sibling ? sibling.getAttribute("data-session-id") : null;
+                    submitSwap(sourceId, targetDate, targetId);
+                },
+            });
+        });
+    }
+
+    function submitSwap(sourceId, targetDate, targetId) {
+        if (!state.currentMicro) return;
+        const microId = state.currentMicro.id;
+        const payload = { source_id: sourceId, target_date: targetDate };
+        if (targetId) payload.target_id = targetId;
+        CHOS.api.post(`/api/v1/schedule/microcycles/${microId}/sessions/swap`, payload)
+            .done(function () {
+                CHOS.toast.success(t("schedule.toast.session_moved"));
+                loadActiveMacro();
+            })
+            .fail(function (xhr) {
+                CHOS.toast.error(xhr.responseJSON?.detail || t("schedule.toast.session_move_error"));
+                loadActiveMacro();
+            });
     }
 
     function findAdjacentMicro(current, delta) {
@@ -245,7 +333,7 @@ const ScheduleUI = (function () {
         if (!state.currentMicro || !state.macrocycle) return;
         const nextMicro = findAdjacentMicro(state.currentMicro, delta);
         if (!nextMicro) {
-            CHOS.toast.info(delta < 0 ? "Essa é a primeira semana do macro." : "Essa é a última semana do macro.");
+            CHOS.toast.info(delta < 0 ? t("schedule.toast.first_week") : t("schedule.toast.last_week"));
             return;
         }
         state.currentMicro = nextMicro;
@@ -260,7 +348,7 @@ const ScheduleUI = (function () {
             const s = parseISODate(m.start_date), e = parseISODate(m.end_date);
             return today >= s && today <= e;
         });
-        if (!target) { CHOS.toast.info("Hoje está fora do macrociclo ativo."); return; }
+        if (!target) { CHOS.toast.info(t("schedule.toast.today_outside_macro")); return; }
         state.currentMicro = target;
         state.viewDate = parseISODate(target.start_date);
         renderWeek();
@@ -273,12 +361,12 @@ const ScheduleUI = (function () {
         const startStr = document.getElementById("macro-input-start").value;
         const start = startStr ? parseISODate(startStr) : mondayOf(new Date());
         if (!startStr) {
-            document.getElementById("block-plan-preview").innerHTML = '<div class="text-muted">Informe a data de início.</div>';
+            document.getElementById("block-plan-preview").innerHTML = `<div class="text-muted">${t("schedule.modal.block_plan_pick_date")}</div>`;
             return;
         }
         let html = "", cursor = new Date(start), weekIdx = 0;
         if (!plan.length) {
-            html = '<div class="text-muted">Custom: você pode adicionar blocos manualmente após criar.</div>';
+            html = `<div class="text-muted">${t("schedule.modal.block_plan_custom_hint")}</div>`;
         } else {
             plan.forEach(function (b) {
                 const blockStart = new Date(cursor);
@@ -287,11 +375,11 @@ const ScheduleUI = (function () {
                 weekIdx += b.weeks;
                 html += `<div class="mb-1">
                     <span class="chos-badge chos-badge-primary">${b.type}</span>
-                    <span class="text-muted ms-2">${b.weeks} sem</span>
+                    <span class="text-muted ms-2">${t("schedule.modal.weeks_short", { n: b.weeks })}</span>
                     <span class="text-muted ms-2">${formatLongPt(blockStart)} – ${formatLongPt(blockEnd)}</span>
                 </div>`;
             });
-            html += `<div class="mt-2 fw-bold">Total: ${weekIdx} semanas</div>`;
+            html += `<div class="mt-2 fw-bold">${t("schedule.modal.block_plan_total", { n: weekIdx })}</div>`;
         }
         document.getElementById("block-plan-preview").innerHTML = html;
     }
@@ -336,7 +424,7 @@ const ScheduleUI = (function () {
         const goal = document.getElementById("macro-input-goal").value.trim() || null;
         const minutes = parseInt(document.getElementById("macro-input-minutes").value, 10);
         const days = parseInt(document.getElementById("macro-input-days").value, 10);
-        if (!startStr) { CHOS.toast.error("Informe a data de início."); return; }
+        if (!startStr) { CHOS.toast.error(t("schedule.toast.macro_start_required")); return; }
 
         const payload = {
             name,
@@ -352,12 +440,12 @@ const ScheduleUI = (function () {
         CHOS.loading.button("#btn-save-macro", true);
         CHOS.api.post("/api/v1/schedule/macrocycles", payload)
             .done(function () {
-                CHOS.toast.success("Macrociclo criado!");
+                CHOS.toast.success(t("schedule.toast.macro_created"));
                 bootstrap.Modal.getInstance("#createMacroModal").hide();
                 loadActiveMacro();
             })
             .fail(function (xhr) {
-                CHOS.toast.error(xhr.responseJSON?.detail || "Erro ao criar macrociclo.");
+                CHOS.toast.error(xhr.responseJSON?.detail || t("schedule.toast.macro_create_error"));
             })
             .always(function () { CHOS.loading.button("#btn-save-macro", false); });
     }
@@ -370,20 +458,18 @@ const ScheduleUI = (function () {
         if (restMarker) {
             CHOS.api.delete(`/api/v1/schedule/planned-sessions/${restMarker.id}`)
                 .done(function(){ loadActiveMacro(); })
-                .fail(function(){ CHOS.toast.error("Erro ao remover descanso."); });
+                .fail(function(){ CHOS.toast.error(t("schedule.toast.rest_remove_error")); });
         } else {
-            CHOS.api.post("/api/v1/schedule/planned-sessions", {
-                microcycle_id: state.currentMicro.id,
+            CHOS.api.post(`/api/v1/schedule/microcycles/${state.currentMicro.id}/sessions`, {
                 date: isoDate,
                 order_in_day: 1,
                 shift: "morning",
-                duration_minutes: 0,
-                workout_type: "rest",
-                focus: "Descanso",
+                duration_minutes: 15,
+                focus: t("schedule.session.rest"),
                 status: "skipped",
             })
                 .done(function(){ loadActiveMacro(); })
-                .fail(function(){ CHOS.toast.error("Erro ao marcar descanso."); });
+                .fail(function(){ CHOS.toast.error(t("schedule.toast.rest_set_error")); });
         }
     }
 
@@ -419,88 +505,167 @@ const ScheduleUI = (function () {
         });
     }
 
+    // Movement names from the API arrive in snake_case (back_squat). Convert
+    // to "Back Squat" for display so users don't see internal identifiers.
+    function humanize(s) {
+        if (!s) return '';
+        return String(s)
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, c => c.toUpperCase());
+    }
+
     function renderMovements(movements) {
-        if (!movements || !movements.length) return '<div class="text-muted small fst-italic">Sem movimentos definidos</div>';
+        if (!movements || !movements.length) {
+            return `<div class="text-secondary small fst-italic">${t("schedule.drawer.no_movements")}</div>`;
+        }
+        const e = CHOS.escape;
         return movements.map(function(m) {
-            const sets = m.sets ? `<span class="badge bg-secondary">${m.sets}x</span>` : '';
-            const reps = m.reps ? `<span>${m.reps} ${m.reps_unit || ''}</span>` : '';
-            const weight = m.weight_kg ? `<span class="text-muted">@ ${m.weight_kg}kg</span>` : '';
-            const duration = m.duration_seconds ? `<span class="text-muted">${m.duration_seconds}s</span>` : '';
-            const rest = m.rest ? `<span class="text-muted small">rest: ${m.rest}</span>` : '';
-            const intensity = m.intensity ? `<span class="badge bg-info">${m.intensity}</span>` : '';
-            const notes = m.notes ? `<div class="text-muted small">${m.notes}</div>` : '';
-            return `<div class="d-flex align-items-center gap-2 flex-wrap">
-                <span class="fw-bold">${m.movement}</span>
-                ${sets} ${reps} ${weight} ${duration} ${intensity} ${rest}
-                ${notes}
-            </div>`;
+            // Prescription chips: sets · reps · weight · time
+            const chips = [];
+            if (m.sets)             chips.push(`<span class="chos-badge chos-badge-primary">${e(m.sets)}×</span>`);
+            if (m.reps)             chips.push(`<span class="text-body num">${e(m.reps)} ${e(m.reps_unit || 'reps')}</span>`);
+            if (m.weight_kg)        chips.push(`<span class="text-secondary num">@ ${e(m.weight_kg)} kg</span>`);
+            if (m.duration_seconds) chips.push(`<span class="text-secondary num">${e(m.duration_seconds)}s</span>`);
+            if (m.intensity)        chips.push(`<span class="chos-badge" style="background: var(--cat-recovery); color: #fff;">${e(m.intensity)}</span>`);
+
+            const restLine = m.rest
+                ? `<div class="text-secondary small mt-1"><i class="fas fa-pause-circle me-1"></i>${t("schedule.drawer.rest")}: ${e(m.rest)}</div>`
+                : '';
+            const notesLine = m.notes
+                ? `<div class="text-secondary small fst-italic mt-1">${e(m.notes)}</div>`
+                : '';
+
+            return `
+                <div class="py-2" style="border-bottom: 1px solid var(--color-border);">
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <span class="fw-semibold text-body">${e(humanize(m.movement))}</span>
+                        <span class="ms-auto d-flex flex-wrap align-items-center gap-2">${chips.join(' ')}</span>
+                    </div>
+                    ${restLine}
+                    ${notesLine}
+                </div>`;
         }).join('');
     }
 
     function renderWorkoutDetail(template) {
+        const e = CHOS.escape;
         const movementsHtml = renderMovements(template.movements || []);
-        const warmup = template.warm_up || template.warmup || '';
-        const stimulus = template.target_stimulus || '';
-        const equipment = (template.equipment_required || []).join(', ') || 'Nenhum';
+        const warmup    = template.warm_up || template.warmup || '';
+        const stimulus  = template.target_stimulus || '';
+        const equipment = (template.equipment_required || []).join(', ');
+        const difficulty = template.difficulty_level || 'rx';
+
+        // Compact info row built from optional metadata. Each entry has an
+        // icon + a single label/value pair so the eye scans top-to-bottom
+        // instead of parsing bold-text-with-colon.
+        const meta = [];
+        if (stimulus) {
+            meta.push(`<div class="d-flex align-items-start gap-2">
+                <i class="fas fa-bullseye text-secondary mt-1" style="width: 16px;"></i>
+                <div><div class="small text-secondary fw-medium">${t("schedule.drawer.stimulus")}</div>
+                <div class="text-body small">${e(stimulus)}</div></div>
+            </div>`);
+        }
+        if (warmup) {
+            meta.push(`<div class="d-flex align-items-start gap-2">
+                <i class="fas fa-fire text-secondary mt-1" style="width: 16px;"></i>
+                <div><div class="small text-secondary fw-medium">${t("schedule.drawer.warmup")}</div>
+                <div class="text-body small">${e(warmup)}</div></div>
+            </div>`);
+        }
+        meta.push(`<div class="d-flex align-items-start gap-2">
+            <i class="fas fa-dumbbell text-secondary mt-1" style="width: 16px;"></i>
+            <div><div class="small text-secondary fw-medium">${t("schedule.drawer.equipment")}</div>
+            <div class="text-body small">${e(equipment || t("schedule.drawer.no_equipment"))}</div></div>
+        </div>`);
+        meta.push(`<div class="d-flex align-items-start gap-2">
+            <i class="fas fa-signal text-secondary mt-1" style="width: 16px;"></i>
+            <div><div class="small text-secondary fw-medium">${t("schedule.drawer.difficulty")}</div>
+            <div><span class="chos-badge chos-badge-primary text-uppercase">${e(difficulty)}</span></div></div>
+        </div>`);
+
         return `
-            <div class="mt-2 p-2 bg-light rounded" style="border-left: 3px solid #0d6efd;">
-                ${template.description ? `<div class="mb-2 text-muted small">${template.description}</div>` : ''}
-                ${stimulus ? `<div class="mb-1"><span class="fw-bold small">Stimulus:</span> <span class="text-muted small">${stimulus}</span></div>` : ''}
-                ${warmup ? `<div class="mb-1"><span class="fw-bold small">Aquecimento:</span> <span class="text-muted small">${warmup}</span></div>` : ''}
-                <div class="mb-1"><span class="fw-bold small">Equipamento:</span> <span class="text-muted small">${equipment}</span></div>
-                <div class="mb-1"><span class="fw-bold small">Dificuldade:</span> <span class="badge bg-secondary">${template.difficulty_level || 'rx'}</span></div>
-                <div class="mt-2"><span class="fw-bold small">Movimentos:</span></div>
-                <div class="ms-2">${movementsHtml}</div>
+            <div class="rounded mt-2" style="background: var(--surface-sunken); padding: var(--space-3); border-left: 3px solid var(--cat-recovery);">
+                ${template.description ? `<p class="small text-body mb-3">${e(template.description)}</p>` : ''}
+                <div class="row g-3 mb-3">
+                    ${meta.map(m => `<div class="col-6">${m}</div>`).join('')}
+                </div>
+                <div class="small text-secondary fw-medium mb-1" style="text-transform: uppercase; letter-spacing: 0.04em;">${t("schedule.drawer.movements")}</div>
+                <div>${movementsHtml}</div>
             </div>`;
     }
 
     function renderDrawerSessions() {
         const container = document.getElementById("drawer-sessions");
         if (!state.drawerSessions.length) {
-            container.innerHTML = '<div class="text-muted fst-italic">Nenhuma sessão planejada — adicione abaixo.</div>';
+            container.innerHTML = `<div class="text-secondary fst-italic">${t("schedule.drawer.no_sessions")}</div>`;
             return;
         }
+
+        const wtOptions = ["strength", "metcon", "skill", "conditioning", "mixed"];
+        const shiftOptions = ["morning", "afternoon", "evening", "custom"];
+
         let html = "";
         state.drawerSessions.forEach(function (s, idx) {
             if (s._deleted) return;
+
             const template = s.generated_template_id ? getTemplate(s.generated_template_id) : null;
             const templateLoading = s.generated_template_id && !state.templateCache[s.generated_template_id];
             const workoutDetail = template ? renderWorkoutDetail(template) : '';
-            const loadingSpinner = templateLoading ? '<div class="spinner-border spinner-border-sm text-primary ms-2" role="status"></div>' : '';
+            const loadingSpinner = templateLoading
+                ? '<div class="spinner-border spinner-border-sm text-primary ms-2" role="status" aria-hidden="true"></div>'
+                : '';
+
+            // Color the session header by workout type so the eye groups them.
+            const catModifier = {
+                strength: 'is-strength', metcon: 'is-cardio', conditioning: 'is-recovery',
+                skill: 'is-nutrition', mixed: 'is-recovery'
+            };
+            const catCls = catModifier[s.workout_type] || 'is-recovery';
+
             html += `
-                <div class="chos-card mb-2" data-idx="${idx}">
-                    <div class="card-body p-2">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="fw-bold">Sessão ${s.order_in_day} ${loadingSpinner}</span>
-                            <button class="chos-btn chos-btn-sm chos-btn-outline" onclick="ScheduleUI.deleteSessionRow(${idx})">
+                <div class="chos-card mb-3" data-idx="${idx}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="chos-cat ${catCls} fw-semibold">
+                                ${t("schedule.drawer.session_n", { n: s.order_in_day })}
+                                ${loadingSpinner}
+                            </span>
+                            <button class="chos-btn chos-btn-ghost chos-btn-sm" onclick="ScheduleUI.deleteSessionRow(${idx})" aria-label="${t("schedule.drawer.delete_session")}">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
+
                         ${workoutDetail}
-                        <div class="row g-2 mt-1">
-                            <div class="col-md-3">
-                                <label class="chos-label small">Shift</label>
-                                <select class="form-select form-select-sm" data-field="shift">
-                                    ${["morning","afternoon","evening","custom"].map(function(v){return `<option value="${v}" ${s.shift===v?"selected":""}>${SHIFT_LABELS[v]}</option>`;}).join("")}
+
+                        <div class="small text-secondary fw-medium mt-3 mb-2" style="text-transform: uppercase; letter-spacing: 0.04em;">${t("schedule.drawer.session_settings")}</div>
+                        <div class="row g-3">
+                            <div class="col-md-3 col-6">
+                                <label class="chos-label">${t("schedule.drawer.field_shift")}</label>
+                                <select class="form-select" data-field="shift">
+                                    ${shiftOptions.map(v => `<option value="${v}" ${s.shift === v ? "selected" : ""}>${t("schedule.shift." + v)}</option>`).join("")}
                                 </select>
                             </div>
-                            <div class="col-md-3">
-                                <label class="chos-label small">Hora</label>
-                                <input type="time" class="form-control form-control-sm" data-field="start_time" value="${s.start_time ? s.start_time.slice(0,5) : ""}">
+                            <div class="col-md-3 col-6">
+                                <label class="chos-label">${t("schedule.drawer.field_start_time")}</label>
+                                <input type="time" class="form-control" data-field="start_time" value="${s.start_time ? s.start_time.slice(0,5) : ""}">
                             </div>
-                            <div class="col-md-3">
-                                <label class="chos-label small">Duração</label>
-                                <input type="number" class="form-control form-control-sm" data-field="duration_minutes" min="15" max="240" step="5" value="${s.duration_minutes || 60}">
+                            <div class="col-md-3 col-6">
+                                <label class="chos-label">${t("schedule.drawer.field_duration")}</label>
+                                <div class="position-relative">
+                                    <input type="number" class="form-control" data-field="duration_minutes" min="15" max="240" step="5" value="${s.duration_minutes || 60}" style="padding-right: 3.25rem;">
+                                    <span class="position-absolute text-secondary small" style="right: 0.875rem; top: 50%; transform: translateY(-50%); pointer-events: none;">min</span>
+                                </div>
                             </div>
-                            <div class="col-md-3">
-                                <label class="chos-label small">Tipo</label>
-                                <select class="form-select form-select-sm" data-field="workout_type">
-                                    ${["strength","metcon","skill","conditioning","mixed"].map(function(v){return `<option value="${v}" ${s.workout_type===v?"selected":""}>${v}</option>`;}).join("")}
+                            <div class="col-md-3 col-6">
+                                <label class="chos-label">${t("schedule.drawer.field_type")}</label>
+                                <select class="form-select" data-field="workout_type">
+                                    ${wtOptions.map(v => `<option value="${v}" ${s.workout_type === v ? "selected" : ""}>${t("schedule.workout_type." + v)}</option>`).join("")}
                                 </select>
                             </div>
                             <div class="col-12">
-                                <label class="chos-label small">Foco</label>
-                                <input type="text" class="form-control form-control-sm" data-field="focus" value="${s.focus || ""}" placeholder="Ex: heavy back squat + short metcon">
+                                <label class="chos-label">${t("schedule.drawer.field_focus")}</label>
+                                <input type="text" class="form-control" data-field="focus" value="${CHOS.escape(s.focus || "")}" placeholder="${t("schedule.drawer.focus_placeholder")}">
                             </div>
                         </div>
                     </div>
@@ -533,7 +698,7 @@ const ScheduleUI = (function () {
         const usedOrders = state.drawerSessions.filter(function(s){return !s._deleted;}).map(function(s){return s.order_in_day;});
         let nextOrder = 1;
         while (usedOrders.includes(nextOrder) && nextOrder <= 5) nextOrder++;
-        if (nextOrder > 5) { CHOS.toast.warning("Máximo de 5 sessões por dia."); return; }
+        if (nextOrder > 5) { CHOS.toast.warning(t("schedule.toast.max_sessions_per_day")); return; }
 
         const newSession = {
             date: state.drawerDate,
@@ -563,7 +728,7 @@ const ScheduleUI = (function () {
                 renderWeek();
             })
             .fail(function (xhr) {
-                CHOS.toast.error(xhr.responseJSON?.detail || "Erro ao adicionar sessão.");
+                CHOS.toast.error(xhr.responseJSON?.detail || t("schedule.toast.session_add_error"));
                 state.drawerSessions = state.drawerSessions.filter(function (s) { return s !== newSession; });
                 renderDrawerSessions();
             });
@@ -576,14 +741,14 @@ const ScheduleUI = (function () {
             renderDrawerSessions();
             return;
         }
-        if (!confirm("Excluir essa sessão?")) return;
+        if (!confirm(t("schedule.confirm.delete_session"))) return;
         CHOS.api.delete(`/api/v1/schedule/planned-sessions/${s.id}`)
             .done(function () {
                 s._deleted = true;
                 renderDrawerSessions();
                 renderWeek();
             })
-            .fail(function () { CHOS.toast.error("Erro ao excluir sessão."); });
+            .fail(function () { CHOS.toast.error(t("schedule.toast.session_delete_error")); });
     }
 
     function persistSession(session) {
@@ -597,7 +762,7 @@ const ScheduleUI = (function () {
         };
         CHOS.api.patch(`/api/v1/schedule/planned-sessions/${session.id}`, payload)
             .done(function () { renderWeek(); })
-            .fail(function () { CHOS.toast.error("Erro ao salvar sessão."); });
+            .fail(function () { CHOS.toast.error(t("schedule.toast.session_save_error")); });
     }
 
     // ----- Generate / copy ---------------------------------------------------
@@ -606,11 +771,11 @@ const ScheduleUI = (function () {
         CHOS.loading.button("#btn-generate-week", true);
         CHOS.api.post(`/api/v1/schedule/microcycles/${state.currentMicro.id}/generate`, {})
             .done(function (data) {
-                CHOS.toast.success(`Gerou ${data.generated_sessions} treino(s)!`);
+                CHOS.toast.success(t("schedule.toast.generated_count", { n: data.generated_sessions }));
                 renderWeek();
             })
             .fail(function (xhr) {
-                CHOS.toast.error(xhr.responseJSON?.detail || "Erro ao gerar treinos.");
+                CHOS.toast.error(xhr.responseJSON?.detail || t("schedule.toast.generate_error"));
             })
             .always(function () { CHOS.loading.button("#btn-generate-week", false); });
     }
@@ -619,10 +784,10 @@ const ScheduleUI = (function () {
         if (!state.currentMicro) return;
         const prev = findAdjacentMicro(state.currentMicro, -1);
         if (!prev) return;
-        if (!confirm("Copiar a estrutura da semana anterior? Isso sobrescreve as sessões desta semana.")) return;
+        if (!confirm(t("schedule.confirm.copy_previous"))) return;
         CHOS.api.post(`/api/v1/schedule/microcycles/${state.currentMicro.id}/copy-from/${prev.id}`, {})
-            .done(function () { CHOS.toast.success("Copiado!"); renderWeek(); })
-            .fail(function () { CHOS.toast.error("Erro ao copiar."); });
+            .done(function () { CHOS.toast.success(t("schedule.toast.copied")); renderWeek(); })
+            .fail(function () { CHOS.toast.error(t("schedule.toast.copy_error")); });
     }
 
     return {
@@ -638,6 +803,8 @@ const ScheduleUI = (function () {
         deleteSessionRow: deleteSessionRow,
         generateWeek: generateWeek,
         copyFromPreviousWeek: copyFromPreviousWeek,
+        openCreateMacroPosterior: openCreateMacroPosterior,
+        openCreateMacroSubstituir: openCreateMacroSubstituir,
     };
 })();
 
@@ -651,3 +818,5 @@ function toggleRestDay(iso) { return ScheduleUI.toggleRestDay(iso); }
 function addSessionRow() { return ScheduleUI.addSessionRow(); }
 function generateWeek() { return ScheduleUI.generateWeek(); }
 function copyFromPreviousWeek() { return ScheduleUI.copyFromPreviousWeek(); }
+function openCreateMacroPosterior() { return ScheduleUI.openCreateMacroPosterior(); }
+function openCreateMacroSubstituir() { return ScheduleUI.openCreateMacroSubstituir(); }

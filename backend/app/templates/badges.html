@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Badges & Achievements - CrossFit Health OS{% endblock %}
+{% block title %}{{ t("badges.page_title") }} - CrossFit Health OS{% endblock %}
 
 {% block navbar %}
 {% include "partials/navbar.html" %}
@@ -11,99 +11,99 @@
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1 class="h2 fw-bold mb-1">Badges & Achievements</h1>
-            <p class="text-muted mb-0">Your earned badges and milestones</p>
+            <h1 class="h2 fw-bold mb-1">{{ t("badges.page_title") }}</h1>
+            <p class="text-muted mb-0">{{ t("badges.subtitle") }}</p>
         </div>
         <a href="/dashboard" class="btn btn-outline-secondary">
-            <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+            <i class="fas fa-arrow-left me-2"></i>{{ t("badges.back_dashboard") }}
         </a>
     </div>
-    
+
     <!-- Stats Summary -->
     <div class="row g-3 mb-4">
-        <div class="col-md-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body text-center py-4">
-                    <div class="mb-2" style="font-size: 48px;" id="streak-display">🔥</div>
-                    <h2 class="mb-0" id="current-streak">0</h2>
-                    <small>Day Streak</small>
+        <div class="col-md-3 col-6">
+            <div class="chos-stat-card h-100">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="stat-label">{{ t("badges.day_streak") }}</span>
+                    <span style="font-size: 1.5rem;" id="streak-display">🔥</span>
                 </div>
+                <div class="stat-value num" id="current-streak" style="color: var(--cat-cardio);">0</div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card bg-warning">
-                <div class="card-body text-center py-4">
-                    <div class="mb-2" style="font-size: 48px;">🏆</div>
-                    <h2 class="mb-0" id="total-badges">0</h2>
-                    <small>Badges Earned</small>
+        <div class="col-md-3 col-6">
+            <div class="chos-stat-card h-100">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="stat-label">{{ t("badges.badges_earned") }}</span>
+                    <span style="font-size: 1.5rem;">🏆</span>
                 </div>
+                <div class="stat-value num" id="total-badges" style="color: var(--cat-fat);">0</div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body text-center py-4">
-                    <div class="mb-2" style="font-size: 48px;">⚡</div>
-                    <h2 class="mb-0" id="current-level">1</h2>
-                    <small>Level</small>
+        <div class="col-md-3 col-6">
+            <div class="chos-stat-card h-100">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="stat-label">{{ t("badges.level") }}</span>
+                    <span style="font-size: 1.5rem;">⚡</span>
                 </div>
+                <div class="stat-value num" id="current-level" style="color: var(--cat-recovery);">1</div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body text-center py-4">
-                    <div class="mb-2" style="font-size: 48px;">💪</div>
-                    <h2 class="mb-0" id="total-workouts">0</h2>
-                    <small>Total Workouts</small>
+        <div class="col-md-3 col-6">
+            <div class="chos-stat-card h-100">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="stat-label">{{ t("badges.total_workouts") }}</span>
+                    <span style="font-size: 1.5rem;">💪</span>
                 </div>
+                <div class="stat-value num" id="total-workouts" style="color: var(--cat-nutrition);">0</div>
             </div>
         </div>
     </div>
-    
+
     <!-- XP Progress -->
-    <div class="card mb-4">
+    <div class="chos-card mb-4">
         <div class="card-body">
-            <div class="d-flex justify-content-between mb-2">
-                <span class="fw-bold">Level <span id="xp-level">1</span></span>
-                <span class="text-muted" id="xp-text">0 / 1000 XP</span>
+            <div class="d-flex justify-content-between align-items-end mb-2">
+                <span class="fw-semibold">{{ t("dashboard.level_label") }} <span class="num" id="xp-level">1</span></span>
+                <span class="text-secondary num" id="xp-text">0 / 1000 XP</span>
             </div>
-            <div class="progress" style="height: 20px;">
-                <div class="progress-bar bg-warning progress-bar-striped" id="xp-progress" style="width: 0%"></div>
+            <div class="chos-progress" style="height: 8px;">
+                <div class="chos-progress-fill warning" id="xp-progress" style="width: 0%; background: var(--cat-fat);"></div>
             </div>
             <div class="d-flex justify-content-between mt-2">
-                <small class="text-muted">Level <span id="xp-level-start">1</span></small>
-                <small class="text-muted">Level <span id="xp-level-end">2</span></small>
+                <small class="text-secondary">{{ t("dashboard.level_label") }} <span class="num" id="xp-level-start">1</span></small>
+                <small class="text-secondary">{{ t("dashboard.level_label") }} <span class="num" id="xp-level-end">2</span></small>
             </div>
         </div>
     </div>
-    
+
     <!-- Badges Grid -->
-    <h3 class="fw-bold mb-3">All Badges</h3>
+    <h3 class="fw-bold mb-3">{{ t("badges.all_badges") }}</h3>
     <div class="row g-3" id="badges-grid">
         <div class="col-12 text-center py-5">
             <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
+                <span class="visually-hidden">{{ t("common.loading") }}</span>
             </div>
         </div>
     </div>
-    
+
     <!-- Leaderboard -->
-    <h3 class="fw-bold mb-3 mt-5">Leaderboard</h3>
-    <div class="card">
+    <h3 class="fw-bold mb-3 mt-5">{{ t("badges.leaderboard") }}</h3>
+    <div class="chos-card">
         <div class="card-body">
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
-                        <th>Rank</th>
-                        <th>Athlete</th>
-                        <th>Level</th>
-                        <th>XP</th>
+                        <th>{{ t("badges.rank") }}</th>
+                        <th>{{ t("badges.athlete") }}</th>
+                        <th>{{ t("badges.level") }}</th>
+                        <th>{{ t("badges.xp") }}</th>
                     </tr>
                 </thead>
                 <tbody id="leaderboard-body">
                     <tr>
                         <td colspan="4" class="text-center py-3">
                             <div class="spinner-border spinner-border-sm text-primary me-2"></div>
-                            Loading...
+                            {{ t("common.loading") }}
                         </td>
                     </tr>
                 </tbody>
@@ -161,52 +161,56 @@ async function loadBadges() {
         const earned = badges.filter(b => b.earned);
         const locked = badges.filter(b => !b.earned);
         
-        // Show earned first
+        // Show earned first. Badge fields are server-defined (not user input)
+        // but escape anyway — defense in depth.
         earned.forEach(badge => {
-            const earnedDate = badge.earned_at ? new Date(badge.earned_at).toLocaleDateString() : '';
+            const earnedDate = badge.earned_at ? tDate(new Date(badge.earned_at)) : '';
+            const name = CHOS.escape(badge.name);
+            const desc = CHOS.escape(badge.description);
+            const icon = CHOS.escape(badge.icon);
             html += `
             <div class="col-md-4 col-lg-3">
-                <div class="card h-100 border-warning">
+                <div class="chos-card h-100" style="border-color: rgba(255, 159, 10, 0.3);">
                     <div class="card-body text-center">
-                        <div class="rounded-circle bg-warning bg-opacity-25 d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 80px; height: 80px;">
-                            <span style="font-size: 40px;">${badge.icon}</span>
+                        <div class="d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 80px; height: 80px; border-radius: 50%; background: var(--color-warning-light);">
+                            <span style="font-size: 40px;">${icon}</span>
                         </div>
-                        <h5 class="fw-bold text-warning">${badge.name}</h5>
-                        <p class="text-muted small mb-2">${badge.description}</p>
-                        ${earnedDate ? `<small class="text-muted">Earned ${earnedDate}</small>` : ''}
-                        <div class="mt-2">
-                            <span class="badge bg-warning">+${badge.xp_reward} XP</span>
-                        </div>
+                        <h5 class="fw-bold mb-1" style="color: var(--cat-fat);">${name}</h5>
+                        <p class="text-secondary small mb-2">${desc}</p>
+                        ${earnedDate ? `<small class="text-secondary d-block mb-2">${t('badges.earned_at', { date: CHOS.escape(earnedDate) })}</small>` : ''}
+                        <span class="chos-badge chos-badge-warning">+${Number(badge.xp_reward) || 0} XP</span>
                     </div>
                 </div>
             </div>`;
         });
-        
+
         // Show locked
         locked.forEach(badge => {
+            const name = CHOS.escape(badge.name);
+            const desc = CHOS.escape(badge.description);
             html += `
             <div class="col-md-4 col-lg-3">
-                <div class="card h-100 opacity-75">
+                <div class="chos-card h-100 opacity-50">
                     <div class="card-body text-center">
-                        <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 80px; height: 80px;">
-                            <span style="font-size: 40px; opacity: 0.5;">🔒</span>
+                        <div class="d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 80px; height: 80px; border-radius: 50%; background: var(--surface-sunken);">
+                            <span style="font-size: 36px; opacity: 0.5;">🔒</span>
                         </div>
-                        <h5 class="fw-bold text-muted">${badge.name}</h5>
-                        <p class="text-muted small mb-0">${badge.description}</p>
+                        <h5 class="fw-semibold text-secondary mb-1">${name}</h5>
+                        <p class="text-secondary small mb-0">${desc}</p>
                     </div>
                 </div>
             </div>`;
         });
         
         if (badges.length === 0) {
-            html = '<div class="col-12 text-center py-5"><p class="text-muted">No badges available</p></div>';
+            html = `<div class="col-12 text-center py-5"><p class="text-muted">${t('badges.no_badges')}</p></div>`;
         }
-        
+
         $('#badges-grid').html(html);
-        
+
     } catch (error) {
         console.error('Error loading badges:', error);
-        $('#badges-grid').html('<div class="col-12 text-center py-5 text-danger">Error loading badges</div>');
+        $('#badges-grid').html(`<div class="col-12 text-center py-5 text-danger">${t('badges.load_error')}</div>`);
     }
 }
 
@@ -216,33 +220,35 @@ async function loadLeaderboard() {
         const leaderboard = response.leaderboard || [];
         
         if (leaderboard.length === 0) {
-            $('#leaderboard-body').html('<tr><td colspan="4" class="text-center text-muted">No leaderboard data</td></tr>');
+            $('#leaderboard-body').html(`<tr><td colspan="4" class="text-center text-muted">${t('badges.leaderboard_empty')}</td></tr>`);
             return;
         }
-        
+
         let html = '';
-        leaderboard.forEach((entry, i) => {
+        leaderboard.forEach((entry) => {
             const rankIcon = entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `#${entry.rank}`;
             const rowClass = entry.is_current_user ? 'table-primary' : '';
-            
+            // Names come from user input — must be HTML-escaped before injecting.
+            const safeName = CHOS.escape(entry.name);
+
             html += `
             <tr class="${rowClass}">
                 <td><strong>${rankIcon}</strong></td>
                 <td>
                     ${entry.is_current_user ? '<strong>' : ''}
-                    ${entry.name}${entry.is_current_user ? ' (You)' : ''}
+                    ${safeName}${entry.is_current_user ? t('badges.you_suffix') : ''}
                     ${entry.is_current_user ? '</strong>' : ''}
                 </td>
-                <td>Level ${entry.level}</td>
+                <td>${t('badges.level')} ${entry.level}</td>
                 <td>${entry.xp.toLocaleString()} XP</td>
             </tr>`;
         });
-        
+
         $('#leaderboard-body').html(html);
-        
+
     } catch (error) {
         console.error('Error loading leaderboard:', error);
-        $('#leaderboard-body').html('<tr><td colspan="4" class="text-center text-danger">Error loading leaderboard</td></tr>');
+        $('#leaderboard-body').html(`<tr><td colspan="4" class="text-center text-danger">${t('badges.leaderboard_load_error')}</td></tr>`);
     }
 }
 </script>

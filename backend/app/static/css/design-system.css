@@ -1,34 +1,36 @@
 /* ============================================
    CrossFit Health OS - Design System
-   Based on web-design principles + Bootstrap 5
+   Apple Health-like aesthetic with dark mode
    ============================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 /* ============================================
    Layer 1: Design Tokens (Primitives)
    ============================================ */
 :root {
-   /* Color Primitives - Athletic/Energetic palette */
-   --chos-blue-50: #eff6ff;
+   /* Brand color primitives — keep blue family for primary actions */
+   --chos-blue-50:  #eff6ff;
    --chos-blue-100: #dbeafe;
    --chos-blue-500: #3b82f6;
    --chos-blue-600: #2563eb;
    --chos-blue-700: #1d4ed8;
    --chos-blue-900: #1e3a5f;
-   
-   --chos-green-50: #f0fdf4;
+
+   --chos-green-50:  #f0fdf4;
    --chos-green-500: #22c55e;
    --chos-green-600: #16a34a;
-   
-   --chos-red-50: #fef2f2;
+
+   --chos-red-50:  #fef2f2;
    --chos-red-500: #ef4444;
    --chos-red-600: #dc2626;
-   
-   --chos-orange-50: #fff7ed;
+
+   --chos-orange-50:  #fff7ed;
    --chos-orange-500: #f97316;
-   
+
    --chos-purple-500: #8b5cf6;
-   
-   --chos-gray-50: #f9fafb;
+
+   --chos-gray-50:  #f9fafb;
    --chos-gray-100: #f3f4f6;
    --chos-gray-200: #e5e7eb;
    --chos-gray-300: #d1d5db;
@@ -38,90 +40,195 @@
    --chos-gray-700: #374151;
    --chos-gray-800: #1f2937;
    --chos-gray-900: #111827;
-   
+
+   /* Apple Health-like category colors. Used for icons, badges, charts. */
+   --cat-strength:  #ff3b30;  /* red — força/intensidade */
+   --cat-cardio:    #ff9500;  /* orange — condicionamento */
+   --cat-recovery:  #007aff;  /* blue — recovery/HRV */
+   --cat-sleep:     #5856d6;  /* indigo — sono */
+   --cat-nutrition: #34c759;  /* green — nutrição/proteína */
+   --cat-mind:      #af52de;  /* purple — humor/estresse */
+   --cat-fat:       #ffcc00;  /* amber — gordura */
+
    /* Spacing (8px base) */
-   --space-1: 0.25rem;   /* 4px */
-   --space-2: 0.5rem;    /* 8px */
-   --space-3: 0.75rem;   /* 12px */
-   --space-4: 1rem;      /* 16px */
-   --space-5: 1.25rem;   /* 20px */
-   --space-6: 1.5rem;    /* 24px */
-   --space-8: 2rem;      /* 32px */
-   --space-10: 2.5rem;   /* 40px */
-   --space-12: 3rem;     /* 48px */
-   --space-16: 4rem;     /* 64px */
-   
-   /* Border Radius */
-   --radius-sm: 0.375rem;
-   --radius-md: 0.5rem;
-   --radius-lg: 0.75rem;
-   --radius-xl: 1rem;
+   --space-1: 0.25rem;
+   --space-2: 0.5rem;
+   --space-3: 0.75rem;
+   --space-4: 1rem;
+   --space-5: 1.25rem;
+   --space-6: 1.5rem;
+   --space-7: 1.75rem;
+   --space-8: 2rem;
+   --space-10: 2.5rem;
+   --space-12: 3rem;
+   --space-16: 4rem;
+
+   /* Border Radius — bumped to feel softer/Apple-like */
+   --radius-sm: 0.5rem;
+   --radius-md: 0.625rem;
+   --radius-lg: 0.875rem;   /* 14px — Apple's default card radius */
+   --radius-xl: 1.25rem;    /* 20px */
    --radius-full: 9999px;
-   
-   /* Shadows */
-   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
-   --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-   
+
+   /* Shadows — kept subtle. Cards prefer borders over shadows. */
+   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+   --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.06);
+   --shadow-lg: 0 12px 24px -8px rgba(0, 0, 0, 0.08);
+   --shadow-xl: 0 24px 48px -12px rgba(0, 0, 0, 0.12);
+
    /* Transitions */
    --transition-fast: 150ms ease-out;
-   --transition-base: 250ms ease-out;
+   --transition-base: 220ms ease-out;
    --transition-slow: 350ms ease-in-out;
 
-   /* ============================================
-      Layer 2: Semantic Tokens
-      ============================================ */
-   --color-primary: var(--chos-blue-600);
-   --color-primary-hover: var(--chos-blue-700);
-   --color-primary-light: var(--chos-blue-50);
-   --color-primary-dark: var(--chos-blue-900);
-   
-   --color-success: var(--chos-green-500);
-   --color-success-light: var(--chos-green-50);
-   --color-danger: var(--chos-red-500);
-   --color-danger-light: var(--chos-red-50);
-   --color-warning: var(--chos-orange-500);
-   --color-warning-light: var(--chos-orange-50);
-   --color-info: var(--chos-purple-500);
-   
-   --color-text: var(--chos-gray-900);
-   --color-text-secondary: var(--chos-gray-600);
-   --color-text-muted: var(--chos-gray-400);
-   --color-border: var(--chos-gray-200);
-   
-   --surface-0: #ffffff;
-   --surface-1: var(--chos-gray-50);
-   --surface-2: var(--chos-gray-100);
-   --surface-dark: var(--chos-gray-900);
-   
    /* Typography */
-   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+   --font-sans:    'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
    --font-display: 'Inter', sans-serif;
-   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+   --font-mono:    ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
 }
 
 /* ============================================
-   Google Font Import
+   Layer 2: Light theme (default)
    ============================================ */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+:root, [data-theme="light"] {
+   --color-primary:        var(--chos-blue-600);
+   --color-primary-hover:  var(--chos-blue-700);
+   --color-primary-light:  var(--chos-blue-50);
+   --color-primary-dark:   var(--chos-blue-900);
+
+   --color-success:        var(--chos-green-500);
+   --color-success-light:  var(--chos-green-50);
+   --color-danger:         var(--chos-red-500);
+   --color-danger-light:   var(--chos-red-50);
+   --color-warning:        var(--chos-orange-500);
+   --color-warning-light:  var(--chos-orange-50);
+   --color-info:           var(--chos-purple-500);
+
+   /* Surface stack */
+   --surface-page:    #fafbfc;
+   --surface-card:    #ffffff;
+   --surface-raised:  #ffffff;       /* dropdowns, modals */
+   --surface-sunken:  #f1f3f5;       /* inputs, code blocks */
+   --surface-hover:   rgba(0, 0, 0, 0.03);
+
+   /* Text */
+   --color-text:           #1d1d1f;
+   --color-text-secondary: #6e6e73;
+   --color-text-muted:     #98989d;
+   --color-text-on-primary: #ffffff;
+
+   /* Borders */
+   --color-border:        rgba(0, 0, 0, 0.08);
+   --color-border-strong: rgba(0, 0, 0, 0.16);
+
+   /* Focus ring */
+   --ring-primary: 0 0 0 3px rgba(37, 99, 235, 0.20);
+
+   /* Navbar (used by chos-navbar) */
+   --navbar-bg:   #1d1d1f;
+   --navbar-text: #ffffff;
+
+   /* Legacy aliases kept for compatibility with templates that reference them */
+   --surface-0: var(--surface-card);
+   --surface-1: var(--surface-page);
+   --surface-2: var(--surface-sunken);
+   --surface-dark: var(--navbar-bg);
+}
+
+/* ============================================
+   Layer 2b: Dark theme
+   ============================================ */
+[data-theme="dark"] {
+   --color-primary:        #0a84ff;        /* iOS blue, dark variant */
+   --color-primary-hover:  #2a95ff;
+   --color-primary-light:  rgba(10, 132, 255, 0.16);
+   --color-primary-dark:   #0a84ff;
+
+   --color-success:        #30d158;
+   --color-success-light:  rgba(48, 209, 88, 0.16);
+   --color-danger:         #ff453a;
+   --color-danger-light:   rgba(255, 69, 58, 0.16);
+   --color-warning:        #ff9f0a;
+   --color-warning-light:  rgba(255, 159, 10, 0.16);
+   --color-info:           #bf5af2;
+
+   /* Surfaces - layered grays from black */
+   --surface-page:    #000000;
+   --surface-card:    #1c1c1e;
+   --surface-raised:  #2c2c2e;
+   --surface-sunken:  #2c2c2e;
+   --surface-hover:   rgba(255, 255, 255, 0.06);
+
+   /* Text */
+   --color-text:           #f5f5f7;
+   --color-text-secondary: #98989d;
+   --color-text-muted:     #6e6e73;
+   --color-text-on-primary: #ffffff;
+
+   /* Borders */
+   --color-border:        rgba(255, 255, 255, 0.08);
+   --color-border-strong: rgba(255, 255, 255, 0.16);
+
+   --ring-primary: 0 0 0 3px rgba(10, 132, 255, 0.40);
+
+   /* Category colors keep saturation in dark mode */
+   --cat-strength:  #ff453a;
+   --cat-cardio:    #ff9f0a;
+   --cat-recovery:  #0a84ff;
+   --cat-sleep:     #5e5ce6;
+   --cat-nutrition: #30d158;
+   --cat-mind:      #bf5af2;
+   --cat-fat:       #ffd60a;
+
+   /* Shadows in dark mode use heavier base (visible on dark surfaces) */
+   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+   --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.5);
+   --shadow-lg: 0 12px 24px -8px rgba(0, 0, 0, 0.6);
+   --shadow-xl: 0 24px 48px -12px rgba(0, 0, 0, 0.7);
+
+   --navbar-bg:   #1c1c1e;
+   --navbar-text: #f5f5f7;
+}
+
+/* Auto-pick dark mode if user hasn't explicitly chosen one. The init script
+   in base.html sets [data-theme] explicitly, so this only kicks in when
+   localStorage is empty *and* the page renders before the script ran. */
+@media (prefers-color-scheme: dark) {
+   :root:not([data-theme]) {
+      color-scheme: dark;
+   }
+}
 
 /* ============================================
    Base Styles
    ============================================ */
+html {
+   color-scheme: light;
+}
+[data-theme="dark"] {
+   color-scheme: dark;
+}
+
 body {
    font-family: var(--font-sans);
    color: var(--color-text);
-   background-color: var(--surface-1);
-   line-height: 1.6;
+   background-color: var(--surface-page);
+   line-height: 1.5;
    -webkit-font-smoothing: antialiased;
    -moz-osx-font-smoothing: grayscale;
+   font-feature-settings: 'cv11', 'ss01', 'ss03';  /* Inter stylistic sets */
+}
+
+/* Numeric values use tabular figures for tidy column alignment */
+.num, .stat-value, .pr-value {
+   font-feature-settings: 'tnum', 'cv11';
+   letter-spacing: -0.02em;
 }
 
 /* Fluid Typography */
-h1, .h1 { font-size: clamp(1.75rem, 1.5rem + 1.5vw, 2.5rem); font-weight: 800; line-height: 1.2; }
-h2, .h2 { font-size: clamp(1.5rem, 1.25rem + 1vw, 2rem); font-weight: 700; line-height: 1.25; }
-h3, .h3 { font-size: clamp(1.25rem, 1rem + 0.5vw, 1.5rem); font-weight: 600; line-height: 1.3; }
+h1, .h1 { font-size: clamp(1.75rem, 1.5rem + 1.5vw, 2.5rem); font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; }
+h2, .h2 { font-size: clamp(1.5rem, 1.25rem + 1vw, 2rem);    font-weight: 700; line-height: 1.25; letter-spacing: -0.015em; }
+h3, .h3 { font-size: clamp(1.25rem, 1rem + 0.5vw, 1.5rem);  font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; }
 h4, .h4 { font-size: 1.125rem; font-weight: 600; line-height: 1.35; }
 
 /* ============================================
@@ -130,55 +237,110 @@ h4, .h4 { font-size: 1.125rem; font-weight: 600; line-height: 1.35; }
 
 /* --- Navbar --- */
 .chos-navbar {
-   background: var(--surface-dark);
-   box-shadow: var(--shadow-md);
+   background: var(--navbar-bg);
+   border-bottom: 1px solid var(--color-border);
+   box-shadow: none;
    padding: var(--space-2) 0;
 }
 
 .chos-navbar .navbar-brand {
+   color: var(--navbar-text);
    font-weight: 700;
    font-size: 1.125rem;
    letter-spacing: -0.025em;
 }
 
 .chos-navbar .nav-link {
+   color: rgba(255, 255, 255, 0.75) !important;
    font-size: 0.875rem;
    font-weight: 500;
    padding: var(--space-2) var(--space-3) !important;
    border-radius: var(--radius-md);
-   transition: background var(--transition-fast);
+   transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .chos-navbar .nav-link:hover {
-   background: rgba(255, 255, 255, 0.1);
-}
-
-.chos-navbar .nav-link.active {
-   background: rgba(255, 255, 255, 0.15);
+   background: rgba(255, 255, 255, 0.08);
    color: #fff !important;
 }
 
+.chos-navbar .nav-link.active {
+   background: rgba(255, 255, 255, 0.12);
+   color: #fff !important;
+}
+
+.chos-navbar .dropdown-menu {
+   background: var(--surface-raised);
+   border: 1px solid var(--color-border);
+   box-shadow: var(--shadow-lg);
+   border-radius: var(--radius-md);
+   padding: var(--space-1);
+}
+.chos-navbar .dropdown-item {
+   color: var(--color-text);
+   border-radius: var(--radius-sm);
+   font-size: 0.875rem;
+   padding: var(--space-2) var(--space-3);
+}
+.chos-navbar .dropdown-item:hover,
+.chos-navbar .dropdown-item:focus {
+   background: var(--surface-hover);
+   color: var(--color-text);
+}
+.chos-navbar .dropdown-item.active {
+   background: var(--color-primary-light);
+   color: var(--color-primary);
+}
+.chos-navbar .dropdown-divider {
+   border-top-color: var(--color-border);
+   margin: var(--space-1) 0;
+}
+
+/* Theme toggle button — sits inline with nav links */
+.chos-theme-toggle {
+   background: transparent;
+   border: 0;
+   color: rgba(255, 255, 255, 0.75);
+   padding: var(--space-2) var(--space-3);
+   border-radius: var(--radius-md);
+   cursor: pointer;
+   transition: background var(--transition-fast), color var(--transition-fast);
+   line-height: 1;
+}
+.chos-theme-toggle:hover {
+   background: rgba(255, 255, 255, 0.08);
+   color: #fff;
+}
+.chos-theme-toggle .icon-sun  { display: none; }
+.chos-theme-toggle .icon-moon { display: inline-block; }
+[data-theme="dark"] .chos-theme-toggle .icon-sun  { display: inline-block; }
+[data-theme="dark"] .chos-theme-toggle .icon-moon { display: none; }
+
 /* --- Cards --- */
 .chos-card {
-   background: var(--surface-0);
+   background: var(--surface-card);
    border: 1px solid var(--color-border);
    border-radius: var(--radius-lg);
-   box-shadow: var(--shadow-sm);
-   transition: box-shadow var(--transition-base), transform var(--transition-base);
+   box-shadow: none;                   /* prefer borders to shadows */
+   transition: border-color var(--transition-base), box-shadow var(--transition-base), transform var(--transition-base);
    overflow: hidden;
 }
 
 .chos-card:hover {
-   box-shadow: var(--shadow-md);
+   border-color: var(--color-border-strong);
 }
 
+.chos-card-interactive {
+   cursor: pointer;
+}
 .chos-card-interactive:hover {
-   transform: translateY(-2px);
-   box-shadow: var(--shadow-lg);
+   transform: translateY(-1px);
+   box-shadow: var(--shadow-md);
 }
 
 .chos-card .card-body {
    padding: var(--space-6);
+   color: var(--color-text);
 }
 
 .chos-card .card-header {
@@ -186,99 +348,123 @@ h4, .h4 { font-size: 1.125rem; font-weight: 600; line-height: 1.35; }
    border-bottom: 1px solid var(--color-border);
    padding: var(--space-4) var(--space-6);
    font-weight: 600;
+   color: var(--color-text);
 }
+
+/* Feature card — used where we used to show a gradient banner. Just a flat
+   surface with a colored accent rule on the left. Cleaner, more Apple. */
+.chos-card-feature {
+   position: relative;
+   padding-left: var(--space-6);
+}
+.chos-card-feature::before {
+   content: '';
+   position: absolute;
+   left: 0; top: var(--space-5); bottom: var(--space-5);
+   width: 4px;
+   border-radius: var(--radius-full);
+   background: var(--cat-strength);
+}
+.chos-card-feature.is-recovery::before  { background: var(--cat-recovery); }
+.chos-card-feature.is-cardio::before    { background: var(--cat-cardio); }
+.chos-card-feature.is-nutrition::before { background: var(--cat-nutrition); }
 
 /* --- Stat Cards --- */
 .chos-stat-card {
-   background: var(--surface-0);
+   background: var(--surface-card);
    border: 1px solid var(--color-border);
    border-radius: var(--radius-lg);
    padding: var(--space-5);
-   transition: all var(--transition-base);
+   transition: border-color var(--transition-base);
 }
 
 .chos-stat-card:hover {
-   border-color: var(--color-primary);
-   box-shadow: var(--shadow-md);
+   border-color: var(--color-border-strong);
 }
 
 .chos-stat-card .stat-icon {
-   width: 48px;
-   height: 48px;
+   width: 36px;
+   height: 36px;
    border-radius: var(--radius-md);
-   display: flex;
+   display: inline-flex;
    align-items: center;
    justify-content: center;
-   font-size: 1.25rem;
+   font-size: 1rem;
+   color: var(--color-text-on-primary);
 }
 
 .chos-stat-card .stat-value {
-   font-size: 1.75rem;
-   font-weight: 800;
-   line-height: 1;
-   letter-spacing: -0.025em;
+   font-size: 2rem;
+   font-weight: 700;
+   line-height: 1.05;
+   letter-spacing: -0.02em;
+   font-feature-settings: 'tnum';
+   color: var(--color-text);
 }
 
 .chos-stat-card .stat-label {
    font-size: 0.8125rem;
    color: var(--color-text-secondary);
    font-weight: 500;
+   text-transform: none;
+   letter-spacing: 0;
 }
 
 .chos-stat-card .stat-trend {
    font-size: 0.75rem;
    font-weight: 600;
+   font-feature-settings: 'tnum';
 }
 
-.stat-trend.up { color: var(--color-success); }
-.stat-trend.down { color: var(--color-danger); }
+.stat-trend.up      { color: var(--color-success); }
+.stat-trend.down    { color: var(--color-danger); }
 .stat-trend.neutral { color: var(--color-text-muted); }
+
+.chos-stat-card .stat-spark {
+   margin-top: var(--space-2);
+   height: 36px;
+}
 
 /* --- Buttons --- */
 .chos-btn {
    font-weight: 600;
-   font-size: 0.875rem;
+   font-size: 0.9375rem;
    padding: var(--space-2) var(--space-4);
    border-radius: var(--radius-md);
-   transition: all var(--transition-fast);
+   transition: background var(--transition-fast), border-color var(--transition-fast),
+               color var(--transition-fast), transform 80ms ease-out;
    border: none;
    cursor: pointer;
    display: inline-flex;
    align-items: center;
+   justify-content: center;
    gap: var(--space-2);
-   min-height: 44px; /* Touch target */
+   min-height: 40px;
+   line-height: 1;
+   white-space: nowrap;
 }
 
 .chos-btn:active {
-   transform: scale(0.98);
+   transform: scale(0.97);
 }
 
 .chos-btn-primary {
    background: var(--color-primary);
-   color: white;
+   color: var(--color-text-on-primary);
 }
-
 .chos-btn-primary:hover {
    background: var(--color-primary-hover);
-   color: white;
+   color: var(--color-text-on-primary);
 }
 
-.chos-btn-success {
-   background: var(--color-success);
-   color: white;
-}
-
-.chos-btn-danger {
-   background: var(--color-danger);
-   color: white;
-}
+.chos-btn-success { background: var(--color-success); color: var(--color-text-on-primary); }
+.chos-btn-danger  { background: var(--color-danger);  color: var(--color-text-on-primary); }
 
 .chos-btn-outline {
    background: transparent;
-   border: 1.5px solid var(--color-border);
+   border: 1px solid var(--color-border-strong);
    color: var(--color-text);
 }
-
 .chos-btn-outline:hover {
    border-color: var(--color-primary);
    color: var(--color-primary);
@@ -289,42 +475,37 @@ h4, .h4 { font-size: 1.125rem; font-weight: 600; line-height: 1.35; }
    background: transparent;
    color: var(--color-text-secondary);
 }
-
 .chos-btn-ghost:hover {
-   background: var(--surface-2);
+   background: var(--surface-hover);
    color: var(--color-text);
 }
 
 .chos-btn-lg {
    padding: var(--space-3) var(--space-6);
    font-size: 1rem;
-   min-height: 52px;
+   min-height: 48px;
 }
 
 .chos-btn-sm {
    padding: var(--space-1) var(--space-3);
    font-size: 0.8125rem;
-   min-height: 36px;
+   min-height: 32px;
 }
 
-/* Loading state */
-.chos-btn.loading {
-   opacity: 0.7;
-   pointer-events: none;
-}
-
-.chos-btn.loading .btn-text { display: none; }
-.chos-btn.loading .btn-spinner { display: inline-block; }
-.chos-btn .btn-spinner { display: none; }
+.chos-btn.loading { opacity: 0.7; pointer-events: none; }
+.chos-btn.loading .btn-text     { display: none; }
+.chos-btn.loading .btn-spinner  { display: inline-block; }
+.chos-btn .btn-spinner          { display: none; }
 
 /* --- Forms --- */
 .chos-input {
-   font-size: 1rem; /* Prevents iOS zoom */
+   font-size: 1rem;
    padding: var(--space-3) var(--space-4);
-   border: 1.5px solid var(--color-border);
+   border: 1px solid var(--color-border-strong);
    border-radius: var(--radius-md);
    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-   background: var(--surface-0);
+   background: var(--surface-card);
+   color: var(--color-text);
    min-height: 44px;
    width: 100%;
 }
@@ -332,7 +513,7 @@ h4, .h4 { font-size: 1.125rem; font-weight: 600; line-height: 1.35; }
 .chos-input:focus {
    outline: none;
    border-color: var(--color-primary);
-   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+   box-shadow: var(--ring-primary);
 }
 
 .chos-input::placeholder {
@@ -343,7 +524,7 @@ h4, .h4 { font-size: 1.125rem; font-weight: 600; line-height: 1.35; }
    font-size: 0.875rem;
    font-weight: 600;
    color: var(--color-text);
-   margin-bottom: var(--space-1);
+   margin-bottom: var(--space-2);
    display: block;
 }
 
@@ -351,7 +532,27 @@ h4, .h4 { font-size: 1.125rem; font-weight: 600; line-height: 1.35; }
    font-size: 0.8125rem;
    color: var(--color-text-muted);
    margin-top: var(--space-1);
+   display: block;
 }
+
+/* Bootstrap form controls inside our pages should use our look-and-feel */
+.form-control, .form-select {
+   background-color: var(--surface-card);
+   color: var(--color-text);
+   border-color: var(--color-border-strong);
+   border-radius: var(--radius-md);
+}
+.form-control:focus, .form-select:focus {
+   background-color: var(--surface-card);
+   color: var(--color-text);
+   border-color: var(--color-primary);
+   box-shadow: var(--ring-primary);
+}
+.form-control::placeholder { color: var(--color-text-muted); }
+.form-label { color: var(--color-text); font-weight: 500; }
+.form-text  { color: var(--color-text-secondary); }
+.form-check-input:checked { background-color: var(--color-primary); border-color: var(--color-primary); }
+.form-check-label { color: var(--color-text); }
 
 /* --- Badges --- */
 .chos-badge {
@@ -362,17 +563,66 @@ h4, .h4 { font-size: 1.125rem; font-weight: 600; line-height: 1.35; }
    display: inline-flex;
    align-items: center;
    gap: var(--space-1);
+   line-height: 1.2;
 }
 
 .chos-badge-primary { background: var(--color-primary-light); color: var(--color-primary); }
-.chos-badge-success { background: var(--color-success-light); color: var(--chos-green-600); }
-.chos-badge-danger { background: var(--color-danger-light); color: var(--chos-red-600); }
-.chos-badge-warning { background: var(--color-warning-light); color: var(--chos-orange-500); }
+.chos-badge-success { background: var(--color-success-light); color: var(--color-success); }
+.chos-badge-danger  { background: var(--color-danger-light);  color: var(--color-danger); }
+.chos-badge-warning { background: var(--color-warning-light); color: var(--color-warning); }
+
+/* Category badges — Apple Health style */
+.chos-cat {
+   display: inline-flex;
+   align-items: center;
+   gap: var(--space-2);
+   font-size: 0.8125rem;
+   font-weight: 600;
+   color: var(--color-text);
+}
+.chos-cat::before {
+   content: '';
+   width: 8px;
+   height: 8px;
+   border-radius: 50%;
+   background: var(--cat-recovery);  /* default; overridden by modifier */
+}
+.chos-cat.is-strength::before  { background: var(--cat-strength); }
+.chos-cat.is-cardio::before    { background: var(--cat-cardio); }
+.chos-cat.is-recovery::before  { background: var(--cat-recovery); }
+.chos-cat.is-sleep::before     { background: var(--cat-sleep); }
+.chos-cat.is-nutrition::before { background: var(--cat-nutrition); }
+.chos-cat.is-mind::before      { background: var(--cat-mind); }
+
+/* Movement chip — flat colored pill used in workout previews */
+.chos-chip {
+   display: inline-flex;
+   align-items: center;
+   gap: var(--space-2);
+   padding: var(--space-1) var(--space-3);
+   font-size: 0.8125rem;
+   font-weight: 500;
+   color: var(--color-text);
+   background: var(--surface-sunken);
+   border-radius: var(--radius-full);
+   border: 1px solid var(--color-border);
+   line-height: 1.4;
+}
+.chos-chip .chip-dot {
+   width: 6px;
+   height: 6px;
+   border-radius: 50%;
+   background: var(--color-text-muted);
+}
+.chos-chip.is-strength  .chip-dot { background: var(--cat-strength); }
+.chos-chip.is-cardio    .chip-dot { background: var(--cat-cardio); }
+.chos-chip.is-recovery  .chip-dot { background: var(--cat-recovery); }
+.chos-chip.is-nutrition .chip-dot { background: var(--cat-nutrition); }
 
 /* --- Progress Bars --- */
 .chos-progress {
-   height: 8px;
-   background: var(--surface-2);
+   height: 6px;
+   background: var(--surface-sunken);
    border-radius: var(--radius-full);
    overflow: hidden;
 }
@@ -385,45 +635,55 @@ h4, .h4 { font-size: 1.125rem; font-weight: 600; line-height: 1.35; }
 
 .chos-progress-fill.primary { background: var(--color-primary); }
 .chos-progress-fill.success { background: var(--color-success); }
-.chos-progress-fill.danger { background: var(--color-danger); }
+.chos-progress-fill.danger  { background: var(--color-danger); }
 .chos-progress-fill.warning { background: var(--color-warning); }
 
 /* --- Workout-specific Components --- */
 .chos-workout-card {
-   background: var(--surface-0);
+   background: var(--surface-card);
    border: 1px solid var(--color-border);
    border-radius: var(--radius-lg);
    padding: var(--space-5);
-   transition: all var(--transition-base);
-   border-left: 4px solid transparent;
+   transition: border-color var(--transition-base);
+   border-left: 4px solid var(--color-text-muted);
 }
 
-.chos-workout-card.strength { border-left-color: var(--chos-blue-500); }
-.chos-workout-card.metcon { border-left-color: var(--chos-red-500); }
-.chos-workout-card.skill { border-left-color: var(--chos-green-500); }
-.chos-workout-card.rest { border-left-color: var(--chos-gray-400); }
+.chos-workout-card.strength     { border-left-color: var(--cat-strength); }
+.chos-workout-card.metcon       { border-left-color: var(--cat-cardio); }
+.chos-workout-card.skill        { border-left-color: var(--cat-nutrition); }
+.chos-workout-card.conditioning { border-left-color: var(--cat-recovery); }
+.chos-workout-card.mixed        { border-left-color: var(--cat-mind); }
+.chos-workout-card.rest         { border-left-color: var(--color-text-muted); }
 
 .chos-workout-card:hover {
-   box-shadow: var(--shadow-md);
-   transform: translateY(-1px);
+   border-color: var(--color-border-strong);
 }
 
 /* RPE Stars */
-.chos-rpe .star { color: var(--chos-gray-300); }
-.chos-rpe .star.active { color: var(--chos-orange-500); }
+.chos-rpe .star { color: var(--color-text-muted); }
+.chos-rpe .star.active { color: var(--cat-cardio); }
 
-/* PR Card */
+/* PR Card — the gold gradient was kitschy; keep amber accent on a flat surface */
 .chos-pr-card {
-   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-   border: 2px solid #fbbf24;
+   background: var(--surface-card);
+   border: 1px solid var(--color-border);
+   border-left: 4px solid var(--cat-fat);
    border-radius: var(--radius-lg);
    padding: var(--space-5);
+   transition: border-color var(--transition-base);
 }
-
+.chos-pr-card:hover { border-color: var(--color-border-strong); }
 .chos-pr-card .pr-value {
-   font-size: 2rem;
+   font-size: 2.25rem;
    font-weight: 800;
    letter-spacing: -0.025em;
+   font-feature-settings: 'tnum';
+   color: var(--color-text);
+}
+.chos-pr-card .pr-delta {
+   font-size: 0.875rem;
+   font-weight: 600;
+   color: var(--color-success);
 }
 
 /* --- Recovery Score Indicator --- */
@@ -436,26 +696,13 @@ h4, .h4 { font-size: 1.125rem; font-weight: 600; line-height: 1.35; }
    justify-content: center;
    font-size: 1.5rem;
    font-weight: 800;
+   font-feature-settings: 'tnum';
    position: relative;
 }
 
-.chos-readiness.high {
-   background: var(--color-success-light);
-   color: var(--chos-green-600);
-   border: 3px solid var(--color-success);
-}
-
-.chos-readiness.medium {
-   background: var(--color-warning-light);
-   color: var(--chos-orange-500);
-   border: 3px solid var(--chos-orange-500);
-}
-
-.chos-readiness.low {
-   background: var(--color-danger-light);
-   color: var(--chos-red-600);
-   border: 3px solid var(--color-danger);
-}
+.chos-readiness.high   { background: var(--color-success-light); color: var(--color-success); border: 3px solid var(--color-success); }
+.chos-readiness.medium { background: var(--color-warning-light); color: var(--color-warning); border: 3px solid var(--color-warning); }
+.chos-readiness.low    { background: var(--color-danger-light);  color: var(--color-danger);  border: 3px solid var(--color-danger); }
 
 /* --- Toast Notifications --- */
 .chos-toast-container {
@@ -469,11 +716,12 @@ h4, .h4 { font-size: 1.125rem; font-weight: 600; line-height: 1.35; }
 }
 
 .chos-toast {
-   background: var(--surface-0);
+   background: var(--surface-raised);
+   color: var(--color-text);
    border: 1px solid var(--color-border);
    border-radius: var(--radius-lg);
    padding: var(--space-4);
-   box-shadow: var(--shadow-xl);
+   box-shadow: var(--shadow-lg);
    display: flex;
    align-items: center;
    gap: var(--space-3);
@@ -483,13 +731,13 @@ h4, .h4 { font-size: 1.125rem; font-weight: 600; line-height: 1.35; }
 }
 
 .chos-toast.success { border-left: 4px solid var(--color-success); }
-.chos-toast.error { border-left: 4px solid var(--color-danger); }
+.chos-toast.error   { border-left: 4px solid var(--color-danger); }
 .chos-toast.warning { border-left: 4px solid var(--color-warning); }
-.chos-toast.info { border-left: 4px solid var(--color-primary); }
+.chos-toast.info    { border-left: 4px solid var(--color-primary); }
 
 @keyframes slideInRight {
    from { transform: translateX(100%); opacity: 0; }
-   to { transform: translateX(0); opacity: 1; }
+   to   { transform: translateX(0);    opacity: 1; }
 }
 
 /* --- Empty States --- */
@@ -499,7 +747,7 @@ h4, .h4 { font-size: 1.125rem; font-weight: 600; line-height: 1.35; }
 }
 
 .chos-empty-state .empty-icon {
-   font-size: 3.5rem;
+   font-size: 3rem;
    color: var(--color-text-muted);
    margin-bottom: var(--space-4);
 }
@@ -507,6 +755,7 @@ h4, .h4 { font-size: 1.125rem; font-weight: 600; line-height: 1.35; }
 .chos-empty-state .empty-title {
    font-weight: 700;
    margin-bottom: var(--space-2);
+   color: var(--color-text);
 }
 
 .chos-empty-state .empty-desc {
@@ -517,20 +766,20 @@ h4, .h4 { font-size: 1.125rem; font-weight: 600; line-height: 1.35; }
 
 /* --- Loading Skeleton --- */
 .chos-skeleton {
-   background: linear-gradient(90deg, var(--surface-2) 25%, var(--chos-gray-200) 50%, var(--surface-2) 75%);
+   background: linear-gradient(90deg, var(--surface-sunken) 25%, var(--color-border) 50%, var(--surface-sunken) 75%);
    background-size: 200% 100%;
    animation: shimmer 1.5s infinite;
    border-radius: var(--radius-md);
 }
 
 @keyframes shimmer {
-   0% { background-position: 200% 0; }
+   0%   { background-position: 200% 0; }
    100% { background-position: -200% 0; }
 }
 
-.chos-skeleton-text { height: 1rem; margin-bottom: var(--space-2); }
+.chos-skeleton-text  { height: 1rem; margin-bottom: var(--space-2); }
 .chos-skeleton-title { height: 1.5rem; width: 60%; margin-bottom: var(--space-3); }
-.chos-skeleton-card { height: 200px; }
+.chos-skeleton-card  { height: 200px; }
 
 /* --- Stagger Animation --- */
 .chos-stagger > * {
@@ -550,60 +799,459 @@ h4, .h4 { font-size: 1.125rem; font-weight: 600; line-height: 1.35; }
    to { opacity: 1; transform: translateY(0); }
 }
 
+/* --- Modal polish (Bootstrap modals respect theme) --- */
+.modal-content {
+   background-color: var(--surface-raised);
+   color: var(--color-text);
+   border: 1px solid var(--color-border);
+   border-radius: var(--radius-xl);
+   box-shadow: var(--shadow-xl);
+}
+.modal-header, .modal-footer {
+   border-color: var(--color-border);
+}
+.modal-header .btn-close {
+   filter: var(--btn-close-filter, none);
+}
+[data-theme="dark"] .modal-header .btn-close {
+   filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+/* --- Tables polish --- */
+.table {
+   color: var(--color-text);
+   --bs-table-bg: transparent;
+   --bs-table-color: var(--color-text);
+   --bs-table-hover-bg: var(--surface-hover);
+   --bs-table-hover-color: var(--color-text);
+   --bs-table-border-color: var(--color-border);
+}
+
+/* --- Alerts in dark mode --- */
+[data-theme="dark"] .alert-info {
+   background: var(--color-primary-light);
+   color: var(--color-text);
+   border-color: rgba(10, 132, 255, 0.32);
+}
+[data-theme="dark"] .alert-success {
+   background: var(--color-success-light);
+   color: var(--color-text);
+   border-color: rgba(48, 209, 88, 0.32);
+}
+[data-theme="dark"] .alert-warning {
+   background: var(--color-warning-light);
+   color: var(--color-text);
+   border-color: rgba(255, 159, 10, 0.32);
+}
+[data-theme="dark"] .alert-danger {
+   background: var(--color-danger-light);
+   color: var(--color-text);
+   border-color: rgba(255, 69, 58, 0.32);
+}
+
+/* --- Bootstrap text color helpers in dark mode --- */
+[data-theme="dark"] .text-muted { color: var(--color-text-secondary) !important; }
+[data-theme="dark"] .text-secondary { color: var(--color-text-secondary) !important; }
+[data-theme="dark"] .bg-light  { background-color: var(--surface-sunken) !important; color: var(--color-text); }
+[data-theme="dark"] .border    { border-color: var(--color-border) !important; }
+[data-theme="dark"] .border-warning { border-color: rgba(255, 159, 10, 0.4) !important; }
+
 /* ============================================
-   Responsive Overrides
+   Mobile bottom tab navigation
+   The top navbar collapses to hamburger on mobile, which adds an extra tap
+   for every action. A bottom tab bar gives 1-tap access to the 5 primary
+   surfaces and matches the iOS/Android pattern users already know.
    ============================================ */
 
-/* Mobile */
+/* Reserve space at the bottom of the viewport so fixed bars don't overlap
+   the page content on mobile. Disabled on desktop (the bottom tabs hide). */
 @media (max-width: 767.98px) {
-   .chos-stat-card {
-      padding: var(--space-4);
-   }
-   
-   .chos-stat-card .stat-value {
-      font-size: 1.5rem;
-   }
-   
-   .chos-card .card-body {
-      padding: var(--space-4);
-   }
-   
-   .chos-toast-container {
-      left: var(--space-4);
-      right: var(--space-4);
-   }
-   
-   .chos-toast {
-      min-width: auto;
-      max-width: 100%;
-   }
-   
-   /* Stack quick actions */
-   .chos-quick-actions {
-      flex-direction: column;
-   }
-   
-   /* Mobile nav padding */
-   .chos-navbar .nav-link {
-      padding: var(--space-3) var(--space-4) !important;
+   body {
+      padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
    }
 }
 
-/* Tablet */
-@media (min-width: 768px) and (max-width: 1023.98px) {
-   .chos-stat-card .stat-value {
-      font-size: 1.5rem;
+.chos-bottom-tabs {
+   display: none;
+   position: fixed;
+   left: 0;
+   right: 0;
+   bottom: 0;
+   z-index: 1030;
+   background: var(--surface-card);
+   border-top: 1px solid var(--color-border);
+   padding-bottom: env(safe-area-inset-bottom, 0px);
+   box-shadow: 0 -4px 12px -2px rgba(0, 0, 0, 0.06);
+}
+[data-theme="dark"] .chos-bottom-tabs {
+   box-shadow: 0 -4px 12px -2px rgba(0, 0, 0, 0.4);
+}
+
+@media (max-width: 767.98px) {
+   .chos-bottom-tabs { display: flex; }
+}
+
+.chos-bottom-tabs > a {
+   flex: 1;
+   display: flex;
+   flex-direction: column;
+   align-items: center;
+   justify-content: center;
+   gap: 2px;
+   padding: var(--space-2) 0;
+   color: var(--color-text-muted);
+   text-decoration: none;
+   font-size: 0.6875rem;
+   font-weight: 500;
+   min-height: 56px;
+   transition: color var(--transition-fast);
+   -webkit-tap-highlight-color: transparent;
+}
+.chos-bottom-tabs > a i {
+   font-size: 1.125rem;
+}
+.chos-bottom-tabs > a.active {
+   color: var(--color-primary);
+}
+.chos-bottom-tabs > a:active {
+   transform: scale(0.95);
+}
+
+/* ============================================
+   FAB — quick actions
+   Floats above the bottom tabs. Opens a bottom sheet with 4 shortcuts.
+   ============================================ */
+.chos-fab {
+   position: fixed;
+   right: var(--space-4);
+   bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+   z-index: 1040;
+   width: 52px;
+   height: 52px;
+   border-radius: 50%;
+   background: var(--color-primary);
+   color: var(--color-text-on-primary);
+   border: 0;
+   font-size: 1.125rem;
+   box-shadow: var(--shadow-lg);
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   cursor: pointer;
+   transition: transform var(--transition-fast), background var(--transition-fast);
+}
+.chos-fab:hover  { background: var(--color-primary-hover); }
+.chos-fab:active { transform: scale(0.94); }
+
+@media (min-width: 768px) {
+   .chos-fab { bottom: var(--space-6); }
+}
+
+/* When a workout bar is showing on mobile, push the FAB up so it doesn't
+   overlap the bar. */
+@media (max-width: 767.98px) {
+   body.has-workout-bar .chos-fab {
+      bottom: calc(72px + 56px + env(safe-area-inset-bottom, 0px));
    }
+}
+
+.chos-sheet-backdrop {
+   position: fixed;
+   inset: 0;
+   z-index: 1045;
+   background: rgba(0, 0, 0, 0.4);
+   opacity: 0;
+   pointer-events: none;
+   transition: opacity var(--transition-base);
+}
+.chos-sheet-backdrop.is-open {
+   opacity: 1;
+   pointer-events: auto;
+}
+
+.chos-sheet {
+   position: fixed;
+   left: 0; right: 0; bottom: 0;
+   z-index: 1050;
+   background: var(--surface-raised);
+   border-top-left-radius: var(--radius-xl);
+   border-top-right-radius: var(--radius-xl);
+   padding: var(--space-3) var(--space-4) calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+   transform: translateY(100%);
+   transition: transform var(--transition-base);
+   box-shadow: var(--shadow-xl);
+}
+.chos-sheet.is-open { transform: translateY(0); }
+
+.chos-sheet::before {
+   content: '';
+   display: block;
+   width: 36px;
+   height: 4px;
+   border-radius: 2px;
+   background: var(--color-border-strong);
+   margin: 0 auto var(--space-4);
+}
+
+.chos-sheet-action {
+   width: 100%;
+   display: flex;
+   align-items: center;
+   gap: var(--space-3);
+   padding: var(--space-3) var(--space-4);
+   background: transparent;
+   border: 0;
+   border-radius: var(--radius-md);
+   color: var(--color-text);
+   font-size: 0.9375rem;
+   font-weight: 500;
+   text-align: left;
+   transition: background var(--transition-fast);
+   cursor: pointer;
+   text-decoration: none;
+}
+.chos-sheet-action:hover { background: var(--surface-hover); }
+.chos-sheet-action .sheet-icon {
+   width: 36px;
+   height: 36px;
+   border-radius: var(--radius-md);
+   display: inline-flex;
+   align-items: center;
+   justify-content: center;
+   color: #fff;
+   flex-shrink: 0;
+}
+
+/* ============================================
+   Activity rings — Apple Fitness-style trio
+   3 concentric SVG circles: treino / recovery / nutrição.
+   Each ring's stroke-dashoffset animates from full to (1 - pct) * circumference.
+   ============================================ */
+.chos-rings {
+   width: 120px;
+   height: 120px;
+   flex-shrink: 0;
+}
+.chos-rings circle.track {
+   fill: none;
+   stroke-width: 10;
+   opacity: 0.15;
+}
+.chos-rings circle.fill {
+   fill: none;
+   stroke-width: 10;
+   stroke-linecap: round;
+   transform: rotate(-90deg);
+   transform-origin: center;
+   transition: stroke-dashoffset 0.8s ease;
+}
+.chos-rings .ring-train .track    { stroke: var(--cat-cardio); }
+.chos-rings .ring-train .fill     { stroke: var(--cat-cardio); }
+.chos-rings .ring-recovery .track { stroke: var(--cat-recovery); }
+.chos-rings .ring-recovery .fill  { stroke: var(--cat-recovery); }
+.chos-rings .ring-nutrition .track{ stroke: var(--cat-nutrition); }
+.chos-rings .ring-nutrition .fill { stroke: var(--cat-nutrition); }
+
+/* Compact rings legend */
+.chos-rings-legend .legend-item {
+   display: flex;
+   align-items: center;
+   gap: var(--space-2);
+   font-size: 0.875rem;
+}
+.chos-rings-legend .legend-dot {
+   width: 10px;
+   height: 10px;
+   border-radius: 50%;
+}
+
+/* ============================================
+   Persistent workout bar — Spotify-mini-player style
+   Fixed at the bottom of the viewport while a workout is active. Sits above
+   the bottom tab bar on mobile. Click → return to active session.
+   ============================================ */
+.chos-workout-bar {
+   display: none;
+   position: fixed;
+   left: 0; right: 0;
+   z-index: 1025;
+   background: var(--surface-raised);
+   border-top: 1px solid var(--color-border);
+   padding: var(--space-2) var(--space-3);
+   align-items: center;
+   gap: var(--space-3);
+   box-shadow: 0 -4px 12px -2px rgba(0, 0, 0, 0.08);
+   bottom: 0;
+}
+
+@media (max-width: 767.98px) {
+   /* Sits ABOVE the bottom tab bar on mobile */
+   .chos-workout-bar {
+      bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+   }
+}
+
+.chos-workout-bar.is-visible { display: flex; }
+
+.chos-workout-bar .wb-dot {
+   width: 8px;
+   height: 8px;
+   border-radius: 50%;
+   background: var(--cat-strength);
+   animation: pulse 1.4s ease-in-out infinite;
+   flex-shrink: 0;
+}
+@keyframes pulse {
+   0%, 100% { opacity: 1; }
+   50%      { opacity: 0.3; }
+}
+.chos-workout-bar .wb-info {
+   flex: 1;
+   min-width: 0;
+}
+.chos-workout-bar .wb-title {
+   font-weight: 600;
+   font-size: 0.875rem;
+   white-space: nowrap;
+   overflow: hidden;
+   text-overflow: ellipsis;
+}
+.chos-workout-bar .wb-time {
+   font-size: 0.75rem;
+   color: var(--color-text-secondary);
+   font-feature-settings: 'tnum';
+}
+
+/* When the workout bar is visible on mobile, push body padding up so the
+   tab bar stays clear. This is set by the JS that toggles .is-visible. */
+body.has-workout-bar {
+   padding-bottom: calc(64px + 56px + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 768px) {
+   body.has-workout-bar { padding-bottom: 56px; }
+}
+
+/* ============================================
+   Range sliders — Apple Health-style with category-colored thumb/track.
+   Bootstrap's .form-range is too generic for our metric inputs; this gives
+   each kind of metric (soreness, stress, mood…) a distinct accent.
+   ============================================ */
+.chos-range {
+   appearance: none;
+   -webkit-appearance: none;
+   width: 100%;
+   height: 6px;
+   border-radius: var(--radius-full);
+   background: var(--surface-sunken);
+   outline: none;
+   cursor: pointer;
+   /* Default thumb color — overridden by .chos-range-* modifiers below */
+   --range-color: var(--color-primary);
+}
+
+/* WebKit thumb */
+.chos-range::-webkit-slider-thumb {
+   appearance: none;
+   -webkit-appearance: none;
+   width: 22px;
+   height: 22px;
+   border-radius: 50%;
+   background: var(--range-color);
+   border: 3px solid var(--surface-card);
+   box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+   cursor: grab;
+   transition: transform var(--transition-fast);
+}
+.chos-range::-webkit-slider-thumb:active { cursor: grabbing; transform: scale(1.1); }
+
+/* Firefox thumb */
+.chos-range::-moz-range-thumb {
+   width: 22px;
+   height: 22px;
+   border-radius: 50%;
+   background: var(--range-color);
+   border: 3px solid var(--surface-card);
+   box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+   cursor: grab;
+}
+
+/* Category modifiers */
+.chos-range-cardio    { --range-color: var(--cat-cardio); }
+.chos-range-strength  { --range-color: var(--cat-strength); }
+.chos-range-recovery  { --range-color: var(--cat-recovery); }
+.chos-range-sleep     { --range-color: var(--cat-sleep); }
+.chos-range-nutrition { --range-color: var(--cat-nutrition); }
+.chos-range-mind      { --range-color: var(--cat-mind); }
+
+/* --- Schedule (calendar grid) --- */
+.chos-day-card {
+   transition: border-color var(--transition-base);
+}
+.chos-day-card.chos-day-today {
+   border-color: var(--color-primary);
+}
+
+.chos-session-item {
+   background: var(--surface-card);
+   border: 1px solid var(--color-border);
+   border-left: 3px solid var(--color-text-muted);
+   border-radius: var(--radius-md);
+   padding: var(--space-2) var(--space-3);
+   margin-bottom: var(--space-2);
+   cursor: grab;
+   transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.chos-session-item:active { cursor: grabbing; }
+.chos-session-item:hover  { border-color: var(--color-border-strong); }
+.chos-session-item.is-strength  { border-left-color: var(--cat-strength); }
+.chos-session-item.is-cardio    { border-left-color: var(--cat-cardio); }
+.chos-session-item.is-recovery  { border-left-color: var(--cat-recovery); }
+.chos-session-item.is-nutrition { border-left-color: var(--cat-nutrition); }
+.chos-session-item.is-rest {
+   background: var(--surface-sunken);
+   border-style: dashed;
+   border-left: 1px dashed var(--color-border-strong);
+   color: var(--color-text-secondary);
+}
+
+/* SortableJS ghost while dragging */
+.sortable-ghost  { opacity: 0.4; }
+.sortable-chosen { transform: scale(1.02); box-shadow: var(--shadow-md); }
+
+/* Generic Bootstrap card/btn fallback that picks up our theme. We migrate
+   templates to chos-* progressively but unmigrated bits should still render
+   without flashing the wrong theme. */
+.card {
+   background-color: var(--surface-card);
+   color: var(--color-text);
+   border-color: var(--color-border);
+}
+.card:hover { box-shadow: none; }  /* kill the legacy hover shadow */
+.card-body  { color: var(--color-text); }
+.card-header { background: transparent; border-bottom-color: var(--color-border); color: var(--color-text); }
+
+/* ============================================
+   Responsive Overrides
+   ============================================ */
+@media (max-width: 767.98px) {
+   .chos-stat-card { padding: var(--space-4); }
+   .chos-stat-card .stat-value { font-size: 1.5rem; }
+   .chos-card .card-body { padding: var(--space-4); }
+   .chos-toast-container { left: var(--space-4); right: var(--space-4); }
+   .chos-toast { min-width: auto; max-width: 100%; }
+   .chos-quick-actions { flex-direction: column; }
+   .chos-navbar .nav-link { padding: var(--space-3) var(--space-4) !important; }
+}
+
+@media (min-width: 768px) and (max-width: 1023.98px) {
+   .chos-stat-card .stat-value { font-size: 1.75rem; }
 }
 
 /* Touch devices */
 @media (hover: none) and (pointer: coarse) {
-   .chos-btn { min-height: 48px; }
+   .chos-btn   { min-height: 44px; }
    .chos-input { min-height: 48px; }
-   
-   .chos-card-interactive:hover {
-      transform: none;
-   }
+   .chos-card-interactive:hover { transform: none; }
 }
 
 /* Print */
@@ -624,4 +1272,5 @@ h4, .h4 { font-size: 1.125rem; font-weight: 600; line-height: 1.35; }
 :focus-visible {
    outline: 2px solid var(--color-primary);
    outline-offset: 2px;
+   border-radius: var(--radius-sm);
 }

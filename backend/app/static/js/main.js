@@ -112,10 +112,19 @@ window.addEventListener('unhandledrejection', function(event) {
     console.error('Unhandled promise rejection:', event.reason);
 });
 
-// Smooth scroll for anchor links
+// Smooth scroll for anchor links. Skip bare "#" / "#!" used as click stubs
+// (Bootstrap dropdowns, button-as-link, etc.) — those aren't real fragments
+// and jQuery throws "unrecognized expression: #" if we try to select them.
 $(document).ready(function() {
     $('a[href^="#"]').on('click', function(e) {
-        const target = $(this.getAttribute('href'));
+        const href = this.getAttribute('href') || '';
+        if (href.length < 2 || href === '#!' || href.includes(' ')) return;
+        let target;
+        try {
+            target = $(href);
+        } catch (_) {
+            return;  // Invalid CSS selector — ignore.
+        }
         if (target.length) {
             e.preventDefault();
             $('html, body').animate({

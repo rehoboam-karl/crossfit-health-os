@@ -48,6 +48,7 @@ class User(SQLModel, table=True):
     fitness_level: str = Field(default="beginner", max_length=50)
     goals: List[str] = Field(default_factory=list, sa_column=_json_column())
     timezone: str = Field(default="America/Sao_Paulo", max_length=64)
+    locale: Optional[str] = Field(default=None, max_length=10)
     preferences: dict = Field(default_factory=dict, sa_column=_json_column())
     created_at: _Datetime = Field(default_factory=_Datetime.utcnow)
     updated_at: _Datetime = Field(default_factory=_Datetime.utcnow)
@@ -385,6 +386,30 @@ class BiomarkerReading(SQLModel, table=True):
 
 
 # ==========================================================
+# Injuries / movement restrictions (drafted; not yet consumed by AI prompts)
+# ==========================================================
+
+
+class Injury(SQLModel, table=True):
+    __tablename__ = "injuries"
+
+    id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
+    body_part: str = Field(max_length=50)  # "left_knee", "lower_back", "right_shoulder"
+    description: Optional[str] = None
+    # Movement-pattern tags to exclude when programming, e.g.
+    # ["jumping", "overhead_pressing", "deep_squat", "running"]. Consumed by the
+    # AI programmer prompt as exclusion filters once wired.
+    restriction_tags: List[str] = Field(default_factory=list, sa_column=_json_column())
+    severity: str = Field(default="moderate", max_length=20)  # mild/moderate/severe
+    started_at: _Date
+    resolved_at: Optional[_Date] = None
+    notes: Optional[str] = None
+    created_at: _Datetime = Field(default_factory=_Datetime.utcnow)
+    updated_at: _Datetime = Field(default_factory=_Datetime.utcnow)
+
+
+# ==========================================================
 # Personal Records
 # ==========================================================
 
@@ -424,4 +449,5 @@ __all__ = [
     "HealthkitData",
     "UserDietPlan",
     "Notification",
+    "Injury",
 ]

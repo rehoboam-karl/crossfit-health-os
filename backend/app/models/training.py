@@ -363,6 +363,7 @@ class PlannedSessionCreate(BaseModel):
     workout_type: Optional[WorkoutType] = None
     focus: Optional[str] = Field(None, description="e.g., 'heavy back squat + short metcon'")
     notes: Optional[str] = None
+    status: Optional[PlannedSessionStatus] = None
 
 
 class PlannedSessionUpdate(BaseModel):
@@ -387,6 +388,13 @@ class PlannedSession(PlannedSessionCreate):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SwapSessionsRequest(BaseModel):
+    """Move a session to a target date, optionally swapping with the session there."""
+    source_id: UUID
+    target_date: date
+    target_id: Optional[UUID] = None
 
 
 class Microcycle(BaseModel):

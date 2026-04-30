@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Processing... - CrossFit Health OS{% endblock %}
+{% block title %}{{ t("auth_extra.auth_handler_processing") }} - CrossFit Health OS{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -10,23 +10,23 @@
                 <div class="card-body p-5 text-center">
                     <div id="loading">
                         <div class="spinner-border text-primary mb-4" role="status" style="width: 3rem; height: 3rem;">
-                            <span class="visually-hidden">Loading...</span>
+                            <span class="visually-hidden">{{ t("common.loading") }}</span>
                         </div>
-                        <h3>Processing...</h3>
-                        <p class="text-muted">Please wait while we verify your session.</p>
+                        <h3>{{ t("auth_extra.auth_handler_processing") }}</h3>
+                        <p class="text-muted">{{ t("auth_extra.auth_handler_wait") }}</p>
                     </div>
-                    
+
                     <div id="success" class="d-none">
                         <i class="fas fa-check-circle fa-5x text-success mb-4"></i>
-                        <h3>Success!</h3>
-                        <p class="text-muted" id="success-msg">Redirecting...</p>
+                        <h3>{{ t("auth_extra.auth_handler_success") }}</h3>
+                        <p class="text-muted" id="success-msg">{{ t("auth_extra.auth_handler_redirecting") }}</p>
                     </div>
-                    
+
                     <div id="error" class="d-none">
                         <i class="fas fa-exclamation-circle fa-5x text-danger mb-4"></i>
-                        <h3>Error</h3>
-                        <p class="text-muted" id="error-msg">Something went wrong.</p>
-                        <a href="/login" class="btn btn-primary btn-lg">Back to Login</a>
+                        <h3>{{ t("auth_extra.auth_handler_error") }}</h3>
+                        <p class="text-muted" id="error-msg">{{ t("auth_extra.auth_handler_generic") }}</p>
+                        <a href="/login" class="btn btn-primary btn-lg">{{ t("auth_extra.back_to_login") }}</a>
                     </div>
                 </div>
             </div>
@@ -50,28 +50,24 @@ async function handleAuth() {
     const accessToken = hashParams.access_token;
     const refreshToken = hashParams.refresh_token;
     const type = hashParams.type;
-    
-    console.log('Auth handler - type:', type);
-    
+
     if (!accessToken) {
         window.location.href = '/login';
         return;
     }
-    
+
     try {
         if (type === 'recovery') {
-            // Password reset - redirect to update password page with tokens
             const redirectUrl = '/update-password' + window.location.hash;
             window.location.href = redirectUrl;
         } else {
-            // Email confirmation - store tokens and go to dashboard
             localStorage.setItem('sb-access-token', accessToken);
             localStorage.setItem('sb-refresh-token', refreshToken);
-            
+
             document.getElementById('loading').classList.add('d-none');
             document.getElementById('success').classList.remove('d-none');
-            document.getElementById('success-msg').textContent = 'Email verified! Redirecting to dashboard...';
-            
+            document.getElementById('success-msg').textContent = t('auth_extra.auth_handler_email_verified');
+
             setTimeout(() => {
                 window.location.href = '/dashboard';
             }, 2000);
@@ -80,7 +76,7 @@ async function handleAuth() {
         console.error('Auth error:', err);
         document.getElementById('loading').classList.add('d-none');
         document.getElementById('error').classList.remove('d-none');
-        document.getElementById('error-msg').textContent = err.message || 'Authentication failed';
+        document.getElementById('error-msg').textContent = err.message || t('auth_extra.auth_handler_failed');
     }
 }
 

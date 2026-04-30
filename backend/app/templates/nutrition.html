@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Nutrition - CrossFit Health OS{% endblock %}
+{% block title %}{{ t("nutrition.page_title") }} - CrossFit Health OS{% endblock %}
 
 {% block navbar %}
 {% include "partials/navbar.html" %}
@@ -8,152 +8,235 @@
 
 {% block content %}
 <!-- Daily Macros Overview -->
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+<div class="row g-4 mb-4">
     <!-- Macro Rings -->
-    <div class="lg:col-span-2 bg-white rounded-xl shadow-sm p-6">
-        <h3 class="text-lg font-bold text-gray-900 mb-6">Macros de Hoje</h3>
-        
-        <div class="grid grid-cols-3 gap-6">
-            <div class="text-center">
-                <div id="protein-ring"></div>
-                <h4 class="font-medium text-gray-700 mt-2">Proteína</h4>
-                <p class="text-2xl font-bold text-gray-900">{{ today_macros.protein }}g</p>
-                <p class="text-sm text-gray-500">/ {{ targets.protein }}g</p>
-            </div>
-            
-            <div class="text-center">
-                <div id="carbs-ring"></div>
-                <h4 class="font-medium text-gray-700 mt-2">Carboidratos</h4>
-                <p class="text-2xl font-bold text-gray-900">{{ today_macros.carbs }}g</p>
-                <p class="text-sm text-gray-500">/ {{ targets.carbs }}g</p>
-            </div>
-            
-            <div class="text-center">
-                <div id="fat-ring"></div>
-                <h4 class="font-medium text-gray-700 mt-2">Gordura</h4>
-                <p class="text-2xl font-bold text-gray-900">{{ today_macros.fat }}g</p>
-                <p class="text-sm text-gray-500">/ {{ targets.fat }}g</p>
-            </div>
-        </div>
-        
-        <div class="mt-8 p-4 bg-gray-50 rounded-xl">
-            <div class="flex justify-between items-center">
-                <div>
-                    <p class="text-sm text-gray-600">Calorias Totais</p>
-                    <p class="text-3xl font-bold text-gray-900">{{ today_macros.calories }}</p>
+    <div class="col-lg-8">
+        <div class="chos-card h-100">
+            <div class="card-body p-4">
+                <h5 class="fw-bold mb-4">{{ t("nutrition.today_macros") }}</h5>
+
+                <div class="row g-3 text-center">
+                    <div class="col-4">
+                        <div id="protein-ring"></div>
+                        <h6 class="fw-medium text-secondary mt-2 mb-1">{{ t("nutrition.protein") }}</h6>
+                        <p class="h4 fw-bold mb-0">{{ today_macros.protein }}g</p>
+                        <p class="small text-muted mb-0">/ {{ targets.protein }}g</p>
+                    </div>
+
+                    <div class="col-4">
+                        <div id="carbs-ring"></div>
+                        <h6 class="fw-medium text-secondary mt-2 mb-1">{{ t("nutrition.carbs") }}</h6>
+                        <p class="h4 fw-bold mb-0">{{ today_macros.carbs }}g</p>
+                        <p class="small text-muted mb-0">/ {{ targets.carbs }}g</p>
+                    </div>
+
+                    <div class="col-4">
+                        <div id="fat-ring"></div>
+                        <h6 class="fw-medium text-secondary mt-2 mb-1">{{ t("nutrition.fat") }}</h6>
+                        <p class="h4 fw-bold mb-0">{{ today_macros.fat }}g</p>
+                        <p class="small text-muted mb-0">/ {{ targets.fat }}g</p>
+                    </div>
                 </div>
-                <div class="text-right">
-                    <p class="text-sm text-gray-600">Meta Diária</p>
-                    <p class="text-2xl font-bold text-gray-700">{{ targets.calories }}</p>
-                </div>
-                <div>
-                    {% set percentage = (today_macros.calories / targets.calories * 100) | round %}
-                    <div class="text-center">
-                        <span class="text-4xl font-bold {% if percentage >= 90 %}text-green-600{% elif percentage >= 70 %}text-blue-600{% else %}text-yellow-600{% endif %}">
-                            {{ percentage }}%
-                        </span>
-                        <p class="text-xs text-gray-500 mt-1">da meta</p>
+
+                <div class="mt-4 p-3 bg-light rounded">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                        <div>
+                            <p class="small text-muted mb-1">{{ t("nutrition.total_calories") }}</p>
+                            <p class="display-6 fw-bold mb-0">{{ today_macros.calories }}</p>
+                        </div>
+                        <div class="text-end">
+                            <p class="small text-muted mb-1">{{ t("nutrition.daily_target") }}</p>
+                            <p class="h3 fw-bold text-secondary mb-0">{{ targets.calories }}</p>
+                        </div>
+                        {% set percentage = (today_macros.calories / targets.calories * 100) | round %}
+                        <div class="text-center">
+                            <span class="display-5 fw-bold {% if percentage >= 90 %}text-success{% elif percentage >= 70 %}text-primary{% else %}text-warning{% endif %}">
+                                {{ percentage }}%
+                            </span>
+                            <p class="small text-muted mt-1 mb-0">{{ t("nutrition.of_target") }}</p>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    
+
     <!-- Quick Add Meal -->
-    <div class="bg-white rounded-xl shadow-sm p-6">
-        <h3 class="text-lg font-bold text-gray-900 mb-4">Adicionar Refeição</h3>
-        
-        <form class="space-y-4">
+    <div class="col-lg-4">
+        <div class="chos-card h-100">
+            <div class="card-body p-4">
+                <h5 class="fw-bold mb-3">{{ t("nutrition.add_meal") }}</h5>
+
+                <form>
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium">{{ t("nutrition.meal") }}</label>
+                        <select class="form-select">
+                            <option>{{ t("nutrition.meal_options.breakfast") }}</option>
+                            <option>{{ t("nutrition.meal_options.lunch") }}</option>
+                            <option>{{ t("nutrition.meal_options.snack") }}</option>
+                            <option>{{ t("nutrition.meal_options.dinner") }}</option>
+                            <option>{{ t("nutrition.meal_options.pre_workout") }}</option>
+                            <option>{{ t("nutrition.meal_options.post_workout") }}</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium">{{ t("nutrition.calories") }}</label>
+                        <input type="number" class="form-control" placeholder="kcal" min="0">
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-4">
+                            <label class="form-label small fw-medium mb-1">{{ t("nutrition.protein") }}</label>
+                            <input type="number" class="form-control form-control-sm" placeholder="g" min="0">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small fw-medium mb-1">{{ t("nutrition.carbs") }}</label>
+                            <input type="number" class="form-control form-control-sm" placeholder="g" min="0">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small fw-medium mb-1">{{ t("nutrition.fat") }}</label>
+                            <input type="number" class="form-control form-control-sm" placeholder="g" min="0">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-plus me-2"></i>{{ t("nutrition.btn_add") }}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Photo analysis (AI macro estimation from a plate photo) -->
+<div class="chos-card chos-card-feature is-nutrition mb-4">
+    <div class="card-body">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Refeição</label>
-                <select class="form-select w-full rounded-lg border-gray-300">
-                    <option>Café da Manhã</option>
-                    <option>Almoço</option>
-                    <option>Lanche</option>
-                    <option>Jantar</option>
-                    <option>Pré-Treino</option>
-                    <option>Pós-Treino</option>
-                </select>
+                <h5 class="fw-bold mb-1">{{ t("nutrition.photo_title") }}</h5>
+                <p class="text-secondary mb-0 small">{{ t("nutrition.photo_subtitle") }}</p>
             </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Calorias</label>
-                <input type="number" class="form-control w-full rounded-lg border-gray-300" placeholder="kcal">
+            <label for="meal-photo-input" class="chos-btn chos-btn-primary mb-0" style="cursor: pointer;">
+                <i class="fas fa-camera me-2"></i>{{ t("nutrition.photo_btn_select") }}
+            </label>
+            <input type="file" id="meal-photo-input" accept="image/*" capture="environment" class="d-none">
+        </div>
+
+        <!-- Analysis state -->
+        <div id="meal-photo-loading" class="d-none text-center py-4">
+            <div class="spinner-border text-primary mb-2" role="status"></div>
+            <p class="text-secondary mb-0 small">{{ t("nutrition.photo_analyzing") }}</p>
+        </div>
+
+        <div id="meal-photo-result" class="d-none">
+            <div class="row g-3">
+                <div class="col-md-5">
+                    <img id="meal-photo-preview" alt="" class="w-100 rounded" style="max-height: 280px; object-fit: cover; border: 1px solid var(--color-border);">
+                </div>
+                <div class="col-md-7">
+                    <p id="meal-photo-description" class="fw-semibold mb-2"></p>
+                    <p id="meal-photo-confidence" class="small text-secondary mb-3"></p>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-3 text-center">
+                            <div class="small text-secondary">{{ t("nutrition.calories") }}</div>
+                            <div class="fw-bold num" id="meal-photo-cals">--</div>
+                        </div>
+                        <div class="col-3 text-center">
+                            <div class="small text-secondary">{{ t("nutrition.protein") }}</div>
+                            <div class="fw-bold num" style="color: var(--cat-nutrition);"><span id="meal-photo-prot">--</span>g</div>
+                        </div>
+                        <div class="col-3 text-center">
+                            <div class="small text-secondary">{{ t("nutrition.carbs") }}</div>
+                            <div class="fw-bold num" style="color: var(--cat-cardio);"><span id="meal-photo-carb">--</span>g</div>
+                        </div>
+                        <div class="col-3 text-center">
+                            <div class="small text-secondary">{{ t("nutrition.fat") }}</div>
+                            <div class="fw-bold num" style="color: var(--cat-fat);"><span id="meal-photo-fat">--</span>g</div>
+                        </div>
+                    </div>
+
+                    <details class="mb-3">
+                        <summary class="small text-secondary" style="cursor: pointer;">{{ t("nutrition.photo_foods_detail") }}</summary>
+                        <ul id="meal-photo-foods" class="small mt-2 mb-0 ps-3"></ul>
+                    </details>
+
+                    <div class="d-flex gap-2 align-items-center">
+                        <select id="meal-photo-meal-type" class="form-select form-select-sm" style="max-width: 180px;">
+                            <option value="">{{ t("nutrition.photo_pick_meal") }}</option>
+                            <option value="breakfast">{{ t("nutrition.meal_options.breakfast") }}</option>
+                            <option value="lunch">{{ t("nutrition.meal_options.lunch") }}</option>
+                            <option value="snack">{{ t("nutrition.meal_options.snack") }}</option>
+                            <option value="dinner">{{ t("nutrition.meal_options.dinner") }}</option>
+                            <option value="pre_workout">{{ t("nutrition.meal_options.pre_workout") }}</option>
+                            <option value="post_workout">{{ t("nutrition.meal_options.post_workout") }}</option>
+                        </select>
+                        <button id="meal-photo-save-btn" class="chos-btn chos-btn-success chos-btn-sm">
+                            <i class="fas fa-check me-1"></i>{{ t("nutrition.photo_btn_save") }}
+                        </button>
+                        <button id="meal-photo-discard-btn" class="chos-btn chos-btn-ghost chos-btn-sm">
+                            {{ t("common.actions.cancel") }}
+                        </button>
+                    </div>
+                </div>
             </div>
-            
-            <div class="grid grid-cols-3 gap-2">
-                <div>
-                    <label class="block text-xs font-medium text-gray-700 mb-1">Proteína</label>
-                    <input type="number" class="form-control w-full rounded-lg border-gray-300 text-sm" placeholder="g">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-700 mb-1">Carbs</label>
-                    <input type="number" class="form-control w-full rounded-lg border-gray-300 text-sm" placeholder="g">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-700 mb-1">Gordura</label>
-                    <input type="number" class="form-control w-full rounded-lg border-gray-300 text-sm" placeholder="g">
-                </div>
-            </div>
-            
-            <button type="submit" class="w-full btn btn-primary">
-                <i class="fas fa-plus mr-2"></i>Adicionar
-            </button>
-        </form>
-        
-        <div class="mt-6 pt-6 border-t border-gray-200">
-            <button class="w-full btn btn-outline-primary mb-2">
-                <i class="fas fa-camera mr-2"></i>Foto da Refeição (IA)
-            </button>
-            <p class="text-xs text-gray-500 text-center">AI estima macros automaticamente</p>
+        </div>
+
+        <div id="meal-photo-empty" class="text-secondary small text-center py-3">
+            {{ t("nutrition.photo_hint") }}
+        </div>
+
+        <div id="meal-photo-unavailable" class="d-none alert alert-warning mb-0 small">
+            {{ t("nutrition.photo_no_ai") }}
         </div>
     </div>
 </div>
 
 <!-- Recent Meals -->
-<div class="bg-white rounded-xl shadow-sm p-6 mb-8">
-    <div class="flex justify-between items-center mb-6">
-        <h3 class="text-lg font-bold text-gray-900">Refeições de Hoje</h3>
-        <button class="btn btn-sm btn-outline-secondary">
-            <i class="far fa-calendar mr-2"></i>Ver Histórico
-        </button>
-    </div>
-    
-    <div class="space-y-4">
+<div class="chos-card mb-4">
+    <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="fw-bold mb-0">{{ t("nutrition.today_meals") }}</h5>
+            <button class="btn btn-sm btn-outline-secondary">
+                <i class="far fa-calendar me-2"></i>{{ t("nutrition.view_history") }}
+            </button>
+        </div>
+
         {% for meal in recent_meals %}
-        <div class="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow">
-            <div class="flex justify-between items-start">
-                <div class="flex-1">
-                    <div class="flex items-center space-x-3 mb-2">
-                        <span class="text-sm font-medium text-gray-500">{{ meal.time }}</span>
-                        <h4 class="font-bold text-gray-900">{{ meal.name }}</h4>
+        <div class="border rounded p-3 mb-3">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+                <div class="flex-grow-1">
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <span class="small fw-medium text-muted">{{ meal.time }}</span>
+                        <h6 class="fw-bold mb-0">{{ meal.name }}</h6>
                     </div>
-                    
-                    <div class="grid grid-cols-4 gap-4">
-                        <div>
-                            <p class="text-xs text-gray-600">Calorias</p>
-                            <p class="text-lg font-bold text-gray-900">{{ meal.calories }}</p>
+
+                    <div class="row g-3">
+                        <div class="col-3">
+                            <p class="small text-muted mb-0">{{ t("nutrition.calories") }}</p>
+                            <p class="h6 fw-bold mb-0">{{ meal.calories }}</p>
                         </div>
-                        <div>
-                            <p class="text-xs text-gray-600">Proteína</p>
-                            <p class="text-lg font-bold text-blue-600">{{ meal.protein }}g</p>
+                        <div class="col-3">
+                            <p class="small text-muted mb-0">{{ t("nutrition.protein") }}</p>
+                            <p class="h6 fw-bold text-primary mb-0">{{ meal.protein }}g</p>
                         </div>
-                        <div>
-                            <p class="text-xs text-gray-600">Carbs</p>
-                            <p class="text-lg font-bold text-green-600">{{ meal.carbs }}g</p>
+                        <div class="col-3">
+                            <p class="small text-muted mb-0">{{ t("nutrition.carbs") }}</p>
+                            <p class="h6 fw-bold text-success mb-0">{{ meal.carbs }}g</p>
                         </div>
-                        <div>
-                            <p class="text-xs text-gray-600">Gordura</p>
-                            <p class="text-lg font-bold text-orange-600">{{ meal.fat }}g</p>
+                        <div class="col-3">
+                            <p class="small text-muted mb-0">{{ t("nutrition.fat") }}</p>
+                            <p class="h6 fw-bold text-warning mb-0">{{ meal.fat }}g</p>
                         </div>
                     </div>
                 </div>
-                
-                <div class="flex space-x-2">
-                    <button class="btn btn-sm btn-outline-secondary">
+
+                <div class="d-flex gap-2 flex-shrink-0">
+                    <button class="btn btn-sm btn-outline-secondary" aria-label="Editar">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-danger">
+                    <button class="btn btn-sm btn-outline-danger" aria-label="Excluir">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -164,68 +247,62 @@
 </div>
 
 <!-- Weekly Macro Trend -->
-<div class="bg-white rounded-xl shadow-sm p-6">
-    <h3 class="text-lg font-bold text-gray-900 mb-4">Tendência Semanal</h3>
-    <div id="macro-trend-chart"></div>
+<div class="chos-card">
+    <div class="card-body p-4">
+        <h5 class="fw-bold mb-3">{{ t("nutrition.weekly_trend") }}</h5>
+        {# Placeholder series — will be replaced by /api/v1/nutrition/macros/summary range query. #}
+        <div id="macro-trend-chart"></div>
+    </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // Protein Ring
+    function _cssVar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+    function _macroRing(selector, value, color) {
+        return {
+            series: [value],
+            chart: { type: 'radialBar', height: 200, sparkline: { enabled: true } },
+            plotOptions: {
+                radialBar: {
+                    hollow: { size: '64%' },
+                    track: { background: 'var(--surface-sunken)', strokeWidth: '100%' },
+                    dataLabels: {
+                        name: { show: false },
+                        value: {
+                            fontSize: '1.25rem',
+                            fontWeight: 700,
+                            fontFamily: 'Inter, sans-serif',
+                            color: 'var(--color-text)',
+                            offsetY: 6,
+                            formatter: val => Math.round(val) + '%'
+                        }
+                    }
+                }
+            },
+            stroke: { lineCap: 'round' },
+            colors: [color]
+        };
+    }
+
+    // Protein, Carbs, Fat — Apple Health colors per macro
     {% set protein_pct = (today_macros.protein / targets.protein * 100) | round %}
-    new ApexCharts(document.querySelector("#protein-ring"), {
-        series: [{{ protein_pct }}],
-        chart: { type: 'radialBar', height: 200 },
-        plotOptions: {
-            radialBar: {
-                hollow: { size: '60%' },
-                dataLabels: {
-                    value: { fontSize: '16px', fontWeight: 'bold', color: '#1f2937', formatter: val => val + '%' }
-                }
-            }
-        },
-        colors: ['#3b82f6']
-    }).render();
-    
-    // Carbs Ring
+    new ApexCharts(document.querySelector("#protein-ring"), _macroRing("#protein-ring", {{ protein_pct }}, _cssVar('--cat-nutrition'))).render();
+
     {% set carbs_pct = (today_macros.carbs / targets.carbs * 100) | round %}
-    new ApexCharts(document.querySelector("#carbs-ring"), {
-        series: [{{ carbs_pct }}],
-        chart: { type: 'radialBar', height: 200 },
-        plotOptions: {
-            radialBar: {
-                hollow: { size: '60%' },
-                dataLabels: {
-                    value: { fontSize: '16px', fontWeight: 'bold', color: '#1f2937', formatter: val => val + '%' }
-                }
-            }
-        },
-        colors: ['#10b981']
-    }).render();
-    
-    // Fat Ring
+    new ApexCharts(document.querySelector("#carbs-ring"), _macroRing("#carbs-ring", {{ carbs_pct }}, _cssVar('--cat-cardio'))).render();
+
     {% set fat_pct = (today_macros.fat / targets.fat * 100) | round %}
-    new ApexCharts(document.querySelector("#fat-ring"), {
-        series: [{{ fat_pct }}],
-        chart: { type: 'radialBar', height: 200 },
-        plotOptions: {
-            radialBar: {
-                hollow: { size: '60%' },
-                dataLabels: {
-                    value: { fontSize: '16px', fontWeight: 'bold', color: '#1f2937', formatter: val => val + '%' }
-                }
-            }
-        },
-        colors: ['#f59e0b']
-    }).render();
-    
-    // Weekly Macro Trend
+    new ApexCharts(document.querySelector("#fat-ring"), _macroRing("#fat-ring", {{ fat_pct }}, _cssVar('--cat-fat'))).render();
+
+    // Weekly Macro Trend (placeholder series until backend wired)
     var macroTrendOptions = {
         series: [
-            { name: 'Proteína', data: [175, 180, 185, 178, 180, 182, 180] },
-            { name: 'Carbs', data: [220, 230, 240, 235, 245, 248, 245] },
-            { name: 'Gordura', data: [70, 75, 72, 76, 78, 80, 78] }
+            { name: t('nutrition.protein'), data: [175, 180, 185, 178, 180, 182, 180] },
+            { name: t('nutrition.carbs'), data: [220, 230, 240, 235, 245, 248, 245] },
+            { name: t('nutrition.fat'), data: [70, 75, 72, 76, 78, 80, 78] }
         ],
         chart: {
             type: 'line',
@@ -234,10 +311,158 @@
         },
         stroke: { curve: 'smooth', width: 2 },
         xaxis: {
-            categories: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+            categories: [
+                t('nutrition.weekday.mon'), t('nutrition.weekday.tue'), t('nutrition.weekday.wed'),
+                t('nutrition.weekday.thu'), t('nutrition.weekday.fri'), t('nutrition.weekday.sat'),
+                t('nutrition.weekday.sun')
+            ],
+            labels: { style: { colors: 'var(--color-text-secondary)' } }
         },
-        colors: ['#3b82f6', '#10b981', '#f59e0b']
+        yaxis: { labels: { style: { colors: 'var(--color-text-secondary)' } } },
+        legend: { labels: { colors: 'var(--color-text)' } },
+        grid: { borderColor: 'var(--color-border)' },
+        colors: [_cssVar('--cat-nutrition'), _cssVar('--cat-cardio'), _cssVar('--cat-fat')]
     };
     new ApexCharts(document.querySelector("#macro-trend-chart"), macroTrendOptions).render();
+
+    // ====== Meal photo analyzer ======
+    (function () {
+        const $input    = $('#meal-photo-input');
+        const $loading  = $('#meal-photo-loading');
+        const $result   = $('#meal-photo-result');
+        const $empty    = $('#meal-photo-empty');
+        const $unavail  = $('#meal-photo-unavailable');
+        const $preview  = $('#meal-photo-preview');
+        const $desc     = $('#meal-photo-description');
+        const $conf     = $('#meal-photo-confidence');
+        const $foods    = $('#meal-photo-foods');
+        const $saveBtn  = $('#meal-photo-save-btn');
+        const $discard  = $('#meal-photo-discard-btn');
+        const $mealType = $('#meal-photo-meal-type');
+
+        let lastAnalysis = null;
+        let lastFile = null;
+
+        function showState(state) {
+            $loading.toggleClass('d-none', state !== 'loading');
+            $result.toggleClass('d-none', state !== 'result');
+            $empty.toggleClass('d-none', state !== 'empty');
+            $unavail.toggleClass('d-none', state !== 'unavailable');
+        }
+        showState('empty');
+
+        // FAB → "Foto de refeição" lands here with #meal-photo. Trigger the
+        // file picker after the page is interactive.
+        if (window.location.hash === '#meal-photo') {
+            setTimeout(() => $input.trigger('click'), 300);
+            history.replaceState(null, '', window.location.pathname);
+        }
+
+        $input.on('change', async function (ev) {
+            const file = ev.target.files && ev.target.files[0];
+            if (!file) return;
+            lastFile = file;
+
+            // Local preview while AI runs
+            const reader = new FileReader();
+            reader.onload = e => $preview.attr('src', e.target.result);
+            reader.readAsDataURL(file);
+
+            showState('loading');
+            try {
+                const form = new FormData();
+                form.append('file', file);
+                form.append('save', 'false');
+
+                const token = localStorage.getItem('access_token');
+                const res = await fetch('/api/v1/nutrition/meals/photo', {
+                    method: 'POST',
+                    headers: token ? { 'Authorization': 'Bearer ' + token } : {},
+                    body: form
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || res.statusText);
+                }
+                const data = await res.json();
+                lastAnalysis = data.analysis;
+
+                if (lastAnalysis.ai_used === false) {
+                    // Backend signaled the AI couldn't run — show explainer instead of fake numbers.
+                    showState('unavailable');
+                    return;
+                }
+
+                renderAnalysis(lastAnalysis);
+                showState('result');
+            } catch (e) {
+                CHOS.toast.error(e.message || t('nutrition.photo_error'));
+                showState('empty');
+            } finally {
+                // Allow re-selecting the same file (input only fires change on new value).
+                ev.target.value = '';
+            }
+        });
+
+        function renderAnalysis(a) {
+            $desc.text(a.description || '');
+            const conf = a.confidence || 'medium';
+            $conf.text(t('nutrition.photo_confidence_' + conf, {}) || conf);
+
+            const tot = a.totals || {};
+            $('#meal-photo-cals').text(tot.calories ?? '--');
+            $('#meal-photo-prot').text(tot.protein_g ?? '--');
+            $('#meal-photo-carb').text(tot.carbs_g ?? '--');
+            $('#meal-photo-fat').text(tot.fat_g ?? '--');
+
+            const foods = a.foods || [];
+            $foods.html(foods.map(f => {
+                const name = CHOS.escape(f.name || '');
+                const portion = CHOS.escape(f.portion || '');
+                const cals = Number(f.calories) || 0;
+                return `<li><strong>${name}</strong> · <span class="text-secondary">${portion}</span> · ${cals} kcal</li>`;
+            }).join('') || `<li class="text-secondary">${t('nutrition.photo_no_foods')}</li>`);
+        }
+
+        $discard.on('click', function () {
+            lastAnalysis = null;
+            lastFile = null;
+            $preview.attr('src', '');
+            showState('empty');
+        });
+
+        $saveBtn.on('click', async function () {
+            if (!lastFile) return;
+            CHOS.loading.button($saveBtn, true);
+            try {
+                const form = new FormData();
+                form.append('file', lastFile);
+                form.append('save', 'true');
+                const mt = $mealType.val();
+                if (mt) form.append('meal_type', mt);
+
+                const token = localStorage.getItem('access_token');
+                const res = await fetch('/api/v1/nutrition/meals/photo', {
+                    method: 'POST',
+                    headers: token ? { 'Authorization': 'Bearer ' + token } : {},
+                    body: form
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || res.statusText);
+                }
+                CHOS.toast.success(t('nutrition.photo_saved'));
+                // Reset the panel and reload the page so the macros + meals list refresh.
+                lastAnalysis = null;
+                lastFile = null;
+                showState('empty');
+                setTimeout(() => window.location.reload(), 600);
+            } catch (e) {
+                CHOS.toast.error(e.message || t('nutrition.photo_save_error'));
+            } finally {
+                CHOS.loading.button($saveBtn, false);
+            }
+        });
+    })();
 </script>
 {% endblock %}
