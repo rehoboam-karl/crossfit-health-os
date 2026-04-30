@@ -11,3 +11,6 @@ backend/.env.test
 # Environment files with credentials
 .env
 backend/.env
+
+# tarball artifacts
+*.tar.gz

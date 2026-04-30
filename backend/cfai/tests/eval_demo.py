@@ -13,25 +13,24 @@ Output:
 """
 
 import json
-import random
 from datetime import date, datetime, timedelta
 
-from athlete import Injury, InjurySeverity
-from evaluation import evaluate_mesocycle, summary_score
-from evaluation_judge import (
+from cfai.athlete import Injury, InjurySeverity
+from cfai.evaluation import evaluate_mesocycle, summary_score
+from cfai.evaluation_judge import (
     JudgeDimension, RUBRIC, StubJudge, compare_models_pointwise,
 )
-from evaluation_longitudinal import (
+from cfai.evaluation_longitudinal import (
     evaluate_longitudinal, longitudinal_summary,
 )
-from examples import karl
-from history import TrainingHistory
-from movements_seed import load_default_library
-from programmer import HeuristicComposer, ProgrammingContext, SessionPlanner
-from results import (
+from cfai.examples import karl
+from cfai.history import TrainingHistory
+from cfai.movements_seed import load_default_library
+from cfai.programmer import HeuristicComposer, ProgrammingContext, SessionPlanner
+from cfai.results import (
     BlockResult, CompletionStatus, MovementResult, build_session_result,
 )
-from workout_schema import Mesocycle, Phase, Week
+from cfai.workout_schema import Mesocycle, Phase
 
 
 # ============================================================
@@ -58,6 +57,7 @@ def make_mesocycle(
                 weekly_focus=weekly_focus,
             )
             sessions.append(planner.plan_session(ctx))
+        from cfai.workout_schema import Week
         weeks.append(Week(
             week_number=week_num,
             sessions=sessions,
@@ -188,6 +188,7 @@ print("=" * 70)
 
 # Simulação rápida: 75% compliance, 1 PR, sem overreaching
 sim_results = []
+import random
 random.seed(42)
 sessions_index = {s.id: s for w in meso_a.weeks for s in w.sessions}
 
@@ -237,8 +238,7 @@ for m in long_metrics:
     print(f"  {marker} {m.name:30s} value={val} target={m.target}")
     print(f"     → {m.interpretation}")
 
-summary_l3 = longitudinal_summary(long_metrics)
-print(f"\n  Aggregator: {summary_l3}")
+print(f"\n  Aggregator: {longitudinal_summary(long_metrics)}")
 
 
 # ============================================================
@@ -258,7 +258,7 @@ export = {
     "layer_3_summary": {
         m.name: m.value for m in long_metrics if not m.n_a
     },
-    "layer_3_aggregator": summary_l3,
+    "layer_3_aggregator": longitudinal_summary(long_metrics),
 }
 print(json.dumps(export, indent=2, default=str))
 

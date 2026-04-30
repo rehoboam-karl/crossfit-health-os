@@ -28,12 +28,12 @@ from app.db.models import PlannedSession as PlannedSessionDB
 from app.db.models import WorkoutTemplate as WorkoutTemplateDB
 from app.db.models import User as UserDB
 
-from workout_schema import (
+from cfai.workout_schema import (
     Phase, SessionTemplate, BlockType, BlockFormat, Stimulus,
     LoadSpec, MovementPrescription, WorkoutBlock, Session,
     Week, Mesocycle,
 )
-from movements import MovementLibrary
+from cfai.movements import MovementLibrary
 
 
 # ============================================================

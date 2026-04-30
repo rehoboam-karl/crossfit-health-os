@@ -4,30 +4,48 @@ Framework de avaliação em três camadas para o output do `programmer` (Session
 
 Este documento descreve o estado pós-Sprint 1: framework canônico com os 8 patches críticos embutidos desde a primeira escrita, suite de regressão verde, e baseline do `HeuristicComposer-v1`.
 
+> **Onde mora o código:** `backend/cfai/` (pacote Python instalável). O backend FastAPI consome via `pip install -e ./cfai` (entrada em `requirements.txt`). Este diretório (`backend/app/schema/v2/`) é apenas: shim de re-export (`__init__.py`), `MacrocycleAdapter` (DB-aware, depende de `app.db.models`), e estes docs Sprint 1.
+
 ## Sumário executivo
 
 - **Layer 1** (deterministic): 13 métricas computáveis sobre Pydantic, sem LLM, com referências científicas. **Funcional, em uso.**
 - **Layer 2** (LLM-as-judge): rubrica 6-dimensão 1-5, prompts production-ready, calibration harness. **Stub apenas — `ClaudeJudge` real fica para Sprint 2.**
 - **Layer 3** (longitudinal): 7 métricas sobre `SessionResult` real (compliance, modification, PR cadence, etc.). **Funcional, em uso.**
 
-Status no commit `7d2a74d` (PR #2 merged).
-
 ---
 
 ## Arquitetura
 
 ```
+backend/cfai/                          ← pacote canônico
+├── pyproject.toml                     (cfai 0.1.0, optional dep [judge]: anthropic)
+├── README.md
+├── CLAUDE.md
+├── src/cfai/
+│   ├── workout_schema.py              schema Pydantic (Mesocycle → Block)
+│   ├── athlete.py, percent_table.py, movements.py, movements_seed.py
+│   ├── session_builder.py
+│   ├── programmer.py                  SessionPlanner + HeuristicComposer
+│   ├── results.py, history.py
+│   ├── examples.py                    fixture: Karl + PercentTable
+│   ├── evaluation.py                  ← Layer 1 (deterministic)
+│   ├── evaluation_judge.py            ← Layer 2 (LLM judge — stub)
+│   └── evaluation_longitudinal.py     ← Layer 3 (longitudinal)
+└── tests/
+    ├── validate_library.py
+    ├── demo_programmer.py, demo_history.py
+    ├── eval_demo.py                   demo end-to-end dos 3 layers
+    └── test_evaluation.py             regressão dos 8 patches (8/8 verde)
+
 backend/app/schema/v2/
-├── evaluation.py              ← Layer 1 (deterministic)
-├── evaluation_judge.py        ← Layer 2 (LLM judge — stub)
-├── evaluation_longitudinal.py ← Layer 3 (longitudinal)
-├── eval_demo.py               ← demo end-to-end dos 3 layers
-├── test_evaluation.py         ← regressão dos 8 patches (8/8 verde)
+├── __init__.py                        shim re-export de cfai (compat)
+├── macrocycle_adapter.py              DB → cfai schema (depende de app.db.models)
+├── EVALUATION.md                      ← este doc
 └── baselines/
     └── heuristic_composer_v1__2026-04-30.json
 ```
 
-Convenção: imports diretos (`from athlete import Athlete`), igual ao resto de `v2/`. Dependência clara: o framework **lê** Pydantic (`Session`, `Week`, `Mesocycle`, `MovementLibrary`, `Athlete`, `TrainingHistory`) — não escreve, não persiste.
+Convenção dentro de cfai: imports relativos (`from .athlete import Athlete`). Tests importam como `from cfai.X import Y`. O framework **lê** Pydantic (`Session`, `Week`, `Mesocycle`, `MovementLibrary`, `Athlete`, `TrainingHistory`) — não escreve, não persiste.
 
 ---
 
@@ -182,23 +200,22 @@ Função agora exige `phase: Phase` arg. `evaluate_longitudinal(...)` propaga vi
 
 ## Como rodar
 
+Pré-requisito: `cfai` instalado no venv do backend (já está no `requirements.txt` via `-e ./cfai`).
+
 ### Tests (regressão — 8/8 verde)
 
-Pytest precisa rodar **fora** de `v2/` porque `v2/__init__.py` importa `macrocycle_adapter` que puxa `app.db.models` — só resolve no contexto FastAPI completo.
-
 ```bash
-cp backend/app/schema/v2/test_evaluation.py /tmp/
-cd /tmp && PYTHONPATH=$(pwd)/backend/app/schema/v2 \
-  $(pwd)/backend/venv/bin/python -m pytest test_evaluation.py -v
+cd backend
+./venv/bin/python -m pytest cfai/tests/test_evaluation.py -v
 ```
 
-Saída esperada: `8 passed in 0.21s`.
+Saída esperada: `8 passed in ~0.1s`.
 
 ### Demo end-to-end
 
 ```bash
-cd backend/app/schema/v2
-PYTHONPATH=. ../../../venv/bin/python eval_demo.py
+cd backend/cfai
+../venv/bin/python tests/eval_demo.py
 ```
 
 Gera mesociclo BUILD (4 semanas, 5 sessões/sem) com `HeuristicComposer-v1`, roda os 3 layers, exporta JSON.
@@ -214,9 +231,11 @@ Capturado em `2026-04-30T08:00:01Z`. Frozen em `baselines/heuristic_composer_v1_
 ```
 validity:         0.000   ← HARD GATE FIRING
 volume_intensity: 0.837
-distribution:     0.845
+distribution:     0.696   ← surfaceia bug 3 (modal_balance squat-week)
 periodization:    1.000
 ```
+
+> **Mudança vs baseline pré-migração** (cfai migration): `distribution` era 0.845 com fixtures de v2/. cfai canônico usa Karl/seed do tarball original — a queda é por fixtures, não regressão de patches.
 
 ### Layer 1 — métricas selecionadas (mesociclo BUILD, semana 2, dia 1)
 

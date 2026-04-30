@@ -1,19 +1,19 @@
-import sys
-sys.path.insert(0, "/opt/crossfit-health-os/backend/app")
-sys.path.insert(0, "/opt/crossfit-health-os/backend/app/schema/v2")
+"""Smoke test do MacrocycleAdapter — DB → schema cfai → validação Pydantic."""
+from app.schema.v2 import MacrocycleAdapter
+from cfai.movements_seed import load_default_library
+from app.db.session import Session as SqlSession, engine
+from app.db.models import Macrocycle, User
 
-from macrocycle_adapter import MacrocycleAdapter
-from movements_seed import load_default_library
 
 lib = load_default_library()
 adapter = MacrocycleAdapter(lib)
 
-from app.db.session import Session as SqlSession, engine
 db = SqlSession(bind=engine)
 
-from app.db.models import Macrocycle, User
+macro = db.query(Macrocycle).filter(
+    Macrocycle.user_id == 10, Macrocycle.active == True,
+).first()
 
-macro = db.query(Macrocycle).filter(Macrocycle.user_id == 10, Macrocycle.active == True).first()
 if not macro:
     print("No active macrocycle for user 10")
 else:

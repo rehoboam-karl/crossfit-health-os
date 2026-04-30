@@ -1,13 +1,15 @@
 {
   "_meta": {
-    "captured_at": "2026-04-30T08:00:01Z",
-    "captured_from": "backend/app/schema/v2/eval_demo.py",
-    "framework_commit": "7d2a74d",
-    "purpose": "Frozen baseline for tracking HeuristicComposer-v1 over time. New eval runs should compare against this and reject if validity drops below 1.0 (when bug 1 below is fixed) or any non-validity category drops by more than 0.05.",
-    "reproducibility": "eval_demo uses random.seed(42) for the L3 simulation. Re-running on the same code should produce identical numbers."
+    "captured_at": "2026-04-30T09:42:47Z",
+    "captured_from": "backend/cfai/tests/eval_demo.py",
+    "framework_source": "backend/cfai/ (canonical, installed via `pip install -e ./cfai`)",
+    "framework_commit": "TBD-after-merge",
+    "purpose": "Frozen baseline for tracking HeuristicComposer-v1 over time. New eval runs should compare against this and reject if validity drops (when bug 1 is fixed) or any non-validity category drops by more than 0.05.",
+    "reproducibility": "eval_demo uses random.seed(42) for the L3 simulation. Re-running on the same code should produce identical numbers.",
+    "migration_note": "Pre-migration baseline (when framework lived in backend/app/schema/v2/) had distribution=0.845. Post-migration (cfai canonical Karl + seed library) shows distribution=0.696. The drop is from canonical fixtures, not regression."
   },
   "model_under_test": "HeuristicComposer-v1",
-  "athlete_id": "karl",
+  "athlete_id": "ath_001",
   "mesocycle": {
     "id": "meso_A_squat",
     "phase": "build",
@@ -18,7 +20,7 @@
   "layer_1_summary": {
     "validity": 0.0,
     "volume_intensity": 0.837,
-    "distribution": 0.845,
+    "distribution": 0.696,
     "periodization": 1.0
   },
   "layer_1_selected_metrics": {
@@ -29,7 +31,7 @@
       "acwr": {"score": 1.00, "note": "insufficient data for chronic baseline"}
     },
     "week_2": {
-      "modal_balance": {"score": 0.67, "passed": true},
+      "modal_balance": {"score": 0.33, "passed": false, "note": "BUILD targets — composer over-weights 1 modality"},
       "stimulus_distribution": {"score": 1.00, "passed": true},
       "foster_monotony": {"score": 1.00, "raw_value": 1.42, "passed": true},
       "foster_strain": {"score": 1.00, "raw_value": 408.15}
@@ -72,7 +74,7 @@
       "score": 0.0,
       "description": "HeuristicComposer prescribes banded_glute_bridge in every activation block, but karl.equipment_available does not include 'band'. The validity hard gate (Patch 3) zeros the entire validity category as a result.",
       "fix_options": [
-        "Add 'band' to karl's default equipment in examples.py",
+        "Add 'band' to karl's default equipment in cfai/examples.py",
         "HeuristicComposer picks band-free alternative when 'band' unavailable",
         "Movement catalog marks 'band' optional for banded_glute_bridge"
       ],
@@ -89,6 +91,18 @@
         "Add a separate metric_olympic_compliance for OW-pure days; relax prilepin for mixed-modal"
       ],
       "scope": "out_of_sprint_1"
+    },
+    {
+      "id": "bug_3_modal_balance_w2",
+      "severity": "medium",
+      "metric": "modal_balance",
+      "score": 0.33,
+      "description": "Week 2 of squat-focused mesociclo shows only 1 of 3 M/G/W modalities in BUILD's target range. Likely the HeuristicComposer over-weights one modality when weekly_focus is single-themed (e.g. squat_volume → too much M).",
+      "fix_options": [
+        "HeuristicComposer should balance modalities even with focused weekly_focus",
+        "Relax MODAL_TARGETS_BY_PHASE for BUILD when weekly_focus is single-themed"
+      ],
+      "scope": "out_of_sprint_1"
     }
   ],
   "patches_applied": [
@@ -102,10 +116,10 @@
     {"id": 8, "layer": 3, "fix": "pr_cadence phase-aware (BASE/BUILD expect 0 PRs)"}
   ],
   "tests": {
-    "file": "backend/app/schema/v2/test_evaluation.py",
+    "file": "backend/cfai/tests/test_evaluation.py",
     "passed": 8,
     "failed": 0,
-    "duration_seconds": 0.21,
+    "duration_seconds": 0.11,
     "coverage": {
       "TestPrilepinZone::test_100_pct_maps_to_top_zone": "Patch 1",
       "TestPrilepinZone::test_zone_boundaries": "Patch 1",

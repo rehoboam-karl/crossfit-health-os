@@ -29,12 +29,13 @@ CALIBRAÇÃO necessária antes de uso em produção:
 - Reportar agreement (Cohen κ ou Spearman ρ) — meta ≥0.7
 """
 
+import json
 import random
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Protocol
 
-from workout_schema import Session
+from .workout_schema import Session
 
 
 # ============================================================
@@ -230,7 +231,6 @@ class StubJudge:
 CLAUDE_JUDGE_REFERENCE_IMPL = '''
 # Implementação Claude — pseudocódigo:
 
-import json
 import anthropic
 
 class ClaudeJudge:

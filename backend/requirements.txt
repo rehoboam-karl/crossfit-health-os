@@ -1,3 +1,7 @@
+# Local package — schema v2 + 3-layer eval framework
+# Install path is relative to backend/ (the build context for Docker)
+-e ./cfai
+
 # FastAPI Core
 fastapi==0.135.2
 starlette==0.52.1
