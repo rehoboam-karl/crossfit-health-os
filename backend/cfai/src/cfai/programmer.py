@@ -31,6 +31,60 @@ from .workout_schema import (
 
 
 # ============================================================
+# SCALING HELPERS (Sprint 5a)
+# ============================================================
+
+def expand_scaling(
+    base: MovementPrescription, movement: Movement,
+) -> dict[ScalingTier, MovementPrescription]:
+    """Expande Movement.default_scaling em MovementPrescription.scaling.
+
+    Para cada tier presente em movement.default_scaling, monta uma
+    MovementPrescription derivada do `base` aplicando substituição de
+    movimento, load_factor e reps_factor do MovementScaling.
+
+    Movimentos sem default_scaling retornam dict vazio — não força scaling
+    artificial. Composers podem complementar manualmente.
+    """
+    out: dict[ScalingTier, MovementPrescription] = {}
+    for tier, ms in movement.default_scaling.items():
+        sub_id = ms.substitute_movement_id or base.movement_id
+        substituting = sub_id != base.movement_id
+
+        new_load = base.load
+        # Substituição de movimento invalida percent_1rm com reference_lift
+        # original (ex.: 75% back_squat não traduz pra goblet_squat). Cai pra
+        # RPE/AHAP — o atleta calibra pelo RPE alvo.
+        if substituting and base.load and base.load.type == "percent_1rm":
+            new_load = LoadSpec(type="rpe", value=7.0)
+        elif (base.load and ms.load_factor
+                and base.load.type in ("absolute_kg", "percent_1rm", "percent_bw")
+                and base.load.value is not None):
+            new_load = LoadSpec(
+                type=base.load.type,
+                value=round(base.load.value * ms.load_factor, 1),
+                reference_lift=base.load.reference_lift,
+            )
+
+        new_reps = base.reps
+        if base.reps is not None and ms.reps_factor:
+            new_reps = max(1, int(round(base.reps * ms.reps_factor)))
+
+        out[tier] = MovementPrescription(
+            movement_id=sub_id,
+            reps=new_reps,
+            time_seconds=base.time_seconds,
+            distance_meters=base.distance_meters,
+            calories=base.calories,
+            load=new_load,
+            pacing=base.pacing,
+            tempo=base.tempo,
+            notes=ms.notes or base.notes,
+        )
+    return out
+
+
+# ============================================================
 # CONTEXTO E HINTS
 # ============================================================
 
@@ -306,7 +360,7 @@ class HeuristicComposer:
         if block_type == BlockType.WARM_UP:
             return self._warm_up_block(order, hints, ctx)
         if block_type == BlockType.ACTIVATION:
-            return self._activation_block(order, hints)
+            return self._activation_block(order, hints, ctx)
         if block_type == BlockType.COOLDOWN:
             return self._cooldown_block(order, hints)
         if block_type == BlockType.MOBILITY:
@@ -380,7 +434,13 @@ class HeuristicComposer:
             ],
         )
 
-    def _activation_block(self, order: int, hints: BlockHints) -> WorkoutBlock:
+    def _activation_block(self, order: int, hints: BlockHints, ctx: ProgrammingContext) -> WorkoutBlock:
+        # Sprint 5a: glute_bridge é bodyweight; banded_glute_bridge só se band disponível
+        glute_id = (
+            "banded_glute_bridge"
+            if "band" in ctx.athlete.equipment_available
+            else "glute_bridge"
+        )
         return WorkoutBlock(
             order=order, type=BlockType.ACTIVATION,
             format=BlockFormat.NOT_FOR_TIME,
@@ -388,7 +448,7 @@ class HeuristicComposer:
             intent="Ativação posterior + core",
             movements=[
                 MovementPrescription(
-                    movement_id="banded_glute_bridge", reps=15,
+                    movement_id=glute_id, reps=15,
                     load=LoadSpec(type="bodyweight"),
                 ),
                 MovementPrescription(
@@ -433,12 +493,14 @@ class HeuristicComposer:
         sets = []
         pct = 70 + (ctx.week_number * 2.5) if ctx.phase == Phase.BUILD else 75
         for _ in range(5):
-            sets.append(MovementPrescription(
+            base = MovementPrescription(
                 movement_id=chosen.id, reps=5,
                 load=LoadSpec(
                     type="percent_1rm", value=pct, reference_lift=chosen.id,
                 ),
-            ))
+            )
+            base = base.model_copy(update={"scaling": expand_scaling(base, chosen)})
+            sets.append(base)
 
         return WorkoutBlock(
             order=order, type=BlockType.STRENGTH_PRIMARY,
@@ -457,6 +519,12 @@ class HeuristicComposer:
         accessories = [m for m in candidates if m.category in ("dumbbell", "kettlebell", "accessory")]
         chosen = accessories[0] if accessories else candidates[-1]
 
+        base = MovementPrescription(
+            movement_id=chosen.id, reps=8,
+            load=LoadSpec(type="rpe", value=hints.rpe or 7.0),
+            notes="4 sets",
+        )
+        base = base.model_copy(update={"scaling": expand_scaling(base, chosen)})
         return WorkoutBlock(
             order=order, type=BlockType.STRENGTH_SECONDARY,
             format=BlockFormat.SETS_REPS,
@@ -464,13 +532,7 @@ class HeuristicComposer:
             duration_minutes=hints.duration_minutes,
             intent="Volume complementar",
             rounds=4, rest_seconds=90,
-            movements=[
-                MovementPrescription(
-                    movement_id=chosen.id, reps=8,
-                    load=LoadSpec(type="rpe", value=hints.rpe or 7.0),
-                    notes="4 sets",
-                ),
-            ],
+            movements=[base],
         )
 
     def _metcon_block(
@@ -485,21 +547,24 @@ class HeuristicComposer:
 
         movements = []
         if wl:
-            movements.append(MovementPrescription(
+            mp = MovementPrescription(
                 movement_id=wl.id, reps=10,
                 load=LoadSpec(type="absolute_kg", value=22.5),
-            ))
+            )
+            movements.append(mp.model_copy(update={"scaling": expand_scaling(mp, wl)}))
         if gym:
-            movements.append(MovementPrescription(movement_id=gym.id, reps=15))
+            mp = MovementPrescription(movement_id=gym.id, reps=15)
+            movements.append(mp.model_copy(update={"scaling": expand_scaling(mp, gym)}))
         if mono:
             if mono.id in ("run",):
-                movements.append(MovementPrescription(
+                mp = MovementPrescription(
                     movement_id=mono.id, distance_meters=200,
-                ))
+                )
             else:
-                movements.append(MovementPrescription(
+                mp = MovementPrescription(
                     movement_id=mono.id, calories=15,
-                ))
+                )
+            movements.append(mp.model_copy(update={"scaling": expand_scaling(mp, mono)}))
 
         return WorkoutBlock(
             order=order, type=BlockType.METCON,
@@ -574,15 +639,15 @@ class HeuristicComposer:
     ) -> WorkoutBlock:
         gym_movs = [m for m in candidates if "G" in m.modalities]
         chosen = gym_movs[0] if gym_movs else self.library.get("pull_up")
+        base = MovementPrescription(movement_id=chosen.id, reps=8)
+        base = base.model_copy(update={"scaling": expand_scaling(base, chosen)})
         return WorkoutBlock(
             order=order, type=BlockType.GYMNASTICS,
             format=hints.target_format or BlockFormat.EMOM,
             stimulus=Stimulus.GYMNASTIC_CAPACITY,
             duration_minutes=hints.duration_minutes or 15,
             intent="Capacidade gímnica",
-            movements=[
-                MovementPrescription(movement_id=chosen.id, reps=8),
-            ],
+            movements=[base],
         )
 
     def _midline_block(self, order: int, hints: BlockHints) -> WorkoutBlock:
