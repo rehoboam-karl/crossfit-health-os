@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Profile - CrossFit Health OS{% endblock %}
+{% block title %}{{ t("nav.user_menu.settings") }} - CrossFit Health OS{% endblock %}
 
 {% block navbar %}
 {% include "partials/navbar.html" %}
@@ -10,58 +10,58 @@
 <div class="container py-4" style="max-width: 800px;">
     
     <!-- Page Header -->
-    <h1 class="h2 fw-bold mb-1">Profile Settings</h1>
-    <p class="text-muted mb-4">Manage your athlete profile and preferences</p>
-    
+    <h1 class="h2 fw-bold mb-1">{{ t("profile.title") }}</h1>
+    <p class="text-muted mb-4">{{ t("profile.subtitle") }}</p>
+
     <!-- Profile Card -->
     <div class="chos-card mb-4">
         <div class="card-header">
-            <h4 class="mb-0"><i class="fas fa-user me-2"></i>Personal Info</h4>
+            <h4 class="mb-0"><i class="fas fa-user me-2"></i>{{ t("profile.personal_info") }}</h4>
         </div>
         <div class="card-body">
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label class="chos-label">Full Name</label>
-                    <input type="text" id="profile-name" class="chos-input" placeholder="Your name">
+                    <label class="chos-label">{{ t("profile.full_name") }}</label>
+                    <input type="text" id="profile-name" class="chos-input" placeholder="{{ t('profile.name_placeholder') }}">
                 </div>
                 <div class="col-md-6">
-                    <label class="chos-label">Email</label>
+                    <label class="chos-label">{{ t("profile.email") }}</label>
                     <input type="email" id="profile-email" class="chos-input" disabled>
                 </div>
                 <div class="col-md-4">
-                    <label class="chos-label">Age</label>
+                    <label class="chos-label">{{ t("profile.age") }}</label>
                     <input type="number" id="profile-age" class="chos-input" min="14" max="80">
                 </div>
                 <div class="col-md-4">
-                    <label class="chos-label">Weight (kg)</label>
+                    <label class="chos-label">{{ t("profile.weight_kg") }}</label>
                     <input type="number" id="profile-weight" class="chos-input" step="0.1">
                 </div>
                 <div class="col-md-4">
-                    <label class="chos-label">Height (cm)</label>
+                    <label class="chos-label">{{ t("profile.height_cm") }}</label>
                     <input type="number" id="profile-height" class="chos-input">
                 </div>
             </div>
         </div>
     </div>
-    
+
     <!-- CrossFit Profile -->
     <div class="chos-card mb-4">
         <div class="card-header">
-            <h4 class="mb-0"><i class="fas fa-dumbbell me-2"></i>CrossFit Profile</h4>
+            <h4 class="mb-0"><i class="fas fa-dumbbell me-2"></i>{{ t("profile.crossfit_profile") }}</h4>
         </div>
         <div class="card-body">
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label class="chos-label">Experience Level</label>
+                    <label class="chos-label">{{ t("profile.experience_level") }}</label>
                     <select id="profile-level" class="form-select chos-input">
-                        <option value="beginner">Beginner (0-1 year)</option>
-                        <option value="intermediate">Intermediate (1-3 years)</option>
-                        <option value="advanced">Advanced (3-5 years)</option>
-                        <option value="elite">Elite (5+ years)</option>
+                        <option value="beginner">{{ t("profile.experience.beginner") }}</option>
+                        <option value="intermediate">{{ t("profile.experience.intermediate") }}</option>
+                        <option value="advanced">{{ t("profile.experience.advanced") }}</option>
+                        <option value="elite">{{ t("profile.experience.elite") }}</option>
                     </select>
                 </div>
                 <div class="col-md-6">
-                    <label class="chos-label">Preferred Methodology</label>
+                    <label class="chos-label">{{ t("profile.preferred_methodology") }}</label>
                     <select id="profile-methodology" class="form-select chos-input">
                         <option value="hwpo">HWPO (Mat Fraser)</option>
                         <option value="mayhem">Mayhem (Rich Froning)</option>
@@ -70,47 +70,66 @@
                     </select>
                 </div>
                 <div class="col-md-6">
-                    <label class="chos-label">Primary Goal</label>
+                    <label class="chos-label">{{ t("profile.primary_goal") }}</label>
                     <select id="profile-goal" class="form-select chos-input">
-                        <option value="general_fitness">General Fitness</option>
-                        <option value="competition">Competition Prep</option>
-                        <option value="strength">Strength Focus</option>
-                        <option value="endurance">Endurance</option>
-                        <option value="body_composition">Body Composition</option>
+                        <option value="general_fitness">{{ t("profile.goal_options.general_fitness") }}</option>
+                        <option value="competition">{{ t("profile.goal_options.competition") }}</option>
+                        <option value="strength">{{ t("profile.goal_options.strength") }}</option>
+                        <option value="endurance">{{ t("profile.goal_options.endurance") }}</option>
+                        <option value="body_composition">{{ t("profile.goal_options.body_composition") }}</option>
                     </select>
                 </div>
                 <div class="col-md-6">
-                    <label class="chos-label">Sessions per Week</label>
+                    <label class="chos-label">{{ t("profile.sessions_per_week") }}</label>
                     <select id="profile-sessions" class="form-select chos-input">
-                        <option value="3">3 sessions</option>
-                        <option value="4">4 sessions</option>
-                        <option value="5" selected>5 sessions</option>
-                        <option value="6">6 sessions</option>
-                        <option value="7">7 sessions</option>
+                        <option value="3">{{ t("profile.sessions_count", n=3) }}</option>
+                        <option value="4">{{ t("profile.sessions_count", n=4) }}</option>
+                        <option value="5" selected>{{ t("profile.sessions_count", n=5) }}</option>
+                        <option value="6">{{ t("profile.sessions_count", n=6) }}</option>
+                        <option value="7">{{ t("profile.sessions_count", n=7) }}</option>
                     </select>
                 </div>
                 <div class="col-12">
-                    <label class="chos-label">Weaknesses / Focus Areas</label>
-                    <textarea id="profile-weaknesses" class="chos-input" rows="3" placeholder="e.g., Overhead squats, muscle-ups, running endurance..."></textarea>
-                    <span class="chos-form-help">AI will prioritize these in your programming</span>
+                    <label class="chos-label">{{ t("profile.weaknesses") }}</label>
+                    <textarea id="profile-weaknesses" class="chos-input" rows="3" placeholder="{{ t('profile.weaknesses_placeholder') }}"></textarea>
+                    <span class="chos-form-help">{{ t("profile.weaknesses_help") }}</span>
                 </div>
                 <div class="col-12">
-                    <label class="chos-label">Injuries / Limitations</label>
-                    <textarea id="profile-injuries" class="chos-input" rows="2" placeholder="e.g., Left shoulder impingement, lower back tightness..."></textarea>
-                    <span class="chos-form-help">AI will avoid or modify exercises that might aggravate these</span>
+                    <label class="chos-label">{{ t("profile.injuries") }}</label>
+                    <textarea id="profile-injuries" class="chos-input" rows="2" placeholder="{{ t('profile.injuries_placeholder') }}"></textarea>
+                    <span class="chos-form-help">{{ t("profile.injuries_help") }}</span>
                 </div>
             </div>
         </div>
     </div>
     
+    <!-- Preferences -->
+    <div class="chos-card mb-4">
+        <div class="card-header">
+            <h4 class="mb-0"><i class="fas fa-globe me-2"></i>{{ t("profile.language_label") }}</h4>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="chos-label">{{ t("profile.language_label") }}</label>
+                    <select id="profile-locale" class="form-select chos-input" onchange="saveLocale()">
+                        <option value="pt-BR">{{ t("nav.language.pt-BR") }}</option>
+                        <option value="en">{{ t("nav.language.en") }}</option>
+                    </select>
+                    <span class="chos-form-help">{{ t("profile.language_help") }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Actions -->
     <div class="d-flex justify-content-between">
         <a href="/update-password" class="chos-btn chos-btn-outline">
-            <i class="fas fa-lock me-1"></i>Change Password
+            <i class="fas fa-lock me-1"></i>{{ t("profile.change_password") }}
         </a>
         <button class="chos-btn chos-btn-primary chos-btn-lg" id="btn-save-profile" onclick="saveProfile()">
             <i class="fas fa-save"></i>
-            <span class="btn-text">Save Profile</span>
+            <span class="btn-text">{{ t("profile.save_profile") }}</span>
             <span class="btn-spinner"><i class="fas fa-spinner fa-spin"></i></span>
         </button>
     </div>
@@ -140,6 +159,9 @@ function loadProfile() {
         $('#profile-injuries').val(user.injuries || '');
     }
     
+    // Pre-select the active locale (server-resolved)
+    $('#profile-locale').val(window.LOCALE || 'pt-BR');
+
     // Also fetch from API for latest data
     CHOS.api.get('/api/v1/users/me')
         .done(function(data) {
@@ -155,7 +177,20 @@ function loadProfile() {
                 if (data.sessions_per_week) $('#profile-sessions').val(data.sessions_per_week);
                 if (data.weaknesses) $('#profile-weaknesses').val(data.weaknesses);
                 if (data.injuries) $('#profile-injuries').val(data.injuries);
+                if (data.locale) $('#profile-locale').val(data.locale);
             }
+        });
+}
+
+function saveLocale() {
+    const locale = $('#profile-locale').val();
+    CHOS.api.patch('/api/v1/users/me', { locale: locale })
+        .done(function() {
+            // Reload with the new ?lang so the server middleware also writes
+            // the lang cookie and the page is re-rendered in the new locale.
+            const url = new URL(window.location.href);
+            url.searchParams.set('lang', locale);
+            window.location.href = url.toString();
         });
 }
 
@@ -182,7 +217,7 @@ function saveProfile() {
             Object.assign(user, data);
             localStorage.setItem('user', JSON.stringify(user));
             
-            CHOS.toast.success('Profile updated!');
+            CHOS.toast.success(t('profile.profile_saved'));
         })
         .always(function() {
             CHOS.loading.button('#btn-save-profile', false);

@@ -11,7 +11,8 @@ import logging
 from pathlib import Path
 
 from app.core.config import settings
-from app.api.v1 import training, health, nutrition, integrations, users, schedule, review, auth, onboarding, gamification, diet
+from app.core.i18n import LocaleMiddleware
+from app.api.v1 import training, health, nutrition, integrations, users, schedule, review, auth, onboarding, gamification, diet, today, notifications
 from app.web import routes as web_routes
 
 # Configure logging
@@ -51,6 +52,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Locale resolution: ?lang → cookie → user.locale → Accept-Language → pt-BR
+app.add_middleware(LocaleMiddleware)
 
 # Mount static files
 static_path = Path(__file__).parent / "static"
@@ -154,6 +158,8 @@ app.include_router(
 app.include_router(onboarding.router)
 app.include_router(gamification.router)
 app.include_router(diet.router)
+app.include_router(today.router)
+app.include_router(notifications.router)
 
 
 # Custom 404 handler - only for HTML requests

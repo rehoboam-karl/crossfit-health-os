@@ -1,0 +1,31 @@
+<!-- Floating action button + bottom sheet with quick actions.
+     Wired via /static/js/quick-actions.js (loaded in base.html). -->
+<button type="button" class="chos-fab" id="chos-fab-btn" aria-label="{{ t('nav.fab.label') }}" title="{{ t('nav.fab.label') }}">
+   <i class="fas fa-plus"></i>
+</button>
+
+<div class="chos-sheet-backdrop" id="chos-sheet-backdrop" aria-hidden="true"></div>
+
+<div class="chos-sheet" id="chos-sheet" role="dialog" aria-modal="true" aria-labelledby="chos-sheet-title" hidden>
+   <h6 id="chos-sheet-title" class="text-secondary small fw-medium mb-3" style="text-transform: uppercase; letter-spacing: 0.04em;">{{ t("nav.fab.label") }}</h6>
+
+   <a href="/dashboard#log-recovery" class="chos-sheet-action" data-quick-action="recovery">
+      <span class="sheet-icon" style="background: var(--cat-recovery);"><i class="fas fa-heartbeat"></i></span>
+      <span>{{ t("nav.fab.log_recovery") }}</span>
+   </a>
+
+   <a href="/dashboard/nutrition#meal-photo" class="chos-sheet-action" data-quick-action="meal-photo">
+      <span class="sheet-icon" style="background: var(--cat-nutrition);"><i class="fas fa-camera"></i></span>
+      <span>{{ t("nav.fab.meal_photo") }}</span>
+   </a>
+
+   <a href="/dashboard/workouts#add-pr" class="chos-sheet-action" data-quick-action="add-pr">
+      <span class="sheet-icon" style="background: var(--cat-fat);"><i class="fas fa-trophy"></i></span>
+      <span>{{ t("nav.fab.add_pr") }}</span>
+   </a>
+
+   <a href="/dashboard/schedule" class="chos-sheet-action" data-quick-action="schedule">
+      <span class="sheet-icon" style="background: var(--cat-strength);"><i class="fas fa-calendar"></i></span>
+      <span>{{ t("nav.fab.go_schedule") }}</span>
+   </a>
+</div>

@@ -7,6 +7,8 @@ from contextlib import contextmanager
 from typing import Optional
 import os
 
+from app.core.config import settings
+
 # Connection pool
 connection_pool: Optional[psycopg2.pool.ThreadedConnectionPool] = None
 
@@ -14,8 +16,10 @@ def get_pool():
     """Get or create database connection pool"""
     global connection_pool
     if connection_pool is None:
-        # Get DATABASE_URL from environment or use default
-        db_url = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/crossfit")
+        # Prefer process env (docker-compose / systemd) over settings so
+        # tests/CI can override; fall back to settings.DATABASE_URL, which
+        # pydantic-settings loads from .env.
+        db_url = os.getenv("DATABASE_URL") or settings.DATABASE_URL
         
         # Parse the URL
         if "://" in db_url:

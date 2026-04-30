@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Reviews - CrossFit Health OS{% endblock %}
+{% block title %}{{ t("reviews.page_title") }} - CrossFit Health OS{% endblock %}
 
 {% block navbar %}
 {% include "partials/navbar.html" %}
@@ -8,28 +8,28 @@
 
 {% block content %}
 <div class="container-fluid py-4">
-    
+
     <!-- Page Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1 class="h2 fw-bold mb-1">Weekly Reviews</h1>
-            <p class="text-muted mb-0">AI-powered performance analysis and recommendations</p>
+            <h1 class="h2 fw-bold mb-1">{{ t("reviews.page_title") }}</h1>
+            <p class="text-muted mb-0">{{ t("reviews.subtitle") }}</p>
         </div>
         <button class="chos-btn chos-btn-primary chos-btn-lg" id="btn-generate-review" onclick="generateReview()">
             <i class="fas fa-magic"></i>
-            <span class="btn-text">Generate Review</span>
+            <span class="btn-text">{{ t("reviews.btn_generate") }}</span>
             <span class="btn-spinner"><i class="fas fa-spinner fa-spin"></i></span>
         </button>
     </div>
-    
+
     <!-- Reviews List -->
     <div id="reviews-list">
         <div class="chos-empty-state">
             <i class="fas fa-chart-line empty-icon"></i>
-            <h5 class="empty-title">No reviews yet</h5>
-            <p class="empty-desc">Complete a week of training and generate your first AI review to get personalized recommendations.</p>
+            <h5 class="empty-title">{{ t("reviews.empty_title") }}</h5>
+            <p class="empty-desc">{{ t("reviews.empty_desc") }}</p>
             <button class="chos-btn chos-btn-primary" onclick="generateReview()">
-                <i class="fas fa-magic me-2"></i>Generate First Review
+                <i class="fas fa-magic me-2"></i>{{ t("reviews.btn_generate_first") }}
             </button>
         </div>
     </div>
@@ -40,15 +40,15 @@
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title fw-bold">Weekly Review Details</h5>
+                <h5 class="modal-title fw-bold">{{ t("reviews.detail_title") }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="review-detail-content">
             </div>
             <div class="modal-footer">
-                <button class="chos-btn chos-btn-outline" data-bs-dismiss="modal">Close</button>
+                <button class="chos-btn chos-btn-outline" data-bs-dismiss="modal">{{ t("common.actions.close") }}</button>
                 <button class="chos-btn chos-btn-success" id="btn-apply-review" onclick="applyReview()">
-                    <i class="fas fa-check me-1"></i>Apply Adjustments
+                    <i class="fas fa-check me-1"></i>{{ t("reviews.btn_apply") }}
                 </button>
             </div>
         </div>
@@ -67,7 +67,7 @@ $(document).ready(function() {
 
 function loadReviews() {
     CHOS.loading.skeleton('#reviews-list', 3);
-    
+
     CHOS.api.get('/api/v1/review/weekly')
         .done(function(data) {
             if (data && data.length > 0) {
@@ -76,8 +76,8 @@ function loadReviews() {
                 $('#reviews-list').html(`
                     <div class="chos-empty-state">
                         <i class="fas fa-chart-line empty-icon"></i>
-                        <h5 class="empty-title">No reviews yet</h5>
-                        <p class="empty-desc">Complete a week of training and generate your first AI review.</p>
+                        <h5 class="empty-title">${t('reviews.empty_title')}</h5>
+                        <p class="empty-desc">${t('reviews.empty_desc')}</p>
                     </div>
                 `);
             }
@@ -86,8 +86,8 @@ function loadReviews() {
             $('#reviews-list').html(`
                 <div class="chos-empty-state">
                     <i class="fas fa-chart-line empty-icon"></i>
-                    <h5 class="empty-title">No reviews yet</h5>
-                    <p class="empty-desc">Generate your first weekly review to get AI-powered insights.</p>
+                    <h5 class="empty-title">${t('reviews.empty_title')}</h5>
+                    <p class="empty-desc">${t('reviews.empty_desc')}</p>
                 </div>
             `);
         });
@@ -95,75 +95,76 @@ function loadReviews() {
 
 function renderReviews(reviews) {
     let html = '<div class="row g-3 chos-stagger">';
-    
+
     reviews.forEach(review => {
         const score = review.overall_score || review.readiness_score || '--';
-        const scoreClass = score >= 80 ? 'success' : (score >= 60 ? 'warning' : 'danger');
         const date = CHOS.format.date(review.created_at || review.week_start);
-        
+
         html += `
         <div class="col-md-6 col-lg-4">
             <div class="chos-card chos-card-interactive" onclick="showReviewDetail('${review.id}')" style="cursor: pointer;">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start mb-3">
                         <div>
-                            <span class="chos-badge chos-badge-primary mb-2">Week ${review.week_number || '?'}</span>
+                            <span class="chos-badge chos-badge-primary mb-2">${t('reviews.week_n', { n: review.week_number || '?' })}</span>
                             <h5 class="fw-bold mb-1">${date}</h5>
                         </div>
                         <div class="chos-readiness ${CHOS.format.readinessClass(score)}">
                             ${score}
                         </div>
                     </div>
-                    
+
                     ${review.strengths ? `
                     <div class="mb-3">
                         <h6 class="fw-bold text-success mb-1" style="font-size: 0.8125rem;">
-                            <i class="fas fa-arrow-up me-1"></i>Strengths
+                            <i class="fas fa-arrow-up me-1"></i>${t('reviews.strengths')}
                         </h6>
                         <ul class="list-unstyled mb-0" style="font-size: 0.8125rem;">
-                            ${(Array.isArray(review.strengths) ? review.strengths : [review.strengths]).slice(0, 2).map(s => 
-                                `<li class="text-muted">• ${s}</li>`
+                            ${(Array.isArray(review.strengths) ? review.strengths : [review.strengths]).slice(0, 2).map(s =>
+                                `<li class="text-muted">• ${CHOS.escape(s)}</li>`
                             ).join('')}
                         </ul>
                     </div>
                     ` : ''}
-                    
+
                     ${review.weaknesses ? `
                     <div class="mb-3">
                         <h6 class="fw-bold text-danger mb-1" style="font-size: 0.8125rem;">
-                            <i class="fas fa-arrow-down me-1"></i>Areas to Improve
+                            <i class="fas fa-arrow-down me-1"></i>${t('reviews.weaknesses')}
                         </h6>
                         <ul class="list-unstyled mb-0" style="font-size: 0.8125rem;">
-                            ${(Array.isArray(review.weaknesses) ? review.weaknesses : [review.weaknesses]).slice(0, 2).map(w => 
-                                `<li class="text-muted">• ${w}</li>`
+                            ${(Array.isArray(review.weaknesses) ? review.weaknesses : [review.weaknesses]).slice(0, 2).map(w =>
+                                `<li class="text-muted">• ${CHOS.escape(w)}</li>`
                             ).join('')}
                         </ul>
                     </div>
                     ` : ''}
-                    
+
                     <div class="d-flex justify-content-between align-items-center mt-3 pt-3" style="border-top: 1px solid var(--color-border);">
                         <span class="text-muted" style="font-size: 0.75rem;">
-                            ${review.applied ? '<i class="fas fa-check text-success me-1"></i>Applied' : '<i class="fas fa-clock text-warning me-1"></i>Pending'}
+                            ${review.applied
+                                ? `<i class="fas fa-check text-success me-1"></i>${t('reviews.applied')}`
+                                : `<i class="fas fa-clock text-warning me-1"></i>${t('reviews.pending')}`}
                         </span>
                         <span class="chos-btn chos-btn-sm chos-btn-ghost">
-                            View Details <i class="fas fa-chevron-right ms-1"></i>
+                            ${t('reviews.view_details')} <i class="fas fa-chevron-right ms-1"></i>
                         </span>
                     </div>
                 </div>
             </div>
         </div>`;
     });
-    
+
     html += '</div>';
     $('#reviews-list').html(html);
 }
 
 function generateReview() {
     CHOS.loading.button('#btn-generate-review', true);
-    
+
     CHOS.api.post('/api/v1/review/weekly', {})
-        .done(function(data) {
-            CHOS.toast.success('Weekly review generated!');
+        .done(function() {
+            CHOS.toast.success(t('reviews.review_generated'));
             loadReviews();
         })
         .always(function() {
@@ -175,60 +176,60 @@ function showReviewDetail(reviewId) {
     currentReviewId = reviewId;
     CHOS.loading.spinner('#review-detail-content');
     new bootstrap.Modal('#reviewDetailModal').show();
-    
+
     CHOS.api.get('/api/v1/review/weekly/' + reviewId)
         .done(function(review) {
             let html = `
             <div class="row g-4">
                 <div class="col-md-8">
-                    <h5 class="fw-bold mb-3">Performance Summary</h5>
-                    <p>${review.summary || 'No summary available'}</p>
-                    
+                    <h5 class="fw-bold mb-3">${t('reviews.performance_summary')}</h5>
+                    <p>${CHOS.escape(review.summary || t('reviews.no_summary'))}</p>
+
                     ${review.strengths ? `
-                    <h6 class="fw-bold text-success"><i class="fas fa-arrow-up me-1"></i>Strengths</h6>
-                    <ul>${(Array.isArray(review.strengths) ? review.strengths : [review.strengths]).map(s => `<li>${s}</li>`).join('')}</ul>
+                    <h6 class="fw-bold text-success"><i class="fas fa-arrow-up me-1"></i>${t('reviews.strengths')}</h6>
+                    <ul>${(Array.isArray(review.strengths) ? review.strengths : [review.strengths]).map(s => `<li>${CHOS.escape(s)}</li>`).join('')}</ul>
                     ` : ''}
-                    
+
                     ${review.weaknesses ? `
-                    <h6 class="fw-bold text-danger"><i class="fas fa-arrow-down me-1"></i>Weaknesses</h6>
-                    <ul>${(Array.isArray(review.weaknesses) ? review.weaknesses : [review.weaknesses]).map(w => `<li>${w}</li>`).join('')}</ul>
+                    <h6 class="fw-bold text-danger"><i class="fas fa-arrow-down me-1"></i>${t('reviews.weaknesses')}</h6>
+                    <ul>${(Array.isArray(review.weaknesses) ? review.weaknesses : [review.weaknesses]).map(w => `<li>${CHOS.escape(w)}</li>`).join('')}</ul>
                     ` : ''}
-                    
+
                     ${review.recommendations ? `
-                    <h6 class="fw-bold text-primary"><i class="fas fa-lightbulb me-1"></i>Recommendations</h6>
-                    <ul>${(Array.isArray(review.recommendations) ? review.recommendations : [review.recommendations]).map(r => `<li>${r}</li>`).join('')}</ul>
+                    <h6 class="fw-bold text-primary"><i class="fas fa-lightbulb me-1"></i>${t('reviews.recommendations')}</h6>
+                    <ul>${(Array.isArray(review.recommendations) ? review.recommendations : [review.recommendations]).map(r => `<li>${CHOS.escape(r)}</li>`).join('')}</ul>
                     ` : ''}
                 </div>
                 <div class="col-md-4">
                     <div class="chos-stat-card mb-3">
-                        <div class="stat-label">Recovery Status</div>
+                        <div class="stat-label">${t('reviews.recovery_status')}</div>
                         <div class="stat-value">${review.recovery_status || '--'}</div>
                     </div>
                     <div class="chos-stat-card mb-3">
-                        <div class="stat-label">Volume</div>
+                        <div class="stat-label">${t('reviews.volume')}</div>
                         <div class="stat-value">${review.volume_assessment || '--'}</div>
                     </div>
                     ${review.adjustments ? `
                     <div class="chos-stat-card">
-                        <div class="stat-label">Suggested Volume Change</div>
+                        <div class="stat-label">${t('reviews.suggested_volume_change')}</div>
                         <div class="stat-value">${review.adjustments.volume_change || 0}%</div>
                     </div>
                     ` : ''}
                 </div>
             </div>`;
-            
+
             $('#review-detail-content').html(html);
         });
 }
 
 function applyReview() {
     if (!currentReviewId) return;
-    
+
     CHOS.loading.button('#btn-apply-review', true);
-    
+
     CHOS.api.post('/api/v1/review/weekly/' + currentReviewId + '/apply', {})
         .done(function() {
-            CHOS.toast.success('Adjustments applied to next week!');
+            CHOS.toast.success(t('reviews.adjustments_applied'));
             bootstrap.Modal.getInstance('#reviewDetailModal').hide();
             loadReviews();
         })

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Workouts - CrossFit Health OS{% endblock %}
+{% block title %}{{ t("training.page_title") }} - CrossFit Health OS{% endblock %}
 
 {% block navbar %}
 {% include "partials/navbar.html" %}
@@ -11,15 +11,15 @@
     <!-- Page Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h1 class="h3 fw-bold mb-0">Training</h1>
-            <p class="text-muted mb-0">Workout history and performance</p>
+            <h1 class="h3 fw-bold mb-0">{{ t("training.page_title") }}</h1>
+            <p class="text-muted mb-0">{{ t("training.subtitle") }}</p>
         </div>
         <div class="d-flex gap-2">
             <button class="btn btn-sm btn-outline-secondary active">
-                <i class="fas fa-th-large me-2"></i>Cards
+                <i class="fas fa-th-large me-2"></i>{{ t("training.view_cards") }}
             </button>
             <button class="btn btn-sm btn-outline-secondary">
-                <i class="fas fa-list me-2"></i>List
+                <i class="fas fa-list me-2"></i>{{ t("training.view_list") }}
             </button>
         </div>
     </div>
@@ -28,23 +28,23 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div class="d-flex gap-2">
             <button class="btn btn-primary" id="generate-workout-btn">
-                <i class="fas fa-magic me-2"></i>Generate Adaptive Workout
+                <i class="fas fa-magic me-2"></i>{{ t("training.btn_generate") }}
             </button>
             <button class="btn btn-outline-primary">
-                <i class="fas fa-plus me-2"></i>Start Manual Workout
+                <i class="fas fa-plus me-2"></i>{{ t("training.btn_manual") }}
             </button>
         </div>
     </div>
 
     <!-- Next Workout Banner -->
-    <div id="next-workout-banner" class="card shadow-sm mb-4 border-primary" style="display:none;">
+    <div id="next-workout-banner" class="chos-card chos-card-feature is-recovery mb-4" style="display:none;">
         <div class="card-body d-flex align-items-center justify-content-between">
             <div>
-                <h5 class="fw-bold mb-1"><i class="fas fa-calendar-check me-2 text-primary"></i>Próximo Treino</h5>
+                <h5 class="fw-bold mb-1"><i class="fas fa-calendar-check me-2 text-primary"></i>{{ t("training.next_workout") }}</h5>
                 <div id="next-workout-info" class="text-muted small"></div>
             </div>
             <button class="btn btn-primary" id="start-next-workout-btn">
-                <i class="fas fa-play me-2"></i>Start
+                <i class="fas fa-play me-2"></i>{{ t("training.btn_start") }}
             </button>
         </div>
     </div>
@@ -53,46 +53,44 @@
     <div class="row g-3 mb-4" id="workouts-container">
         <div class="col-12 text-center py-4">
             <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
+                <span class="visually-hidden">{{ t("common.loading") }}</span>
             </div>
         </div>
     </div>
 
     <!-- Personal Records -->
-    <div class="card shadow-sm mb-4">
+    <div class="chos-card mb-4">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="fw-bold mb-0">Personal Records</h5>
-                <button class="btn btn-sm btn-outline-primary">
-                    <i class="fas fa-plus me-2"></i>Add PR
+                <h5 class="fw-bold mb-0">{{ t("training.personal_records") }}</h5>
+                <button class="chos-btn chos-btn-outline chos-btn-sm">
+                    <i class="fas fa-plus me-2"></i>{{ t("training.btn_add_pr") }}
                 </button>
             </div>
-            
+
             <div class="row g-3">
                 {% if personal_records %}
                     {% for pr in personal_records %}
                     <div class="col-md-4">
-                        <div class="card bg-warning bg-opacity-10 border-warning">
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <i class="fas fa-trophy text-warning fs-2"></i>
-                                    <span class="small text-muted">{{ pr.date }}</span>
-                                </div>
-                                <h6 class="fw-bold">{{ pr.movement }}</h6>
-                                <p class="fs-2 fw-bold mb-0">
-                                    {% if pr.weight %}
-                                    {{ pr.weight }}<small class="fs-6 text-muted ms-1">kg</small>
-                                    {% else %}
-                                    {{ pr.time }}
-                                    {% endif %}
-                                </p>
+                        <div class="chos-pr-card h-100">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <i class="fas fa-trophy" style="color: var(--cat-fat); font-size: 1.5rem;"></i>
+                                <span class="small text-secondary">{{ pr.date }}</span>
                             </div>
+                            <h6 class="fw-semibold text-secondary mb-2">{{ pr.movement }}</h6>
+                            <p class="pr-value mb-0">
+                                {% if pr.weight %}
+                                {{ pr.weight }}<small class="fs-6 text-secondary ms-1">kg</small>
+                                {% else %}
+                                {{ pr.time }}
+                                {% endif %}
+                            </p>
                         </div>
                     </div>
                     {% endfor %}
                 {% else %}
                     <div class="col-12">
-                        <p class="text-muted text-center mb-0">No personal records yet</p>
+                        <p class="text-secondary text-center mb-0">{{ t("training.no_prs") }}</p>
                     </div>
                 {% endif %}
             </div>
@@ -102,18 +100,18 @@
     <!-- Workout Stats -->
     <div class="row g-3">
         <div class="col-lg-6">
-            <div class="card shadow-sm">
+            <div class="chos-card">
                 <div class="card-body">
-                    <h5 class="fw-bold mb-3">Workout Type Distribution</h5>
+                    <h5 class="fw-bold mb-3">{{ t("training.type_distribution") }}</h5>
                     <div id="workout-type-chart"></div>
                 </div>
             </div>
         </div>
         
         <div class="col-lg-6">
-            <div class="card shadow-sm">
+            <div class="chos-card">
                 <div class="card-body">
-                    <h5 class="fw-bold mb-3">Average RPE (7 Days)</h5>
+                    <h5 class="fw-bold mb-3">{{ t("training.avg_rpe_7d") }}</h5>
                     <div id="rpe-chart"></div>
                 </div>
             </div>
@@ -182,9 +180,13 @@
             if (!data) return; // no upcoming workout
             const banner = $('#next-workout-banner');
             const info = $('#next-workout-info');
-            const dateStr = data.next_session_date ? new Date(data.next_session_date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }) : 'N/A';
-            const shiftLabel = { morning: 'Manhã', afternoon: 'Tarde', evening: 'Noite' }[data.next_session_shift] || data.next_session_shift || '';
-            info.html(`<strong>${data.workout_type?.toUpperCase() || '?'}</strong> · ${data.duration_minutes || '?'}min · ${shiftLabel} · ${dateStr}`);
+            const dateStr = data.next_session_date ? tDate(new Date(data.next_session_date + 'T00:00:00'), { weekday: 'short', day: '2-digit', month: 'short' }) : 'N/A';
+            const shiftLabel = {
+                morning: t('training.shift_morning'),
+                afternoon: t('training.shift_afternoon'),
+                evening: t('training.shift_evening')
+            }[data.next_session_shift] || data.next_session_shift || '';
+            info.html(`<strong>${data.workout_type?.toUpperCase() || '?'}</strong> · ${data.duration_minutes || '?'}${t('training.min')} · ${shiftLabel} · ${dateStr}`);
             banner.show();
             $('#start-next-workout-btn').on('click', function() {
                 // Show workout detail modal or start workout
@@ -229,12 +231,12 @@
             const response = await CHOS.api.post('/api/v1/training/generate', recoveryMetrics);
             
             hideLoading();
-            CHOS.toast.success('Workout generated successfully!');
+            CHOS.toast.success(t('training.workout_generated'));
 
             // Map API response to the format displayGeneratedWorkout expects
             // API returns: { template: {...}, adjusted_movements: [...], readiness_score, ... }
             const workout = {
-                name: response.template?.name || 'Adaptive Workout',
+                name: response.template?.name || t('training.adaptive_workout_default'),
                 workout_type: response.template?.workout_type || 'mixed',
                 duration_minutes: response.template?.duration_minutes || 60,
                 description: response.recommendation || response.template?.description || '',
@@ -245,186 +247,264 @@
             displayGeneratedWorkout(workout, response);
         } catch (error) {
             hideLoading();
-            CHOS.toast.error(error.message || 'Failed to generate workout');
+            CHOS.toast.error(error.message || t('training.workout_generate_failed'));
         }
     });
     
+    // Defensive: if a stale chos.js is cached the helper may be missing.
+    // Mirror the implementation locally so the modal still renders.
+    if (typeof CHOS.humanize !== 'function') {
+        CHOS.humanize = function (s) {
+            if (!s) return '';
+            return String(s).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        };
+    }
+
+    // Parse a prescribed-rest string into seconds. Accepts common forms the
+    // backend / templates emit: "3min", "3 min", "90s", "90 sec", "1:30",
+    // "60-90s" (we take the lower bound). Returns null when unparseable.
+    function parseRestSeconds(restStr) {
+        if (!restStr) return null;
+        const s = String(restStr).trim().toLowerCase();
+
+        // "1:30" or "1:30:00" → minutes:seconds
+        const colonMatch = s.match(/^(\d+):(\d{1,2})(?::(\d{1,2}))?$/);
+        if (colonMatch) {
+            const a = parseInt(colonMatch[1], 10);
+            const b = parseInt(colonMatch[2], 10);
+            const c = colonMatch[3] ? parseInt(colonMatch[3], 10) : null;
+            return c != null ? a * 3600 + b * 60 + c : a * 60 + b;
+        }
+        // Range like "60-90s" or "60-90 sec" — pick the lower bound.
+        const rangeMatch = s.match(/^(\d+)\s*[-–]\s*\d+\s*(s|sec|min|m)?/);
+        if (rangeMatch) {
+            const n = parseInt(rangeMatch[1], 10);
+            const unit = rangeMatch[2] || '';
+            return unit.startsWith('m') ? n * 60 : n;
+        }
+        // "3min", "3 min", "3m"
+        const minMatch = s.match(/^(\d+(?:\.\d+)?)\s*(min|m)\b/);
+        if (minMatch) return Math.round(parseFloat(minMatch[1]) * 60);
+        // "90s", "90 sec", or bare "90"
+        const secMatch = s.match(/^(\d+(?:\.\d+)?)\s*(s|sec)?$/);
+        if (secMatch) return parseInt(secMatch[1], 10);
+
+        return null;
+    }
+
+    // Color-classify an RPE 1-10 by intensity bucket (matches the chart palette).
+    function rpeColorVar(rpe) {
+        if (rpe >= 8) return '--cat-strength';
+        if (rpe >= 5) return '--cat-cardio';
+        if (rpe >= 1) return '--cat-nutrition';
+        return '--color-text-muted';
+    }
+
+    // Build the inline RPE button row used both per-movement and overall.
+    function rpeButtonsHtml(buttonClass) {
+        return [1,2,3,4,5,6,7,8,9,10].map(n =>
+            `<button type="button" class="${buttonClass}" data-rpe="${n}">${n}</button>`
+        ).join('');
+    }
+
+    // Compact prescription line: "5 × 5 reps · @ 80kg"
+    function prescriptionLine(mov) {
+        const parts = [];
+        if (mov.sets)             parts.push(`<span class="chos-badge chos-badge-primary">${mov.sets}×</span>`);
+        if (mov.reps)             parts.push(`<span class="text-body num">${CHOS.escape(mov.reps)} ${CHOS.escape(mov.reps_unit || 'reps')}</span>`);
+        if (mov.weight_kg)        parts.push(`<span class="text-secondary num">@ ${CHOS.escape(mov.weight_kg)} kg</span>`);
+        if (mov.distance_meters)  parts.push(`<span class="text-secondary num">${CHOS.escape(mov.distance_meters)} m</span>`);
+        if (mov.duration_seconds) {
+            const mins = Math.floor(mov.duration_seconds / 60);
+            const secs = mov.duration_seconds % 60;
+            parts.push(`<span class="text-secondary num">${mins > 0 ? mins + ':' + String(secs).padStart(2, '0') : secs + 's'}</span>`);
+        }
+        if (mov.intensity)        parts.push(`<span class="chos-badge" style="background: var(--cat-recovery); color: #fff;">${CHOS.escape(mov.intensity)}</span>`);
+        return parts.length ? parts.join(' ') : `<span class="text-secondary small">${t('training.as_prescribed')}</span>`;
+    }
+
     // Display generated workout with tracking UI
     function displayGeneratedWorkout(workout, fullResponse) {
         currentWorkout = fullResponse;
-        
-        // Build movements list HTML
+
+        // Build movements list HTML — collapsible cards, one per movement.
         let movementsHtml = '';
         if (workout.movements && workout.movements.length > 0) {
             movementsHtml = workout.movements.map((mov, idx) => {
-                const movName = mov.movement || mov.movement_name || mov.name || 'Movement';
-
-                // Build prescription summary
-                let prescriptionParts = [];
-                if (mov.sets) prescriptionParts.push(mov.sets + ' sets');
-                if (mov.reps) {
-                    const unit = mov.reps_unit || 'reps';
-                    prescriptionParts.push(mov.reps + ' ' + unit);
+                const movName = CHOS.humanize(mov.movement || mov.movement_name || mov.name || t('training.movement_default'));
+                // Prescribed rest doubles as a one-tap rest-timer trigger.
+                // Reuse the .rest-preset click handler by attaching its class +
+                // data-seconds; if the rest can't be parsed we fall back to a
+                // non-clickable label.
+                const restSeconds = parseRestSeconds(mov.rest);
+                let restLine = '';
+                if (mov.rest) {
+                    if (restSeconds != null) {
+                        restLine = `<button type="button" class="chos-badge chos-badge-primary rest-preset border-0" data-seconds="${restSeconds}" title="${t('training.start_rest_for', { rest: CHOS.escape(mov.rest) })}" onclick="event.stopPropagation()" style="cursor: pointer;">
+                            <i class="fas fa-pause-circle me-1"></i>${t('training.rest')}: ${CHOS.escape(mov.rest)}
+                        </button>`;
+                    } else {
+                        restLine = `<span class="text-secondary small"><i class="fas fa-pause-circle me-1"></i>${t('training.rest')}: ${CHOS.escape(mov.rest)}</span>`;
+                    }
                 }
-                if (mov.weight_kg) prescriptionParts.push(mov.weight_kg + 'kg');
-                if (mov.distance_meters) prescriptionParts.push(mov.distance_meters + 'm');
-                if (mov.duration_seconds) {
-                    const mins = Math.floor(mov.duration_seconds / 60);
-                    const secs = mov.duration_seconds % 60;
-                    prescriptionParts.push(mins > 0 ? mins + ':' + String(secs).padStart(2, '0') : secs + 's');
-                }
-                if (mov.intensity) prescriptionParts.push(mov.intensity);
-                const prescription = prescriptionParts.join(' &middot; ') || 'As prescribed';
-
-                // Build detail tags (rest, notes)
-                let detailsHtml = '';
-                if (mov.rest) detailsHtml += `<span class="badge bg-secondary me-1">Rest: ${mov.rest}</span>`;
-                if (mov.intensity) detailsHtml += `<span class="badge bg-info me-1">Intensity: ${mov.intensity}</span>`;
-                if (mov.notes) detailsHtml += `<div class="text-muted small fst-italic mt-1">${mov.notes}</div>`;
+                const notesLine = mov.notes
+                    ? `<div class="text-secondary small fst-italic mt-1">${CHOS.escape(mov.notes)}</div>`
+                    : '';
 
                 return `
-                <div class="movement-item border rounded p-3 mb-3" data-movement-id="${idx}">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div>
-                            <h6 class="fw-bold mb-1">${movName}</h6>
-                            <small class="text-muted">${prescription}</small>
-                            ${detailsHtml ? '<div class="mt-1">' + detailsHtml + '</div>' : ''}
+                <div class="movement-item chos-card mb-3" data-movement-id="${idx}">
+                    <details class="card-body" style="padding: var(--space-4);">
+                        <summary class="d-flex align-items-center gap-3" style="cursor: pointer; list-style: none;">
+                            <input type="checkbox" class="form-check-input movement-check" style="width: 22px; height: 22px; flex-shrink: 0;" onclick="event.stopPropagation()">
+                            <div class="flex-1" style="min-width: 0;">
+                                <div class="d-flex flex-wrap align-items-center gap-2">
+                                    <span class="fw-semibold">${CHOS.escape(movName)}</span>
+                                    ${restLine}
+                                </div>
+                                <div class="d-flex flex-wrap align-items-center gap-2 mt-1">${prescriptionLine(mov)}</div>
+                                ${notesLine}
+                            </div>
+                            <i class="fas fa-chevron-down text-secondary" aria-hidden="true"></i>
+                        </summary>
+
+                        <div class="mt-3 pt-3" style="border-top: 1px solid var(--color-border);">
+                            <div class="row g-3 mb-3">
+                                ${mov.sets != null ? `<div class="col-6 col-md-3">
+                                    <label class="chos-label">${t('training.actual_sets')}</label>
+                                    <input type="number" class="form-control actual-sets" value="${mov.sets || 1}" min="1">
+                                </div>` : ''}
+                                ${mov.reps != null ? `<div class="col-6 col-md-3">
+                                    <label class="chos-label">${t('training.actual_reps')}</label>
+                                    <input type="text" class="form-control actual-reps" value="${CHOS.escape(mov.reps || '')}" placeholder="5,5,5">
+                                </div>` : ''}
+                                ${mov.weight_kg != null ? `<div class="col-6 col-md-3">
+                                    <label class="chos-label">${t('training.weight_kg')}</label>
+                                    <input type="number" class="form-control actual-weight" value="${CHOS.escape(mov.weight_kg || '')}" step="2.5">
+                                </div>` : ''}
+                                ${mov.distance_meters != null ? `<div class="col-6 col-md-3">
+                                    <label class="chos-label">${t('training.distance_m')}</label>
+                                    <input type="number" class="form-control actual-distance" value="${CHOS.escape(mov.distance_meters || '')}" step="10">
+                                </div>` : ''}
+                                ${mov.duration_seconds != null ? `<div class="col-6 col-md-3">
+                                    <label class="chos-label">${t('training.time_sec')}</label>
+                                    <input type="number" class="form-control actual-duration" value="${CHOS.escape(mov.duration_seconds || '')}" step="1">
+                                </div>` : ''}
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="chos-label">${t('training.rpe')}</label>
+                                <div class="rpe-selector d-flex gap-1 flex-wrap">
+                                    ${rpeButtonsHtml('chos-btn chos-btn-outline chos-btn-sm rpe-btn')}
+                                </div>
+                                <input type="hidden" class="movement-rpe" value="5">
+                            </div>
+
+                            <div>
+                                <label class="chos-label">${t('training.notes')}</label>
+                                <input type="text" class="form-control movement-notes" placeholder="${t('training.optional_notes')}" value="${CHOS.escape(mov.notes || '')}">
+                            </div>
                         </div>
-                        <input type="checkbox" class="form-check-input movement-check" style="width: 24px; height: 24px;">
-                    </div>
-
-                    <div class="row g-2">
-                        ${mov.sets != null ? `<div class="col">
-                            <label class="form-label small">Actual Sets</label>
-                            <input type="number" class="form-control form-control-sm actual-sets" value="${mov.sets || 1}" min="1">
-                        </div>` : ''}
-                        ${mov.reps != null ? `<div class="col">
-                            <label class="form-label small">Actual Reps</label>
-                            <input type="text" class="form-control form-control-sm actual-reps" value="${mov.reps || '-'}" placeholder="5,5,5">
-                        </div>` : ''}
-                        ${mov.weight_kg != null ? `<div class="col">
-                            <label class="form-label small">Weight (kg)</label>
-                            <input type="number" class="form-control form-control-sm actual-weight" value="${mov.weight_kg || ''}" step="2.5">
-                        </div>` : ''}
-                        ${mov.distance_meters != null ? `<div class="col">
-                            <label class="form-label small">Distance (m)</label>
-                            <input type="number" class="form-control form-control-sm actual-distance" value="${mov.distance_meters || ''}" step="10">
-                        </div>` : ''}
-                        ${mov.duration_seconds != null ? `<div class="col">
-                            <label class="form-label small">Time (sec)</label>
-                            <input type="number" class="form-control form-control-sm actual-duration" value="${mov.duration_seconds || ''}" step="1">
-                        </div>` : ''}
-                    </div>
-
-                    <div class="mt-2">
-                        <label class="form-label small">RPE (1-10)</label>
-                        <div class="rpe-selector d-flex gap-1">
-                            ${[1,2,3,4,5,6,7,8,9,10].map(n => `
-                                <button type="button" class="btn btn-sm btn-outline-primary rpe-btn" data-rpe="${n}">${n}</button>
-                            `).join('')}
-                        </div>
-                        <input type="hidden" class="movement-rpe" value="5">
-                    </div>
-
-                    <div class="mt-2">
-                        <label class="form-label small">Notes</label>
-                        <input type="text" class="form-control form-control-sm movement-notes" placeholder="Optional notes" value="${mov.notes || ''}">
-                    </div>
-                </div>
-                `;
+                    </details>
+                </div>`;
             }).join('');
         } else {
-            movementsHtml = `<p class="text-muted">No movements specified</p>`;
+            movementsHtml = `<p class="text-secondary fst-italic">${t('training.no_movements')}</p>`;
         }
-        
+
+        // Header metadata: type chip + duration + readiness
+        const wtKey = workout.workout_type || 'mixed';
+        const catModifier = {
+            strength: 'is-strength', metcon: 'is-cardio', conditioning: 'is-recovery',
+            skill: 'is-nutrition', mixed: 'is-recovery'
+        };
+        const catCls = catModifier[wtKey] || 'is-recovery';
+        const wtLabel = t('schedule.workout_type.' + wtKey);
+        const readiness = fullResponse.readiness_score;
+
         // Create tracking modal
         const modalHtml = `
             <div class="modal fade" id="workoutTrackingModal" tabindex="-1" aria-hidden="true">
-                <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">${workout.name || 'Adaptive Workout'}</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <div>
+                                <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                                    <span class="chos-cat ${catCls}">${wtLabel}</span>
+                                    <span class="text-secondary">·</span>
+                                    <span class="text-secondary small num"><i class="fas fa-clock me-1"></i>${workout.duration_minutes || 60} ${t('training.min')}</span>
+                                    ${readiness != null ? `<span class="text-secondary">·</span><span class="text-secondary small num"><i class="fas fa-heart-pulse me-1"></i>${t('training.readiness')} ${readiness}/100</span>` : ''}
+                                </div>
+                                <h5 class="modal-title fw-bold mb-0">${CHOS.escape(workout.name || t('training.adaptive_workout_default'))}</h5>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="${t('common.actions.close')}"></button>
                         </div>
                         <div class="modal-body">
-                            <!-- Workout Info -->
-                            <div class="alert alert-info mb-3">
-                                <div class="d-flex justify-content-between">
-                                    <div>
-                                        <strong>Type:</strong> ${workout.workout_type || 'Mixed'}
-                                        <span class="ms-3"><strong>Duration:</strong> ${workout.duration_minutes || 60} min</span>
-                                    </div>
-                                    <div>
-                                        <strong>Readiness:</strong> ${fullResponse.readiness_score || '-'}/100
-                                    </div>
-                                </div>
-                                ${workout.description ? `<p class="mt-2 mb-0">${workout.description}</p>` : ''}
-                            </div>
-                            
-                            <!-- Timers -->
+                            ${workout.description ? `<p class="text-body small mb-4">${CHOS.escape(workout.description)}</p>` : ''}
+
+                            <!-- Timers — clean cards with category accents instead of solid color blocks -->
                             <div class="row g-3 mb-4">
                                 <div class="col-md-6">
-                                    <div class="card bg-primary text-white">
-                                        <div class="card-body text-center">
-                                            <h6 class="mb-2">Total Time</h6>
-                                            <h2 class="mb-2" id="workout-timer-display">00:00</h2>
-                                            <div>
-                                                <button class="btn btn-light btn-sm me-2" id="timer-start">
-                                                    <i class="fas fa-play"></i> Start
+                                    <div class="chos-card h-100" style="border-left: 3px solid var(--cat-strength);">
+                                        <div class="card-body text-center" style="padding: var(--space-4);">
+                                            <div class="small text-secondary fw-medium mb-2" style="text-transform: uppercase; letter-spacing: 0.04em;">${t('training.total_time')}</div>
+                                            <div class="num fw-bold mb-3" style="font-size: 2.5rem; letter-spacing: -0.02em; color: var(--cat-strength);" id="workout-timer-display">00:00</div>
+                                            <div class="d-flex justify-content-center gap-2">
+                                                <button class="chos-btn chos-btn-primary chos-btn-sm" id="timer-start">
+                                                    <i class="fas fa-play"></i> ${t('training.start')}
                                                 </button>
-                                                <button class="btn btn-light btn-sm me-2" id="timer-pause" style="display:none;">
-                                                    <i class="fas fa-pause"></i> Pause
+                                                <button class="chos-btn chos-btn-outline chos-btn-sm" id="timer-pause" style="display:none;">
+                                                    <i class="fas fa-pause"></i> ${t('training.pause')}
                                                 </button>
-                                                <button class="btn btn-light btn-sm" id="timer-reset">
-                                                    <i class="fas fa-redo"></i> Reset
+                                                <button class="chos-btn chos-btn-ghost chos-btn-sm" id="timer-reset" aria-label="${t('training.reset')}">
+                                                    <i class="fas fa-redo"></i>
                                                 </button>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
-                                    <div class="card bg-warning">
-                                        <div class="card-body text-center">
-                                            <h6 class="mb-2">Rest Timer</h6>
-                                            <h2 class="mb-2" id="rest-timer-display">00:00</h2>
-                                            <div class="btn-group btn-group-sm">
-                                                <button class="btn btn-light rest-preset" data-seconds="60">60s</button>
-                                                <button class="btn btn-light rest-preset" data-seconds="90">90s</button>
-                                                <button class="btn btn-light rest-preset" data-seconds="120">2m</button>
-                                                <button class="btn btn-light rest-preset" data-seconds="180">3m</button>
+                                    <div class="chos-card h-100" style="border-left: 3px solid var(--cat-recovery);">
+                                        <div class="card-body text-center" style="padding: var(--space-4);">
+                                            <div class="small text-secondary fw-medium mb-2" style="text-transform: uppercase; letter-spacing: 0.04em;">${t('training.rest_timer')}</div>
+                                            <div class="num fw-bold mb-3" style="font-size: 2.5rem; letter-spacing: -0.02em; color: var(--cat-recovery);" id="rest-timer-display">00:00</div>
+                                            <div class="d-flex justify-content-center gap-2 flex-wrap">
+                                                <button class="chos-btn chos-btn-outline chos-btn-sm rest-preset" data-seconds="60">60s</button>
+                                                <button class="chos-btn chos-btn-outline chos-btn-sm rest-preset" data-seconds="90">90s</button>
+                                                <button class="chos-btn chos-btn-outline chos-btn-sm rest-preset" data-seconds="120">2m</button>
+                                                <button class="chos-btn chos-btn-outline chos-btn-sm rest-preset" data-seconds="180">3m</button>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            
-                            <!-- Exercise Checklist -->
-                            <h6 class="fw-bold mb-3">Movements</h6>
+
+                            <!-- Movements -->
+                            <div class="small text-secondary fw-medium mb-2" style="text-transform: uppercase; letter-spacing: 0.04em;">${t('training.movements')}</div>
                             <div id="movements-container">
                                 ${movementsHtml}
                             </div>
-                            
+
                             <!-- Overall Workout RPE -->
-                            <div class="mt-4">
-                                <label class="form-label fw-bold">Overall Workout RPE</label>
-                                <div class="d-flex gap-2 mb-2">
-                                    ${[1,2,3,4,5,6,7,8,9,10].map(n => `
-                                        <button type="button" class="btn btn-outline-primary overall-rpe-btn flex-fill" data-rpe="${n}">${n}</button>
-                                    `).join('')}
+                            <div class="chos-card mt-4">
+                                <div class="card-body" style="padding: var(--space-4);">
+                                    <label class="chos-label">${t('training.overall_rpe')}</label>
+                                    <div class="d-flex gap-1 flex-wrap">
+                                        ${rpeButtonsHtml('chos-btn chos-btn-outline chos-btn-sm overall-rpe-btn flex-fill')}
+                                    </div>
+                                    <input type="hidden" id="overall-rpe" value="5">
                                 </div>
-                                <input type="hidden" id="overall-rpe" value="5">
                             </div>
-                            
+
                             <!-- Workout Notes -->
                             <div class="mt-3">
-                                <label class="form-label fw-bold">Workout Notes</label>
-                                <textarea class="form-control" id="workout-notes" rows="2" placeholder="How did it feel?"></textarea>
+                                <label class="chos-label">${t('training.workout_notes')}</label>
+                                <textarea class="form-control" id="workout-notes" rows="2" placeholder="${t('training.notes_placeholder')}"></textarea>
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <button type="button" class="btn btn-success" id="complete-workout-btn">
-                                <i class="fas fa-check"></i> Complete Workout
+                            <button type="button" class="chos-btn chos-btn-ghost" data-bs-dismiss="modal">${t('common.actions.cancel')}</button>
+                            <button type="button" class="chos-btn chos-btn-success" id="complete-workout-btn">
+                                <i class="fas fa-check me-1"></i> ${t('training.complete_workout')}
                             </button>
                         </div>
                     </div>
@@ -441,7 +521,16 @@
         // Initialize modal
         const modal = new bootstrap.Modal(document.getElementById('workoutTrackingModal'));
         modal.show();
-        
+
+        // Mark the workout as active so the persistent bar appears even when
+        // the modal is dismissed (the athlete might switch tabs mid-session).
+        if (window.CHOS && CHOS.workoutBar) {
+            CHOS.workoutBar.start({
+                name: workout.name || t('training.adaptive_workout_default'),
+                type: workout.workout_type || ''
+            });
+        }
+
         // Setup event handlers
         setupWorkoutTracking();
     }
@@ -472,24 +561,46 @@
             $('#timer-start').show();
         });
         
-        // Rest timer presets
+        // Rest timer presets — same handler covers both the global preset
+        // buttons (60s/90s/2m/3m) and the per-movement rest pills.
         $('.rest-preset').on('click', function() {
             const seconds = parseInt($(this).data('seconds'));
             startRestTimer(seconds);
+            // Quick feedback so users on mobile don't need to scroll back up
+            // to confirm the timer started.
+            CHOS.toast.info(t('training.rest_started') + ' · ' + seconds + 's');
         });
         
-        // RPE selectors
+        // Apply the intensity-bucket color to the active RPE button so the
+        // user gets visual feedback (green ≤4, amber 5-7, red 8+).
+        function paintRpeButton($btn, rpe) {
+            const cssVar = rpeColorVar(parseInt(rpe, 10));
+            const color = getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim();
+            $btn.css({ background: color, color: '#fff', borderColor: color });
+        }
+        function clearRpeButtons($scope) {
+            $scope.find('.rpe-btn, .overall-rpe-btn').each(function () {
+                $(this).removeClass('active').css({ background: '', color: '', borderColor: '' });
+            });
+        }
+
+        // Per-movement RPE
         $('.rpe-btn').on('click', function() {
             const rpe = $(this).data('rpe');
-            $(this).closest('.rpe-selector').find('.rpe-btn').removeClass('active');
+            const $scope = $(this).closest('.rpe-selector');
+            clearRpeButtons($scope);
             $(this).addClass('active');
+            paintRpeButton($(this), rpe);
             $(this).closest('.movement-item').find('.movement-rpe').val(rpe);
         });
-        
+
+        // Overall workout RPE
         $('.overall-rpe-btn').on('click', function() {
             const rpe = $(this).data('rpe');
-            $('.overall-rpe-btn').removeClass('active');
+            const $scope = $(this).parent();
+            clearRpeButtons($scope);
             $(this).addClass('active');
+            paintRpeButton($(this), rpe);
             $('#overall-rpe').val(rpe);
         });
         
@@ -516,7 +627,7 @@
             
             if (restSeconds <= 0) {
                 clearInterval(restTimer);
-                CHOS.toast.info('Rest period complete!');
+                CHOS.toast.info(t('training.rest_complete'));
             }
         }, 1000);
     }
@@ -599,7 +710,15 @@
                 return sum + (sets * reps * weight);
             }, 0);
             
-            alert(`Workout Complete! 🎉\n\nTotal Time: ${Math.floor(workoutSeconds / 60)} minutes\nAverage RPE: ${avgRPE.toFixed(1)}/10\nTotal Volume: ${totalVolume.toFixed(0)}kg`);
+            alert(
+                t('training.summary_title') + '\n\n' +
+                t('training.summary_total_time', { minutes: Math.floor(workoutSeconds / 60) }) + '\n' +
+                t('training.summary_avg_rpe', { rpe: avgRPE.toFixed(1) }) + '\n' +
+                t('training.summary_total_volume', { volume: totalVolume.toFixed(0) })
+            );
+
+            // Workout finished — drop it from the persistent bar.
+            if (window.CHOS && CHOS.workoutBar) CHOS.workoutBar.clear();
             
             // Close modal and reload workouts
             bootstrap.Modal.getInstance(document.getElementById('workoutTrackingModal')).hide();
@@ -607,7 +726,7 @@
             
         } catch (error) {
             hideLoading();
-            CHOS.toast.error(error.message || 'Failed to complete workout');
+            CHOS.toast.error(error.message || t('training.complete_workout_failed'));
         }
     }
     
@@ -624,8 +743,8 @@
                         <div class="card shadow-sm">
                             <div class="card-body text-center py-5">
                                 <i class="fas fa-dumbbell fa-4x text-muted mb-3"></i>
-                                <h5 class="fw-bold mb-2">No workouts yet</h5>
-                                <p class="text-muted">Generate your first adaptive workout or start a manual session</p>
+                                <h5 class="fw-bold mb-2">${t('training.no_workouts_title')}</h5>
+                                <p class="text-muted">${t('training.no_workouts_desc')}</p>
                             </div>
                         </div>
                     </div>
@@ -647,64 +766,60 @@
                 const typeBadge = typeColors[w.workout_type] || 'bg-secondary';
                 const rpe = w.rpe_score || 0;
                 const statusBadge = isCompleted
-                    ? '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Completed</span>'
-                    : '<span class="badge bg-warning text-dark"><i class="fas fa-clock me-1"></i>Incomplete</span>';
+                    ? `<span class="chos-badge chos-badge-success"><i class="fas fa-check me-1"></i>${t('training.completed')}</span>`
+                    : `<span class="chos-badge chos-badge-warning"><i class="fas fa-clock me-1"></i>${t('training.incomplete')}</span>`;
 
                 let rpeHtml = '';
                 for (let i = 1; i <= 10; i++) {
                     rpeHtml += i <= rpe
-                        ? '<i class="fas fa-star text-warning"></i>'
-                        : '<i class="far fa-star text-muted"></i>';
+                        ? '<i class="fas fa-star" style="color: var(--cat-cardio);"></i>'
+                        : '<i class="far fa-star" style="color: var(--color-text-muted);"></i>';
                 }
 
                 const toggleBtn = isCompleted
-                    ? `<button class="btn btn-sm btn-outline-warning flex-fill mark-incomplete-btn" data-id="${w.id}">
-                         <i class="fas fa-undo me-1"></i>Mark Incomplete
+                    ? `<button class="chos-btn chos-btn-outline chos-btn-sm flex-fill mark-incomplete-btn" data-id="${w.id}">
+                         <i class="fas fa-undo me-1"></i>${t('training.mark_incomplete')}
                        </button>`
-                    : `<button class="btn btn-sm btn-outline-success flex-fill mark-complete-btn" data-id="${w.id}">
-                         <i class="fas fa-check me-1"></i>Mark Complete
+                    : `<button class="chos-btn chos-btn-success chos-btn-sm flex-fill mark-complete-btn" data-id="${w.id}">
+                         <i class="fas fa-check me-1"></i>${t('training.mark_complete')}
                        </button>`;
 
+                const wtLabel = w.workout_type ? t('schedule.workout_type.' + w.workout_type) : t('nav.menu.workouts');
+                const wtKey = w.workout_type || 'mixed';
                 return `
-                    <div class="col-lg-4">
-                        <div class="card h-100 shadow-sm">
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <div>
-                                        <span class="text-muted small">${dateStr}</span>
-                                        <h5 class="fw-bold mt-1">${w.workout_type ? w.workout_type.charAt(0).toUpperCase() + w.workout_type.slice(1) : 'Workout'}</h5>
-                                    </div>
-                                    <span class="badge ${typeBadge}">
-                                        ${(w.workout_type || 'mixed').toUpperCase()}
-                                    </span>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="chos-workout-card ${wtKey} h-100">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <span class="text-secondary small">${dateStr}</span>
+                                    <h5 class="fw-bold mt-1 mb-0">${wtLabel}</h5>
                                 </div>
+                                ${statusBadge}
+                            </div>
 
-                                <div class="mb-2">${statusBadge}</div>
+                            <div class="mb-3">
+                                ${w.score ? `<div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="small text-secondary">${t('training.score')}</span>
+                                    <span class="fw-bold num">${w.score}</span>
+                                </div>` : ''}
+                                ${rpe > 0 ? `<div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="small text-secondary">${t('training.rpe')}</span>
+                                    <div style="font-size: 0.75rem;">${rpeHtml}</div>
+                                </div>` : ''}
+                                ${w.duration_minutes ? `<div class="d-flex justify-content-between align-items-center">
+                                    <span class="small text-secondary">${t('training.duration')}</span>
+                                    <span class="fw-bold num">${Math.round(w.duration_minutes)} ${t('training.min')}</span>
+                                </div>` : ''}
+                                ${w.notes ? `<div class="rounded p-2 mt-2" style="background: var(--surface-sunken);">
+                                    <p class="small text-secondary fst-italic mb-0">"${CHOS.escape(w.notes)}"</p>
+                                </div>` : ''}
+                            </div>
 
-                                <div class="mb-3">
-                                    ${w.score ? `<div class="d-flex justify-content-between align-items-center mb-2">
-                                        <span class="small text-muted">Score</span>
-                                        <span class="fw-bold">${w.score}</span>
-                                    </div>` : ''}
-                                    ${rpe > 0 ? `<div class="d-flex justify-content-between align-items-center mb-2">
-                                        <span class="small text-muted">RPE</span>
-                                        <div>${rpeHtml}</div>
-                                    </div>` : ''}
-                                    ${w.duration_minutes ? `<div class="d-flex justify-content-between align-items-center">
-                                        <span class="small text-muted">Duration</span>
-                                        <span class="fw-bold">${Math.round(w.duration_minutes)} min</span>
-                                    </div>` : ''}
-                                    ${w.notes ? `<div class="bg-light rounded p-2 mt-2">
-                                        <p class="small text-muted fst-italic mb-0">"${w.notes}"</p>
-                                    </div>` : ''}
-                                </div>
-
-                                <div class="d-flex gap-2">
-                                    ${toggleBtn}
-                                    <button class="btn btn-sm btn-outline-secondary">
-                                        <i class="fas fa-redo"></i>
-                                    </button>
-                                </div>
+                            <div class="d-flex gap-2">
+                                ${toggleBtn}
+                                <button class="chos-btn chos-btn-ghost chos-btn-sm">
+                                    <i class="fas fa-redo"></i>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -716,16 +831,16 @@
             // Bind mark incomplete buttons
             $('.mark-incomplete-btn').on('click', async function() {
                 const sessionId = $(this).data('id');
-                if (!confirm('Mark this workout as incomplete?')) return;
+                if (!confirm(t('training.confirm_mark_incomplete'))) return;
                 try {
                     await CHOS.api.patch('/api/v1/training/sessions/' + sessionId, {
                         completed_at: null,
                         duration_minutes: 0
                     });
-                    CHOS.toast.success('Workout marked as incomplete');
+                    CHOS.toast.success(t('training.marked_incomplete'));
                     loadRecentWorkouts();
                 } catch (error) {
-                    CHOS.toast.error('Failed to update workout');
+                    CHOS.toast.error(t('training.update_failed'));
                 }
             });
 
@@ -737,10 +852,10 @@
                         completed_at: new Date().toISOString(),
                         duration_minutes: 0
                     });
-                    CHOS.toast.success('Workout marked as complete');
+                    CHOS.toast.success(t('training.marked_complete'));
                     loadRecentWorkouts();
                 } catch (error) {
-                    CHOS.toast.error('Failed to update workout');
+                    CHOS.toast.error(t('training.update_failed'));
                 }
             });
         } catch (error) {
@@ -749,8 +864,8 @@
                     <div class="card shadow-sm">
                         <div class="card-body text-center py-5">
                             <i class="fas fa-dumbbell fa-4x text-muted mb-3"></i>
-                            <h5 class="fw-bold mb-2">No workouts yet</h5>
-                            <p class="text-muted">Generate your first adaptive workout or start a manual session</p>
+                            <h5 class="fw-bold mb-2">${t('training.no_workouts_title')}</h5>
+                            <p class="text-muted">${t('training.no_workouts_desc')}</p>
                         </div>
                     </div>
                 </div>
@@ -763,6 +878,31 @@
         await loadRecentWorkouts();
         await loadWorkoutTypeChart();
         await loadRPEChart();
+
+        // Auto-open the tracking modal when arriving from the dashboard's
+        // "Treino rápido" shortcut (sessionStorage carries the generated
+        // AdaptiveWorkoutResponse).
+        if (new URL(window.location.href).searchParams.get('quick') === '1') {
+            const cached = sessionStorage.getItem('chos-quick-workout');
+            sessionStorage.removeItem('chos-quick-workout');
+            history.replaceState(null, '', window.location.pathname);  // strip ?quick=1
+            if (cached) {
+                try {
+                    const response = JSON.parse(cached);
+                    if (response && response.template) {
+                        const workout = {
+                            name: response.template.name || t('training.adaptive_workout_default'),
+                            workout_type: response.template.workout_type || 'mixed',
+                            duration_minutes: response.template.duration_minutes || 60,
+                            description: response.recommendation || response.template.description || '',
+                            movements: response.adjusted_movements || response.template.movements || []
+                        };
+                        response.workout = workout;  // completeWorkout() needs this
+                        displayGeneratedWorkout(workout, response);
+                    }
+                } catch (_) { /* fall through silently */ }
+            }
+        }
     });
     
     async function loadWorkoutTypeChart() {
@@ -770,7 +910,7 @@
             const sessions = await CHOS.api.get('/api/v1/training/sessions?limit=100');
             
             if (!sessions || sessions.length === 0) {
-                $('#workout-type-chart').html('<div class="text-center text-muted py-4"><p>No workout data yet</p></div>');
+                $('#workout-type-chart').html(`<div class="text-center text-muted py-4"><p>${t('training.no_workout_data')}</p></div>`);
                 return;
             }
             
@@ -783,12 +923,15 @@
             
             const labels = Object.keys(typeCounts);
             const series = Object.values(typeCounts);
+            function _v(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
             const colors = {
-                'metcon': '#dc3545',
-                'strength': '#0d6efd',
-                'skill': '#198754',
-                'hero': '#8b5cf6',
-                'other': '#6c757d'
+                'metcon': _v('--cat-cardio'),
+                'strength': _v('--cat-strength'),
+                'skill': _v('--cat-nutrition'),
+                'conditioning': _v('--cat-recovery'),
+                'mixed': _v('--cat-mind'),
+                'hero': _v('--cat-mind'),
+                'other': _v('--color-text-muted')
             };
             
             const typeOptions = {
@@ -797,22 +940,26 @@
                     type: 'donut',
                     height: 300
                 },
-                labels: labels.map(l => l.charAt(0).toUpperCase() + l.slice(1)),
+                labels: labels.map(l => {
+                    const k = 'schedule.workout_type.' + l;
+                    const v = t(k);
+                    return v === k ? l.charAt(0).toUpperCase() + l.slice(1) : v;
+                }),
                 colors: labels.map(l => colors[l] || '#6c757d'),
                 legend: {
                     position: 'bottom'
                 },
                 noData: {
-                    text: 'No data available'
+                    text: t('training.no_data_yet')
                 }
             };
-            
+
             const typeChart = new ApexCharts(document.querySelector("#workout-type-chart"), typeOptions);
             typeChart.render();
-            
+
         } catch (error) {
             console.error('Error loading workout type chart:', error);
-            $('#workout-type-chart').html('<div class="text-center text-muted py-4"><p>No data yet</p></div>');
+            $('#workout-type-chart').html(`<div class="text-center text-muted py-4"><p>${t('training.no_data_yet')}</p></div>`);
         }
     }
     
@@ -821,7 +968,7 @@
             const sessions = await CHOS.api.get('/api/v1/training/sessions?limit=100');
             
             if (!sessions || sessions.length === 0) {
-                $('#rpe-chart').html('<div class="text-center text-muted py-4"><p>No workout data yet</p></div>');
+                $('#rpe-chart').html(`<div class="text-center text-muted py-4"><p>${t('training.no_workout_data')}</p></div>`);
                 return;
             }
             
@@ -851,7 +998,7 @@
             
             const rpeOptions = {
                 series: [{
-                    name: 'Average RPE',
+                    name: t('training.avg_rpe_7d'),
                     data: rpeData
                 }],
                 chart: {
@@ -863,38 +1010,42 @@
                 },
                 plotOptions: {
                     bar: {
-                        borderRadius: 8,
-                        distributed: true
+                        borderRadius: 6,
+                        distributed: true,
+                        columnWidth: '60%'
                     }
                 },
                 dataLabels: {
                     enabled: true,
-                    formatter: function(val) {
-                        return val > 0 ? val + '/10' : '-';
-                    }
+                    formatter: val => val > 0 ? val : '',
+                    style: { fontSize: '11px', fontWeight: 600 }
                 },
                 xaxis: {
-                    categories: days
+                    categories: days,
+                    labels: { style: { colors: 'var(--color-text-secondary)' } }
                 },
                 yaxis: {
-                    min: 0,
-                    max: 10
+                    min: 0, max: 10,
+                    labels: { style: { colors: 'var(--color-text-secondary)' } }
                 },
-                colors: ['#6366f1'],
-                legend: {
-                    show: false
-                },
-                noData: {
-                    text: 'No data available'
-                }
+                grid: { borderColor: 'var(--color-border)' },
+                // Color each bar by RPE bucket: green ≤4, amber 5-7, red 8+.
+                colors: rpeData.map(v => {
+                    if (v >= 8) return getComputedStyle(document.documentElement).getPropertyValue('--cat-strength').trim();
+                    if (v >= 5) return getComputedStyle(document.documentElement).getPropertyValue('--cat-cardio').trim();
+                    if (v >  0) return getComputedStyle(document.documentElement).getPropertyValue('--cat-nutrition').trim();
+                    return getComputedStyle(document.documentElement).getPropertyValue('--color-text-muted').trim();
+                }),
+                legend: { show: false },
+                noData: { text: t('training.no_data_yet') }
             };
-            
+
             const rpeChart = new ApexCharts(document.querySelector("#rpe-chart"), rpeOptions);
             rpeChart.render();
-            
+
         } catch (error) {
             console.error('Error loading RPE chart:', error);
-            $('#rpe-chart').html('<div class="text-center text-muted py-4"><p>No data yet</p></div>');
+            $('#rpe-chart').html(`<div class="text-center text-muted py-4"><p>${t('training.no_data_yet')}</p></div>`);
         }
     }
 </script>

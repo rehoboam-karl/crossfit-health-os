@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Welcome - CrossFit Health OS{% endblock %}
+{% block title %}{{ t("onboarding.welcome_title") }} - CrossFit Health OS{% endblock %}
 
 {% block navbar %}{% endblock %}
 
@@ -13,36 +13,36 @@
                 <div class="progress" style="height: 8px;">
                     <div class="progress-bar bg-primary" id="progress-bar" style="width: 0%"></div>
                 </div>
-                <p class="text-muted mt-2 mb-0">Step <span id="current-step">1</span> of <span id="total-steps">6</span></p>
+                <p class="text-muted mt-2 mb-0" id="step-counter"></p>
             </div>
-            
+
             <!-- Step 1: Welcome -->
             <div class="card shadow step-card" id="step-1">
                 <div class="card-body p-5 text-center">
                     <div class="mb-4">
                         <span style="font-size: 80px;">💪</span>
                     </div>
-                    <h1 class="display-6 fw-bold mb-3">Welcome to CrossFit Health OS</h1>
+                    <h1 class="display-6 fw-bold mb-3">{{ t("onboarding.welcome_title") }}</h1>
                     <p class="lead text-muted mb-4">
-                        Your AI-powered training coach. Let's set up your profile in under 3 minutes.
+                        {{ t("onboarding.welcome_subtitle") }}
                     </p>
                     <button class="btn btn-primary btn-lg px-5" onclick="nextStep(1)">
-                        Let's Get Started <i class="fas fa-arrow-right ms-2"></i>
+                        {{ t("onboarding.lets_start") }} <i class="fas fa-arrow-right ms-2"></i>
                     </button>
                     <div class="mt-4">
                         <small class="text-muted">
-                            Already have an account? <a href="/login" class="text-primary">Sign in here</a>
+                            {{ t("onboarding.have_account") | safe }}
                         </small>
                     </div>
                 </div>
             </div>
-            
+
             <!-- Step 2: Training Focus -->
             <div class="card shadow step-card d-none" id="step-2">
                 <div class="card-body p-5">
-                    <h3 class="fw-bold mb-2">What do you want?</h3>
-                    <p class="text-muted mb-4">Choose what you want from the app</p>
-                    
+                    <h3 class="fw-bold mb-2">{{ t("onboarding.focus_title") }}</h3>
+                    <p class="text-muted mb-4">{{ t("onboarding.focus_subtitle") }}</p>
+
                     <div class="d-flex flex-column gap-3">
                         <div class="card focus-card selectable" id="focus-training" onclick="selectFocus('training')">
                             <div class="card-body p-4">
@@ -51,16 +51,15 @@
                                         <span style="font-size: 40px;">🏋️</span>
                                     </div>
                                     <div>
-                                        <h5 class="fw-bold mb-1">Training Only</h5>
+                                        <h5 class="fw-bold mb-1">{{ t("onboarding.focus_training_title") }}</h5>
                                         <p class="text-muted mb-0">
-                                            Just workouts and programming. No nutrition features.
-                                            <strong class="text-success">Recommended if you have your own diet.</strong>
+                                            {{ t("onboarding.focus_training_desc") }}
                                         </p>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div class="card focus-card selectable" id="focus-full" onclick="selectFocus('full')">
                             <div class="card-body p-4">
                                 <div class="d-flex align-items-center">
@@ -68,15 +67,15 @@
                                         <span style="font-size: 40px;">🎯</span>
                                     </div>
                                     <div>
-                                        <h5 class="fw-bold mb-1">Full Experience</h5>
+                                        <h5 class="fw-bold mb-1">{{ t("onboarding.focus_full_title") }}</h5>
                                         <p class="text-muted mb-0">
-                                            Training + Nutrition. Get personalized meal plans and macro targets.
+                                            {{ t("onboarding.focus_full_desc") }}
                                         </p>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div class="card focus-card selectable" id="focus-custom" onclick="selectFocus('custom')">
                             <div class="card-body p-4">
                                 <div class="d-flex align-items-center">
@@ -84,34 +83,34 @@
                                         <span style="font-size: 40px;">📄</span>
                                     </div>
                                     <div>
-                                        <h5 class="fw-bold mb-1">Custom Plan</h5>
+                                        <h5 class="fw-bold mb-1">{{ t("onboarding.focus_custom_title") }}</h5>
                                         <p class="text-muted mb-0">
-                                            I'll provide my own diet plan (PDF). Just send me reminders to stick with it.
+                                            {{ t("onboarding.focus_custom_desc") }}
                                         </p>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    
+
                     <input type="hidden" id="app-focus" value="full">
-                    
+
                     <div class="d-flex justify-content-end mt-4">
                         <button class="btn btn-primary" onclick="nextStep(2)">
-                            Next <i class="fas fa-arrow-right ms-2"></i>
+                            {{ t("onboarding.next") }} <i class="fas fa-arrow-right ms-2"></i>
                         </button>
                     </div>
                 </div>
             </div>
-            
+
             <!-- Step 3: Name & Goals -->
             <div class="card shadow step-card d-none" id="step-3">
                 <div class="card-body p-5">
-                    <h3 class="fw-bold mb-4">Tell us about yourself</h3>
-                    
+                    <h3 class="fw-bold mb-4">{{ t("onboarding.tell_us") }}</h3>
+
                     <div class="mb-4">
-                        <label class="form-label fw-bold">Your Name</label>
-                        <input type="text" id="user-name" class="form-control form-control-lg" placeholder="What should we call you?">
+                        <label class="form-label fw-bold">{{ t("onboarding.your_name") }}</label>
+                        <input type="text" id="user-name" class="form-control form-control-lg" placeholder="{{ t('onboarding.name_placeholder') }}">
                     </div>
                     
                     <div class="mb-4">
@@ -121,8 +120,8 @@
                                 <div class="card goal-card" onclick="selectGoal('strength')">
                                     <div class="card-body text-center py-3">
                                         <i class="fas fa-dumbbell fa-2x mb-2 text-primary"></i>
-                                        <h6>Get Stronger</h6>
-                                        <small class="text-muted">Build maximal strength</small>
+                                        <h6>{{ t("onboarding.goals.strength_title") }}</h6>
+                                        <small class="text-muted">{{ t("onboarding.goals.strength_desc") }}</small>
                                     </div>
                                 </div>
                             </div>
@@ -130,8 +129,8 @@
                                 <div class="card goal-card" onclick="selectGoal('conditioning')">
                                     <div class="card-body text-center py-3">
                                         <i class="fas fa-heartbeat fa-2x mb-2 text-danger"></i>
-                                        <h6>Build Endurance</h6>
-                                        <small class="text-muted">Improve conditioning</small>
+                                        <h6>{{ t("onboarding.goals.endurance_title") }}</h6>
+                                        <small class="text-muted">{{ t("onboarding.goals.endurance_desc") }}</small>
                                     </div>
                                 </div>
                             </div>
@@ -139,8 +138,8 @@
                                 <div class="card goal-card" onclick="selectGoal('both')">
                                     <div class="card-body text-center py-3">
                                         <i class="fas fa-fire fa-2x mb-2 text-warning"></i>
-                                        <h6>Both</h6>
-                                        <small class="text-muted">Well-rounded fitness</small>
+                                        <h6>{{ t("onboarding.goals.both_title") }}</h6>
+                                        <small class="text-muted">{{ t("onboarding.goals.both_desc") }}</small>
                                     </div>
                                 </div>
                             </div>
@@ -148,22 +147,22 @@
                                 <div class="card goal-card" onclick="selectGoal('health')">
                                     <div class="card-body text-center py-3">
                                         <i class="fas fa-leaf fa-2x mb-2 text-success"></i>
-                                        <h6>General Health</h6>
-                                        <small class="text-muted">Feel better daily</small>
+                                        <h6>{{ t("onboarding.goals.health_title") }}</h6>
+                                        <small class="text-muted">{{ t("onboarding.goals.health_desc") }}</small>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    
+
                     <input type="hidden" id="primary-goal" value="both">
-                    
+
                     <div class="d-flex justify-content-between">
                         <button class="btn btn-outline-secondary" onclick="prevStep(3)">
-                            <i class="fas fa-arrow-left me-2"></i>Back
+                            <i class="fas fa-arrow-left me-2"></i>{{ t("onboarding.back") }}
                         </button>
                         <button class="btn btn-primary" onclick="nextStep(3)">
-                            Next <i class="fas fa-arrow-right ms-2"></i>
+                            {{ t("onboarding.next") }} <i class="fas fa-arrow-right ms-2"></i>
                         </button>
                     </div>
                 </div>
@@ -172,8 +171,8 @@
             <!-- Step 4: Fitness Level -->
             <div class="card shadow step-card d-none" id="step-4">
                 <div class="card-body p-5">
-                    <h3 class="fw-bold mb-4">Your Fitness Level</h3>
-                    
+                    <h3 class="fw-bold mb-4">{{ t("onboarding.fitness_title") }}</h3>
+
                     <div class="list-group">
                         <div class="list-group-item list-group-item-action py-3" onclick="selectFitness('beginner')">
                             <div class="d-flex align-items-center">
@@ -181,8 +180,8 @@
                                     <span class="badge bg-success rounded-circle" style="width: 30px; height: 30px; line-height: 30px;">1</span>
                                 </div>
                                 <div>
-                                    <h6 class="mb-0">Beginner</h6>
-                                    <small class="text-muted">Less than 6 months of training</small>
+                                    <h6 class="mb-0">{{ t("onboarding.fitness.beginner_title") }}</h6>
+                                    <small class="text-muted">{{ t("onboarding.fitness.beginner_desc") }}</small>
                                 </div>
                             </div>
                         </div>
@@ -192,8 +191,8 @@
                                     <span class="badge bg-warning rounded-circle" style="width: 30px; height: 30px; line-height: 30px;">2</span>
                                 </div>
                                 <div>
-                                    <h6 class="mb-0">Intermediate</h6>
-                                    <small class="text-muted">6 months to 2 years of training</small>
+                                    <h6 class="mb-0">{{ t("onboarding.fitness.intermediate_title") }}</h6>
+                                    <small class="text-muted">{{ t("onboarding.fitness.intermediate_desc") }}</small>
                                 </div>
                             </div>
                         </div>
@@ -203,8 +202,8 @@
                                     <span class="badge bg-danger rounded-circle" style="width: 30px; height: 30px; line-height: 30px;">3</span>
                                 </div>
                                 <div>
-                                    <h6 class="mb-0">Advanced</h6>
-                                    <small class="text-muted">2-5 years of consistent training</small>
+                                    <h6 class="mb-0">{{ t("onboarding.fitness.advanced_title") }}</h6>
+                                    <small class="text-muted">{{ t("onboarding.fitness.advanced_desc") }}</small>
                                 </div>
                             </div>
                         </div>
@@ -214,20 +213,20 @@
                                     <span class="badge bg-dark rounded-circle" style="width: 30px; height: 30px; line-height: 30px;">4</span>
                                 </div>
                                 <div>
-                                    <h6 class="mb-0">Competitive Athlete</h6>
-                                    <small class="text-muted">Compete in CrossFit or sports</small>
+                                    <h6 class="mb-0">{{ t("onboarding.fitness.athlete_title") }}</h6>
+                                    <small class="text-muted">{{ t("onboarding.fitness.athlete_desc") }}</small>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <input type="hidden" id="fitness-level" value="intermediate">
-                    
+
                     <div class="d-flex justify-content-between mt-4">
                         <button class="btn btn-outline-secondary" onclick="prevStep(4)">
-                            <i class="fas fa-arrow-left me-2"></i>Back
+                            <i class="fas fa-arrow-left me-2"></i>{{ t("onboarding.back") }}
                         </button>
                         <button class="btn btn-primary" onclick="nextStep(4)">
-                            Next <i class="fas fa-arrow-right ms-2"></i>
+                            {{ t("onboarding.next") }} <i class="fas fa-arrow-right ms-2"></i>
                         </button>
                     </div>
                 </div>
@@ -236,36 +235,36 @@
             <!-- Step 5: Training Schedule -->
             <div class="card shadow step-card d-none" id="step-5">
                 <div class="card-body p-5">
-                    <h3 class="fw-bold mb-2">Your Training Schedule</h3>
-                    <p class="text-muted mb-4">Select the days you can train</p>
-                    
+                    <h3 class="fw-bold mb-2">{{ t("onboarding.schedule_title") }}</h3>
+                    <p class="text-muted mb-4">{{ t("onboarding.schedule_subtitle") }}</p>
+
                     <div class="row g-2 mb-4">
-                        {% set days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
+                        {% set day_keys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] %}
                         {% set icons = ['💪', '🔥', '⚡', '🏋️', '💥', '🎯', '😴'] %}
-                        {% for day in days %}
+                        {% for day_key in day_keys %}
                         <div class="col-6 col-md-3">
                             <div class="card day-card selectable" id="day-{{ loop.index0 }}" onclick="toggleDay({{ loop.index0 }})">
                                 <div class="card-body text-center py-3">
                                     <div class="mb-2">{{ icons[loop.index0] }}</div>
-                                    <h6 class="mb-0">{{ day }}</h6>
-                                    <small class="text-muted day-status">Rest</small>
+                                    <h6 class="mb-0">{{ t("onboarding.weekday." + day_key) }}</h6>
+                                    <small class="text-muted day-status">{{ t("onboarding.rest") }}</small>
                                 </div>
                             </div>
                         </div>
                         {% endfor %}
                     </div>
-                    
+
                     <input type="hidden" id="selected-days" value="">
-                    
+
                     <div class="mb-4">
-                        <label class="form-label fw-bold">Preferred Training Time</label>
+                        <label class="form-label fw-bold">{{ t("onboarding.preferred_time") }}</label>
                         <div class="row g-2">
                             <div class="col-4">
                                 <div class="card time-card selectable" id="time-morning" onclick="selectTime('morning')">
                                     <div class="card-body text-center py-3">
                                         <div class="mb-2">🌅</div>
-                                        <h6 class="mb-0">Morning</h6>
-                                        <small class="text-muted">5-9 AM</small>
+                                        <h6 class="mb-0">{{ t("onboarding.time_morning_title") }}</h6>
+                                        <small class="text-muted">{{ t("onboarding.time_morning_range") }}</small>
                                     </div>
                                 </div>
                             </div>
@@ -273,8 +272,8 @@
                                 <div class="card time-card selectable" id="time-afternoon" onclick="selectTime('afternoon')">
                                     <div class="card-body text-center py-3">
                                         <div class="mb-2">☀️</div>
-                                        <h6 class="mb-0">Afternoon</h6>
-                                        <small class="text-muted">12-5 PM</small>
+                                        <h6 class="mb-0">{{ t("onboarding.time_afternoon_title") }}</h6>
+                                        <small class="text-muted">{{ t("onboarding.time_afternoon_range") }}</small>
                                     </div>
                                 </div>
                             </div>
@@ -282,21 +281,21 @@
                                 <div class="card time-card selectable" id="time-evening" onclick="selectTime('evening')">
                                     <div class="card-body text-center py-3">
                                         <div class="mb-2">🌙</div>
-                                        <h6 class="mb-0">Evening</h6>
-                                        <small class="text-muted">6-9 PM</small>
+                                        <h6 class="mb-0">{{ t("onboarding.time_evening_title") }}</h6>
+                                        <small class="text-muted">{{ t("onboarding.time_evening_range") }}</small>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <input type="hidden" id="preferred-time" value="morning">
-                    
+
                     <div class="d-flex justify-content-between">
                         <button class="btn btn-outline-secondary" onclick="prevStep(5)">
-                            <i class="fas fa-arrow-left me-2"></i>Back
+                            <i class="fas fa-arrow-left me-2"></i>{{ t("onboarding.back") }}
                         </button>
                         <button class="btn btn-primary" onclick="nextStep(5)">
-                            Next <i class="fas fa-arrow-right ms-2"></i>
+                            {{ t("onboarding.next") }} <i class="fas fa-arrow-right ms-2"></i>
                         </button>
                     </div>
                 </div>
@@ -307,47 +306,47 @@
                 <div class="card-body p-5">
                     <div class="text-center mb-4">
                         <div class="mb-3" style="font-size: 60px;">🚀</div>
-                        <h3 class="fw-bold">You're All Set!</h3>
-                        <p class="text-muted">Review your settings and start training</p>
+                        <h3 class="fw-bold">{{ t("onboarding.review_title") }}</h3>
+                        <p class="text-muted">{{ t("onboarding.review_subtitle") }}</p>
                     </div>
-                    
+
                     <div class="card bg-light mb-4">
                         <div class="card-body">
                             <div class="row">
                                 <div class="col-6">
-                                    <p class="mb-1"><strong>Name</strong></p>
+                                    <p class="mb-1"><strong>{{ t("onboarding.review_name") }}</strong></p>
                                     <p class="text-muted mb-3" id="review-name">-</p>
-                                    
-                                    <p class="mb-1"><strong>Goal</strong></p>
+
+                                    <p class="mb-1"><strong>{{ t("onboarding.review_goal") }}</strong></p>
                                     <p class="text-muted mb-3" id="review-goal">-</p>
-                                    
-                                    <p class="mb-1"><strong>Fitness Level</strong></p>
+
+                                    <p class="mb-1"><strong>{{ t("onboarding.review_fitness") }}</strong></p>
                                     <p class="text-muted" id="review-fitness">-</p>
                                 </div>
                                 <div class="col-6">
-                                    <p class="mb-1"><strong>Training Days</strong></p>
+                                    <p class="mb-1"><strong>{{ t("onboarding.review_days") }}</strong></p>
                                     <p class="text-muted mb-3" id="review-days">-</p>
-                                    
-                                    <p class="mb-1"><strong>Preferred Time</strong></p>
+
+                                    <p class="mb-1"><strong>{{ t("onboarding.review_time") }}</strong></p>
                                     <p class="text-muted mb-3" id="review-time">-</p>
-                                    
-                                    <p class="mb-1"><strong>App Focus</strong></p>
+
+                                    <p class="mb-1"><strong>{{ t("onboarding.review_focus") }}</strong></p>
                                     <p class="text-muted" id="review-focus">-</p>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="alert" id="focus-alert">
                         <!-- Dynamic based on focus -->
                     </div>
-                    
+
                     <div class="d-flex justify-content-between">
                         <button class="btn btn-outline-secondary" onclick="prevStep(6)">
-                            <i class="fas fa-arrow-left me-2"></i>Back
+                            <i class="fas fa-arrow-left me-2"></i>{{ t("onboarding.back") }}
                         </button>
                         <button class="btn btn-success btn-lg" onclick="completeOnboarding()">
-                            <i class="fas fa-rocket me-2"></i>Start Training!
+                            <i class="fas fa-rocket me-2"></i>{{ t("onboarding.start_training") }}
                         </button>
                     </div>
                 </div>
@@ -414,8 +413,7 @@ $(document).ready(function() {
 function updateProgress() {
     const progress = (currentStep / totalSteps) * 100;
     $('#progress-bar').css('width', progress + '%');
-    $('#current-step').text(currentStep);
-    $('#total-steps').text(totalSteps);
+    $('#step-counter').text(t('onboarding.step_n_of_m', { n: currentStep, m: totalSteps }));
 }
 
 function showStep(step) {
@@ -430,7 +428,7 @@ function showStep(step) {
 
 function nextStep(step) {
     if (step === 2) {
-        onboardingData.name = $('#user-name').val() || 'Athlete';
+        onboardingData.name = $('#user-name').val() || t('onboarding.default_athlete');
     }
     currentStep++;
     showStep(currentStep);
@@ -475,11 +473,11 @@ function toggleDay(dayIndex) {
     
     if (card.hasClass('selected')) {
         card.removeClass('selected');
-        card.find('.day-status').text('Rest');
+        card.find('.day-status').text(t('onboarding.rest'));
         onboardingData.available_days = onboardingData.available_days.filter(d => d !== day);
     } else {
         card.addClass('selected');
-        card.find('.day-status').text('Train');
+        card.find('.day-status').text(t('onboarding.train'));
         if (!onboardingData.available_days.includes(day)) {
             onboardingData.available_days.push(day);
         }
@@ -494,49 +492,48 @@ function selectTime(time) {
 
 function updateReview() {
     $('#review-name').text(onboardingData.name);
-    $('#review-goal').text(onboardingData.primary_goal.charAt(0).toUpperCase() + onboardingData.primary_goal.slice(1));
-    $('#review-fitness').text(onboardingData.fitness_level.charAt(0).toUpperCase() + onboardingData.fitness_level.slice(1));
-    $('#review-days').text(onboardingData.available_days.length + ' days/week');
-    $('#review-time').text(onboardingData.preferred_time.charAt(0).toUpperCase() + onboardingData.preferred_time.slice(1));
-    
+    $('#review-goal').text(t('onboarding.review_goal_value.' + onboardingData.primary_goal));
+    $('#review-fitness').text(t('onboarding.review_fitness_value.' + onboardingData.fitness_level));
+    $('#review-days').text(t('onboarding.days_per_week', { n: onboardingData.available_days.length }));
+    $('#review-time').text(t('onboarding.review_time_value.' + onboardingData.preferred_time));
+
     const focusMap = {
-        'training': '🏋️ Training Only',
-        'full': '🎯 Full Experience',
-        'custom': '📄 Custom Diet Plan'
+        'training': t('onboarding.focus_review_training'),
+        'full': t('onboarding.focus_review_full'),
+        'custom': t('onboarding.focus_review_custom')
     };
     $('#review-focus').text(focusMap[onboardingData.app_focus]);
-    
-    // Update alert based on focus
+
     if (onboardingData.app_focus === 'training') {
-        $('#focus-alert').removeClass('alert-info').addClass('alert-success');
-        $('#focus-alert').html('<i class="fas fa-check-circle me-2"></i><strong>Training Only Mode:</strong> You\'ll get AI-generated workouts. Nutrition features are disabled - we respect your existing diet.');
+        $('#focus-alert').removeClass('alert-info alert-warning').addClass('alert-success');
+        $('#focus-alert').html(t('onboarding.focus_alert_training'));
     } else if (onboardingData.app_focus === 'custom') {
-        $('#focus-alert').removeClass('alert-info').addClass('alert-warning');
-        $('#focus-alert').html('<i class="fas fa-file-pdf me-2"></i><strong>Custom Diet Mode:</strong> After setup, go to Settings > Diet to upload your meal plan PDF. We\'ll send reminders based on your plan.');
+        $('#focus-alert').removeClass('alert-info alert-success').addClass('alert-warning');
+        $('#focus-alert').html(t('onboarding.focus_alert_custom'));
     } else {
         $('#focus-alert').removeClass('alert-warning alert-success').addClass('alert-info');
-        $('#focus-alert').html('<i class="fas fa-lightbulb me-2"></i><strong>Full Experience:</strong> You\'ll get AI-generated workouts + personalized nutrition recommendations.');
+        $('#focus-alert').html(t('onboarding.focus_alert_full'));
     }
 }
 
 function completeOnboarding() {
     CHOS.loading.button('.btn-success', true);
-    
+
     CHOS.api.post('/api/v1/onboarding/complete', onboardingData)
         .done(function(response) {
-            CHOS.toast.success('Profile created! +300 XP earned!');
-            
+            CHOS.toast.success(t('onboarding.profile_created'));
+
             if (response.profile) {
                 localStorage.setItem('user', JSON.stringify(response.profile));
             }
-            
+
             setTimeout(() => {
                 window.location.href = '/dashboard';
             }, 1000);
         })
-        .fail(function(error) {
+        .fail(function() {
             CHOS.loading.button('.btn-success', false);
-            CHOS.toast.error('Error creating profile. Please try again.');
+            CHOS.toast.error(t('onboarding.profile_create_failed'));
         });
 }
 </script>

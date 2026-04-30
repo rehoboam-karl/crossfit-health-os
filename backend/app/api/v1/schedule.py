@@ -39,6 +39,7 @@ from app.models.training import (
     PlannedSessionCreate,
     PlannedSessionUpdate,
     PlannedSessionStatus,
+    SwapSessionsRequest,
     WorkoutType,
 )
 
@@ -501,7 +502,7 @@ async def create_planned_session(
         workout_type=payload.workout_type.value if payload.workout_type else None,
         focus=payload.focus,
         notes=payload.notes,
-        status=PlannedSessionStatus.PLANNED.value,
+        status=(payload.status.value if payload.status else PlannedSessionStatus.PLANNED.value),
     )
     session.add(row)
     session.commit()
@@ -549,6 +550,94 @@ async def delete_planned_session(
     session.delete(row)
     session.commit()
     return None
+
+
+# Sentinel order_in_day used to "park" a row mid-swap so the unique constraint
+# (microcycle_id, date, order_in_day) doesn't fire. Outside the API range (1..5)
+# and only ever lives inside a single transaction.
+_SWAP_PARK_ORDER = 99
+
+
+@router.post("/microcycles/{micro_id}/sessions/swap", response_model=List[PlannedSession])
+async def swap_planned_sessions(
+    micro_id: UUID,
+    payload: SwapSessionsRequest,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+):
+    """Move a session to a target date inside its microcycle.
+
+    If `target_id` is set, the session at the target swaps into the source's
+    original date+order_in_day (atomic via park-move-move). If `target_id` is
+    null, the source row is simply repositioned to the target date with
+    `order_in_day=1`.
+
+    Returns the affected rows in source-then-target order.
+    """
+    user_id = int(current_user["id"])
+    micro = _get_owned_micro(session, micro_id, user_id)
+
+    if not (micro.start_date <= payload.target_date <= micro.end_date):
+        raise HTTPException(
+            status_code=400,
+            detail=f"target_date {payload.target_date} is outside microcycle {micro.start_date}..{micro.end_date}",
+        )
+
+    source = session.get(PlannedSessionDB, payload.source_id)
+    if source is None or source.user_id != user_id or source.microcycle_id != micro.id:
+        raise HTTPException(status_code=404, detail="Source session not found in this microcycle")
+
+    target = None
+    if payload.target_id is not None:
+        target = session.get(PlannedSessionDB, payload.target_id)
+        if target is None or target.user_id != user_id or target.microcycle_id != micro.id:
+            raise HTTPException(status_code=404, detail="Target session not found in this microcycle")
+        if target.id == source.id:
+            raise HTTPException(status_code=400, detail="source_id and target_id must differ")
+
+    if target is None:
+        # Pure move: source → target_date, order_in_day=1.
+        # Reject if any row (other than source) already lives on the target day
+        # — caller should have passed target_id to swap.
+        existing = session.execute(
+            select(PlannedSessionDB).where(
+                PlannedSessionDB.microcycle_id == micro.id,
+                PlannedSessionDB.date == payload.target_date,
+                PlannedSessionDB.id != source.id,
+            )
+        ).scalars().first()
+        if existing is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="Target date already has a session; pass target_id to swap",
+            )
+        source.date = payload.target_date
+        source.order_in_day = 1
+        session.commit()
+        session.refresh(source)
+        return [_to_session_schema(source)]
+
+    # Swap: park source, move target into source's slot, then move source into
+    # target's old slot. All within one transaction so the unique constraint
+    # never sees a duplicate.
+    src_date, src_order = source.date, source.order_in_day
+    tgt_date, tgt_order = target.date, target.order_in_day
+
+    source.order_in_day = _SWAP_PARK_ORDER
+    session.flush()
+
+    target.date = src_date
+    target.order_in_day = src_order
+    session.flush()
+
+    source.date = tgt_date
+    source.order_in_day = tgt_order
+    session.flush()
+
+    session.commit()
+    session.refresh(source)
+    session.refresh(target)
+    return [_to_session_schema(source), _to_session_schema(target)]
 
 
 # ==========================================================

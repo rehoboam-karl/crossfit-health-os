@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Authentication - CrossFit Health OS{% endblock %}
+{% block title %}{{ t("auth_extra.verifying_title") }} - CrossFit Health OS{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -10,30 +10,30 @@
                 <div class="card-body p-5">
                     <div class="text-center mb-4">
                         <i class="fas fa-shield-alt fa-3x text-primary mb-3"></i>
-                        <h2 class="fw-bold" id="page-title">Verifying...</h2>
-                        <p class="text-muted" id="page-message">Please wait while we verify your account.</p>
+                        <h2 class="fw-bold" id="page-title">{{ t("auth_extra.verifying_title") }}</h2>
+                        <p class="text-muted" id="page-message">{{ t("auth_extra.verifying_message") }}</p>
                     </div>
-                    
+
                     <div id="alert-container"></div>
-                    
+
                     <div id="loading-spinner" class="text-center py-4">
                         <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Loading...</span>
+                            <span class="visually-hidden">{{ t("common.loading") }}</span>
                         </div>
                     </div>
-                    
+
                     <div id="success-view" class="text-center d-none">
                         <i class="fas fa-check-circle fa-5x text-success mb-4"></i>
-                        <h3 class="fw-bold mb-3" id="success-title">Success!</h3>
-                        <p class="text-muted mb-4" id="success-message">Your account has been verified.</p>
-                        <a href="/login" class="btn btn-primary btn-lg">Go to Login</a>
+                        <h3 class="fw-bold mb-3" id="success-title">{{ t("auth_extra.success_title") }}</h3>
+                        <p class="text-muted mb-4" id="success-message">{{ t("auth_extra.success_message") }}</p>
+                        <a href="/login" class="btn btn-primary btn-lg">{{ t("auth_extra.go_to_login") }}</a>
                     </div>
-                    
+
                     <div id="error-view" class="text-center d-none">
                         <i class="fas fa-exclamation-circle fa-5x text-danger mb-4"></i>
-                        <h3 class="fw-bold mb-3">Verification Failed</h3>
-                        <p class="text-muted mb-4" id="error-message">The verification link is invalid or has expired.</p>
-                        <a href="/login" class="btn btn-primary btn-lg">Back to Login</a>
+                        <h3 class="fw-bold mb-3">{{ t("auth_extra.verification_failed") }}</h3>
+                        <p class="text-muted mb-4" id="error-message">{{ t("auth_extra.verification_invalid") }}</p>
+                        <a href="/login" class="btn btn-primary btn-lg">{{ t("auth_extra.back_to_login") }}</a>
                     </div>
                 </div>
             </div>
@@ -50,36 +50,29 @@ const SUPABASE_ANON_KEY = '{{ supabase_anon_key }}';
 $(document).ready(function() {
     const token = '{{ token }}';
     const type = '{{ type }}';
-    const redirectTo = '{{ redirect_to }}';
-    
+
     if (!token) {
-        showError('No verification token provided.');
+        showError(t('auth_extra.no_token'));
         return;
     }
-    
-    // Verify the token via Supabase
+
     verifyToken(token, type);
 });
 
 async function verifyToken(token, type) {
     try {
         let response;
-        
+
         if (type === 'recovery') {
-            // Password reset - redirect to Supabase to update password
-            // For password reset, we need to redirect to the proper URL
             const newUrl = `${SUPABASE_URL}/auth/v1/verify?token=${token}&type=recovery&redirect_to=${window.location.origin}/auth/callback`;
-            
-            // Show message and redirect after delay
+
             $('#loading-spinner').addClass('d-none');
-            $('#page-title').text('Password Reset');
-            $('#page-message').text('Redirecting to set new password...');
-            
-            // Actually redirect to Supabase for password change
+            $('#page-title').text(t('auth_extra.password_reset_title'));
+            $('#page-message').text(t('auth_extra.password_reset_redirect'));
+
             window.location.href = newUrl;
-            
+
         } else if (type === 'email_change') {
-            // Email change confirmation
             response = await fetch(`${SUPABASE_URL}/auth/v1/verify?type=email_change`, {
                 method: 'POST',
                 headers: {
@@ -89,15 +82,14 @@ async function verifyToken(token, type) {
                 },
                 body: JSON.stringify({ token })
             });
-            
+
             if (response.ok) {
-                showSuccess('Email changed successfully!', 'You can now use your new email to log in.');
+                showSuccess(t('auth_extra.email_changed_title'), t('auth_extra.email_changed_body'));
             } else {
-                showError('Email change verification failed.');
+                showError(t('auth_extra.email_change_failed'));
             }
-            
+
         } else {
-            // Default: email confirmation
             response = await fetch(`${SUPABASE_URL}/auth/v1/verify?type=signup`, {
                 method: 'POST',
                 headers: {
@@ -107,16 +99,16 @@ async function verifyToken(token, type) {
                 },
                 body: JSON.stringify({ token })
             });
-            
+
             if (response.ok) {
-                showSuccess('Email Verified!', 'Your account has been confirmed. You can now log in.');
+                showSuccess(t('auth_extra.email_verified_title'), t('auth_extra.email_verified_body'));
             } else {
-                showError('Email verification failed.');
+                showError(t('auth_extra.email_verification_failed'));
             }
         }
     } catch (error) {
         console.error('Verification error:', error);
-        showError('An error occurred during verification. Please try again.');
+        showError(t('auth_extra.verification_error'));
     }
 }
 

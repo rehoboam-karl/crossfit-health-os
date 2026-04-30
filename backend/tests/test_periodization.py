@@ -349,3 +349,142 @@ class TestMacrocycleEndpoints:
             },
         )
         assert bad.status_code == 400
+
+
+# ==========================================================
+# Swap planned sessions
+# ==========================================================
+
+class TestSwapPlannedSessions:
+    """End-to-end tests for the drag-and-drop swap endpoint."""
+
+    async def _create_macro(self, client: AsyncClient) -> str:
+        resp = await client.post(
+            "/api/v1/schedule/macrocycles",
+            json={"name": "Swap test", "methodology": "hwpo", "start_date": "2026-04-20"},
+        )
+        assert resp.status_code == 201, resp.text
+        return resp.json()["microcycles"][0]["id"]
+
+    async def _list_sessions(self, client: AsyncClient, micro_id: str) -> list[dict]:
+        resp = await client.get(f"/api/v1/schedule/microcycles/{micro_id}")
+        assert resp.status_code == 200, resp.text
+        return resp.json()["sessions"]
+
+    @pytest.mark.asyncio
+    async def test_swap_two_training_days(
+        self, authenticated_client: AsyncClient, db_session, seeded_user
+    ):
+        """Drag a training session from Monday onto another training session on Wednesday."""
+        micro_id = await self._create_macro(authenticated_client)
+        sessions = await self._list_sessions(authenticated_client, micro_id)
+        # Default HWPO 5-day plan seeds Mon..Fri. Pick Mon (source) and Wed (target).
+        mon = next(s for s in sessions if s["date"] == "2026-04-20")
+        wed = next(s for s in sessions if s["date"] == "2026-04-22")
+
+        resp = await authenticated_client.post(
+            f"/api/v1/schedule/microcycles/{micro_id}/sessions/swap",
+            json={"source_id": mon["id"], "target_date": "2026-04-22", "target_id": wed["id"]},
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert len(body) == 2
+        # Source is now on Wednesday, target moved back to Monday.
+        src_after = next(b for b in body if b["id"] == mon["id"])
+        tgt_after = next(b for b in body if b["id"] == wed["id"])
+        assert src_after["date"] == "2026-04-22"
+        assert tgt_after["date"] == "2026-04-20"
+
+        # No row should be left parked at order_in_day=99.
+        all_after = await self._list_sessions(authenticated_client, micro_id)
+        assert all(s["order_in_day"] != 99 for s in all_after)
+
+    @pytest.mark.asyncio
+    async def test_swap_training_with_rest_day(
+        self, authenticated_client: AsyncClient, db_session, seeded_user
+    ):
+        """Drag a training session onto a rest-day marker (status=skipped)."""
+        micro_id = await self._create_macro(authenticated_client)
+        # Saturday (2026-04-25) is a rest day in the default HWPO 5-day seed —
+        # add a rest marker explicitly so the swap has a target row.
+        rest = await authenticated_client.post(
+            f"/api/v1/schedule/microcycles/{micro_id}/sessions",
+            json={
+                "date": "2026-04-25",
+                "order_in_day": 1,
+                "shift": "morning",
+                "duration_minutes": 15,
+                "focus": "Descanso",
+                "status": "skipped",
+            },
+        )
+        assert rest.status_code == 201, rest.text
+        rest_id = rest.json()["id"]
+
+        sessions = await self._list_sessions(authenticated_client, micro_id)
+        mon = next(s for s in sessions if s["date"] == "2026-04-20")
+
+        resp = await authenticated_client.post(
+            f"/api/v1/schedule/microcycles/{micro_id}/sessions/swap",
+            json={"source_id": mon["id"], "target_date": "2026-04-25", "target_id": rest_id},
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        src_after = next(b for b in body if b["id"] == mon["id"])
+        tgt_after = next(b for b in body if b["id"] == rest_id)
+        assert src_after["date"] == "2026-04-25"
+        assert tgt_after["date"] == "2026-04-20"
+        assert tgt_after["status"] == "skipped"
+
+    @pytest.mark.asyncio
+    async def test_move_to_empty_day(
+        self, authenticated_client: AsyncClient, db_session, seeded_user
+    ):
+        """Drop on an empty day moves the source there with order_in_day=1."""
+        micro_id = await self._create_macro(authenticated_client)
+        sessions = await self._list_sessions(authenticated_client, micro_id)
+        mon = next(s for s in sessions if s["date"] == "2026-04-20")
+
+        # 2026-04-26 (Sunday) has no session in the default 5-day plan.
+        resp = await authenticated_client.post(
+            f"/api/v1/schedule/microcycles/{micro_id}/sessions/swap",
+            json={"source_id": mon["id"], "target_date": "2026-04-26"},
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert len(body) == 1
+        assert body[0]["id"] == mon["id"]
+        assert body[0]["date"] == "2026-04-26"
+        assert body[0]["order_in_day"] == 1
+
+    @pytest.mark.asyncio
+    async def test_move_to_occupied_day_without_target_id_rejects(
+        self, authenticated_client: AsyncClient, db_session, seeded_user
+    ):
+        """Move-only path refuses if the target slot is already taken."""
+        micro_id = await self._create_macro(authenticated_client)
+        sessions = await self._list_sessions(authenticated_client, micro_id)
+        mon = next(s for s in sessions if s["date"] == "2026-04-20")
+
+        # Tuesday already has a session in the default 5-day plan — sending no
+        # target_id should fail with 409 rather than violating the unique
+        # constraint.
+        resp = await authenticated_client.post(
+            f"/api/v1/schedule/microcycles/{micro_id}/sessions/swap",
+            json={"source_id": mon["id"], "target_date": "2026-04-21"},
+        )
+        assert resp.status_code == 409, resp.text
+
+    @pytest.mark.asyncio
+    async def test_swap_target_outside_microcycle_rejects(
+        self, authenticated_client: AsyncClient, db_session, seeded_user
+    ):
+        micro_id = await self._create_macro(authenticated_client)
+        sessions = await self._list_sessions(authenticated_client, micro_id)
+        mon = next(s for s in sessions if s["date"] == "2026-04-20")
+
+        resp = await authenticated_client.post(
+            f"/api/v1/schedule/microcycles/{micro_id}/sessions/swap",
+            json={"source_id": mon["id"], "target_date": "2026-04-30"},
+        )
+        assert resp.status_code == 400, resp.text

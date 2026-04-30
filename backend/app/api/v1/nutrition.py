@@ -4,15 +4,19 @@ Nutrition API — meal logging and macro tracking (SQLAlchemy).
 from datetime import datetime as _Datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
+from app.core.integrations.meal_vision import parse_meal_photo
 from app.db.models import MealLog as MealLogDB
 from app.db.session import get_session
 
 router = APIRouter()
+
+_ALLOWED_PHOTO_EXT = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic")
+_MAX_PHOTO_BYTES = 10 * 1024 * 1024  # 10 MB
 
 
 def _meal_to_dict(row: MealLogDB) -> dict:
@@ -94,6 +98,58 @@ async def get_todays_meals(
     user_id = int(current_user["id"])
     rows = _fetch_todays_meals(db, user_id)
     return [_meal_to_dict(r) for r in rows]
+
+
+@router.post("/meals/photo")
+async def analyze_meal_photo(
+    file: UploadFile = File(...),
+    save: bool = Form(default=False),
+    meal_type: Optional[str] = Form(default=None),
+    db: Session = Depends(get_session),
+    current_user: dict = Depends(get_current_user),
+):
+    """Analyze a meal photo via GPT-4o Vision and return estimated macros.
+
+    Form fields:
+        file: image of the plate (jpg/png/webp/gif/heic, ≤10MB).
+        save: if true, persist a MealLog with the parsed macros.
+        meal_type: optional meal_type to attach when saving (breakfast/lunch/...).
+
+    Response: {analysis: {...}, meal: {...} | None}
+    """
+    if not any((file.filename or "").lower().endswith(ext) for ext in _ALLOWED_PHOTO_EXT):
+        raise HTTPException(status_code=400, detail=f"Allowed image formats: {', '.join(_ALLOWED_PHOTO_EXT)}")
+
+    file_bytes = await file.read()
+    if len(file_bytes) > _MAX_PHOTO_BYTES:
+        raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    analysis = await parse_meal_photo(file_bytes, content_type=file.content_type or "")
+
+    saved_meal = None
+    if save and analysis.get("totals"):
+        user_id = int(current_user["id"])
+        totals = analysis["totals"]
+        row = MealLogDB(
+            user_id=user_id,
+            logged_at=_Datetime.utcnow(),
+            meal_type=meal_type,
+            description=analysis.get("description") or None,
+            calories=totals.get("calories"),
+            protein_g=totals.get("protein_g"),
+            carbs_g=totals.get("carbs_g"),
+            fat_g=totals.get("fat_g"),
+            foods=analysis.get("foods") or [],
+            ai_estimation=bool(analysis.get("ai_used")),
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+        saved_meal = _meal_to_dict(row)
+
+    return {"analysis": analysis, "meal": saved_meal}
 
 
 @router.get("/macros/summary")

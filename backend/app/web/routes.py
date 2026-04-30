@@ -1,15 +1,55 @@
 """
 Web routes for serving HTML pages with Jinja2
 """
+import json
+import time
+
 from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
+from jinja2 import pass_context
 from pathlib import Path
+
+from app.core.i18n import DEFAULT_LOCALE, get_catalog, t as _t
 
 router = APIRouter()
 
 # Setup Jinja2 templates
 templates_dir = Path(__file__).parent.parent / "templates"
 templates = Jinja2Templates(directory=str(templates_dir))
+
+# Cache-busting tag: changes every process start so browsers + Cloudflare
+# fetch fresh assets after each deploy. Templates use it as
+# `<script src="/static/js/foo.js?v={{ asset_version() }}">`.
+_ASSET_VERSION = str(int(time.time()))
+
+
+def _request_locale(ctx) -> str:
+    request = ctx.get("request")
+    if request is None:
+        return DEFAULT_LOCALE
+    return getattr(request.state, "locale", DEFAULT_LOCALE)
+
+
+@pass_context
+def _t_global(ctx, key: str, **kwargs) -> str:
+    return _t(_request_locale(ctx), key, **kwargs)
+
+
+@pass_context
+def _locale_global(ctx) -> str:
+    return _request_locale(ctx)
+
+
+@pass_context
+def _i18n_json_global(ctx) -> str:
+    return json.dumps(get_catalog(_request_locale(ctx)), ensure_ascii=False)
+
+
+# Make `t`, `locale`, and `i18n_json` callable from any template/base.html.
+templates.env.globals["t"] = _t_global
+templates.env.globals["locale"] = _locale_global
+templates.env.globals["i18n_json"] = _i18n_json_global
+templates.env.globals["asset_version"] = lambda: _ASSET_VERSION
 
 
 # ============================================
@@ -59,7 +99,6 @@ async def workouts_page(request: Request):
     return templates.TemplateResponse("training.html", {
         "request": request,
         "active_page": "workouts",
-        "personal_records": []
     })
 
 
@@ -172,6 +211,28 @@ async def auth_verify(request: Request):
 async def auth_handler(request: Request):
     """Handle auth responses with tokens in URL hash"""
     return templates.TemplateResponse("auth_handler.html", {"request": request})
+
+
+@router.get("/logout")
+async def logout_page(request: Request):
+    """No-JS-dependent logout: clear localStorage tokens and redirect to /.
+
+    The navbar Logout link points here so the click works even if the
+    progressive-enhancement JS handler hasn't attached yet (e.g. behind
+    Cloudflare Rocket Loader)."""
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(
+        """<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<title>Saindo...</title><meta name="robots" content="noindex"></head>
+<body><script>
+try {
+  ['access_token','refresh_token','user','sb-access-token','sb-refresh-token']
+    .forEach(function(k){ localStorage.removeItem(k); });
+} catch (e) {}
+window.location.replace('/');
+</script><noscript><meta http-equiv="refresh" content="0; url=/">
+<a href="/">Voltar para o início</a></noscript></body></html>"""
+    )
 
 
 @router.get("/reset-password")

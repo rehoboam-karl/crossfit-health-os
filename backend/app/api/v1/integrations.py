@@ -35,6 +35,8 @@ async def sync_healthkit(
     return {
         "status": "success",
         "records_synced": result.get("count", 0),
+        "recovery_metric_updated": result.get("recovery_metric_updated", False),
+        "metric_date": result.get("metric_date"),
     }
 
 

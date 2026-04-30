@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
+from app.core.i18n import SUPPORTED_LOCALES, normalize_locale
 from app.db.models import (
     PersonalRecord as PersonalRecordDB,
     User as UserDB,
@@ -25,6 +26,7 @@ ALLOWED_UPDATE_FIELDS = {
     "fitness_level",
     "goals",
     "timezone",
+    "locale",
     "preferences",
 }
 
@@ -50,6 +52,14 @@ async def update_user_profile(
     for key, value in updates.items():
         if key not in ALLOWED_UPDATE_FIELDS:
             continue
+        if key == "locale" and value is not None:
+            normalized = normalize_locale(value)
+            if normalized is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"locale must be one of {list(SUPPORTED_LOCALES)}",
+                )
+            value = normalized
         setattr(user, key, value)
         changed = True
 
@@ -67,6 +77,7 @@ async def update_user_profile(
         "fitness_level": user.fitness_level,
         "goals": user.goals or [],
         "timezone": user.timezone,
+        "locale": user.locale,
         "preferences": user.preferences or {},
     }
 

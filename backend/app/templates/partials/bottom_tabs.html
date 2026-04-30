@@ -1,0 +1,24 @@
+<!-- Mobile bottom tab bar. Hidden via CSS on screens ≥ 768px.
+     Active state is matched by `active_page` (set in each route handler). -->
+<nav class="chos-bottom-tabs" aria-label="Primary navigation">
+   <a href="/dashboard" class="{{ 'active' if active_page == 'dashboard' }}">
+      <i class="fas fa-house"></i>
+      <span>{{ t("nav.tabs.today") }}</span>
+   </a>
+   <a href="/dashboard/schedule" class="{{ 'active' if active_page in ('schedule', 'workouts', 'reviews') }}">
+      <i class="fas fa-dumbbell"></i>
+      <span>{{ t("nav.tabs.train") }}</span>
+   </a>
+   <a href="/dashboard/nutrition" class="{{ 'active' if active_page == 'nutrition' }}">
+      <i class="fas fa-utensils"></i>
+      <span>{{ t("nav.tabs.nutrition") }}</span>
+   </a>
+   <a href="/dashboard/health" class="{{ 'active' if active_page in ('health', 'reviews') }}">
+      <i class="fas fa-heart-pulse"></i>
+      <span>{{ t("nav.tabs.progress") }}</span>
+   </a>
+   <a href="/dashboard/profile" class="{{ 'active' if active_page in ('profile', 'badges') }}">
+      <i class="fas fa-user"></i>
+      <span>{{ t("nav.tabs.you") }}</span>
+   </a>
+</nav>
