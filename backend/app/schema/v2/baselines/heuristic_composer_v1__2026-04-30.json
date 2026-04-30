@@ -1,0 +1,136 @@
+{
+  "_meta": {
+    "captured_at": "2026-04-30T08:00:01Z",
+    "captured_from": "backend/app/schema/v2/eval_demo.py",
+    "framework_commit": "7d2a74d",
+    "purpose": "Frozen baseline for tracking HeuristicComposer-v1 over time. New eval runs should compare against this and reject if validity drops below 1.0 (when bug 1 below is fixed) or any non-validity category drops by more than 0.05.",
+    "reproducibility": "eval_demo uses random.seed(42) for the L3 simulation. Re-running on the same code should produce identical numbers."
+  },
+  "model_under_test": "HeuristicComposer-v1",
+  "athlete_id": "karl",
+  "mesocycle": {
+    "id": "meso_A_squat",
+    "phase": "build",
+    "duration_weeks": 4,
+    "primary_focus": ["squat_volume"],
+    "sessions_per_week": 5
+  },
+  "layer_1_summary": {
+    "validity": 0.0,
+    "volume_intensity": 0.837,
+    "distribution": 0.845,
+    "periodization": 1.0
+  },
+  "layer_1_selected_metrics": {
+    "mesocycle_level": {
+      "progressive_overload": {"score": 1.00, "raw_value": 2.50, "passed": true},
+      "deload_presence": {"score": 1.00, "passed": true},
+      "movement_variety": {"score": 0.93, "raw_value": 0.93, "passed": true},
+      "acwr": {"score": 1.00, "note": "insufficient data for chronic baseline"}
+    },
+    "week_2": {
+      "modal_balance": {"score": 0.67, "passed": true},
+      "stimulus_distribution": {"score": 1.00, "passed": true},
+      "foster_monotony": {"score": 1.00, "raw_value": 1.42, "passed": true},
+      "foster_strain": {"score": 1.00, "raw_value": 408.15}
+    },
+    "week_2_day_1": {
+      "movement_library_coverage": {"score": 1.00, "passed": true},
+      "equipment_feasibility": {"score": 0.00, "passed": false, "missing": ["band"]},
+      "injury_safety": {"score": 1.00, "passed": true},
+      "prilepin_compliance": {"score": 0.50, "passed": false},
+      "inol_per_session": {"score": 1.00, "raw_value": 1.00, "passed": true}
+    }
+  },
+  "layer_2_status": "stub_only",
+  "layer_2_note": "StubJudge returns score=3 for all dimensions. ClaudeJudge real lands in Sprint 2. Calibration against human Level 2+ coach (≥30 sessions, target Cohen κ ≥ 0.7) is prerequisite for any L2 number being comparative.",
+  "layer_3_summary": {
+    "compliance_rate": 0.75,
+    "modification_rate": 0.0,
+    "skip_pattern": 0.2,
+    "pr_cadence": 0.0,
+    "overreaching_frequency": 0.0
+  },
+  "layer_3_aggregator": {
+    "n_metrics": 5,
+    "n_measurable": 5,
+    "n_passed": 4,
+    "n_failed": 1,
+    "critical_failures": ["compliance_rate"]
+  },
+  "layer_3_simulation_params": {
+    "random_seed": 42,
+    "skip_rate": 0.20,
+    "rpe_range": [6.0, 8.5],
+    "note": "compliance_rate=0.75 is downstream of the 20% random skip rate, not a programmer signal. Real data needed for meaningful number."
+  },
+  "bugs_surfaced": [
+    {
+      "id": "bug_1_band_not_in_karl_equipment",
+      "severity": "low",
+      "metric": "equipment_feasibility",
+      "score": 0.0,
+      "description": "HeuristicComposer prescribes banded_glute_bridge in every activation block, but karl.equipment_available does not include 'band'. The validity hard gate (Patch 3) zeros the entire validity category as a result.",
+      "fix_options": [
+        "Add 'band' to karl's default equipment in examples.py",
+        "HeuristicComposer picks band-free alternative when 'band' unavailable",
+        "Movement catalog marks 'band' optional for banded_glute_bridge"
+      ],
+      "scope": "out_of_sprint_1"
+    },
+    {
+      "id": "bug_2_prilepin_compliance_50pct",
+      "severity": "medium",
+      "metric": "prilepin_compliance",
+      "score": 0.50,
+      "description": "Half of strength_primary blocks generate reps outside the Prilepin range for the dominant %1RM zone. Could be: (a) HeuristicComposer set×reps distribution doesn't respect zone caps; (b) Prilepin's Chart is inadequate for CrossFit-style training (more variable than pure Olympic weightlifting).",
+      "fix_options": [
+        "Audit HeuristicComposer set×reps logic against PRILEPIN_TABLE",
+        "Add a separate metric_olympic_compliance for OW-pure days; relax prilepin for mixed-modal"
+      ],
+      "scope": "out_of_sprint_1"
+    }
+  ],
+  "patches_applied": [
+    {"id": 1, "layer": 1, "fix": "PRILEPIN_TABLE 90-101 inclusive of 100%"},
+    {"id": 2, "layer": 1, "fix": "Foster monotony/strain padding with rest days"},
+    {"id": 3, "layer": 1, "fix": "summary_score validity hard gate"},
+    {"id": 4, "layer": 1, "fix": "Prilepin/INOL defend mp.reps non-int"},
+    {"id": 5, "layer": 3, "fix": "Clean imports (timedelta at top)"},
+    {"id": 6, "layer": 3, "fix": "modification_rate denominator excludes SKIPPED"},
+    {"id": 7, "layer": 3, "fix": "LongitudinalMetric.n_a flag + value=None when N/A + aggregator filter"},
+    {"id": 8, "layer": 3, "fix": "pr_cadence phase-aware (BASE/BUILD expect 0 PRs)"}
+  ],
+  "tests": {
+    "file": "backend/app/schema/v2/test_evaluation.py",
+    "passed": 8,
+    "failed": 0,
+    "duration_seconds": 0.21,
+    "coverage": {
+      "TestPrilepinZone::test_100_pct_maps_to_top_zone": "Patch 1",
+      "TestPrilepinZone::test_zone_boundaries": "Patch 1",
+      "TestFosterMonotonyRestDays::test_5_session_week_with_rest_days": "Patch 2",
+      "TestFosterMonotonyRestDays::test_perfect_monotony_7_identical_sessions": "Patch 2",
+      "TestPrilepinReps::test_amrap_doesnt_crash": "Patch 4",
+      "TestSummaryScoreGating::test_validity_failure_zeros_category": "Patch 3",
+      "TestSummaryScoreGating::test_non_gate_categories_use_mean": "Patch 3",
+      "TestSummaryScoreGating::test_validity_all_pass_returns_1": "Patch 3"
+    }
+  },
+  "promotion_thresholds_for_future_models": {
+    "_note": "Decision rules to promote a new model (Claude vN, GPT vN, multi-provider) over current baseline. Same test set, same athlete pool.",
+    "validity_must_be": 1.0,
+    "volume_intensity_min": 0.80,
+    "distribution_min": 0.70,
+    "periodization_min": 0.80,
+    "judge_dimensions_avg_min": 4.0,
+    "judge_dimensions_min_per_dim": 3.5,
+    "longitudinal_compliance_min": 0.85,
+    "longitudinal_modification_max": 0.20,
+    "longitudinal_overreaching_max": 0.15,
+    "calibration_required_before_judge_compare": {
+      "within_one_rate_min": 0.80,
+      "spearman_rho_min": 0.70
+    }
+  }
+}
