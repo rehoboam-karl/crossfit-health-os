@@ -1,35 +1,54 @@
 """
-Training history — agregacoes e analises sobre SessionResults.
+Training history — agregações e análises sobre SessionResults.
 
-Funcoes principais:
-- detect_prs(): novos 1RMs (com dedupe por movement_id+achieved_at+value_kg)
-- compliance_rate(): % de sessoes executadas vs planejadas em janela
-- average_rpe(): media de RPE em janela
+Funções principais:
+- detect_prs(): novos 1RMs a partir de movement_results
+- compliance_rate(): % de sessões executadas vs planejadas em janela
+- average_rpe(): média de RPE em janela
 - volume_per_movement(): tonelagem por movimento
-- stimulus_minutes(): minutos por stimulus (precisa sessions_index)
-- overreaching_signals(): heuristicas de alerta
+- stimulus_minutes(): tempo por stimulus (precisa lookup das Sessions)
+- overreaching_signals(): heurísticas de alerta
+
+Próximo nível (não no MVP):
+- Tendências (RPE crescente em mesma carga = sinal de fadiga)
+- Stimulus deficit (semana sem aerobic_z2 numa fase BASE)
+- Adherence patterns (sempre pula day 5? programar diferente)
 """
 
 from datetime import datetime, timedelta
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from athlete import Athlete, OneRepMax
-from results import CompletionStatus, SessionResult
-from workout_schema import Session, Stimulus
+from .athlete import Athlete, OneRepMax
+from .results import CompletionStatus, SessionResult
+from .workout_schema import Session, Stimulus
 
+
+# ============================================================
+# PR
+# ============================================================
 
 class PR(BaseModel):
+    """Personal record detectado a partir de results."""
     movement_id: str
     value_kg: float
     previous_value_kg: Optional[float] = None
     achieved_at: datetime
     session_id: str
-    rep_max: int = 1
+    rep_max: int = 1                # 1 = 1RM, 3 = 3RM, etc.
 
+
+# ============================================================
+# HISTORY (agregador)
+# ============================================================
 
 class TrainingHistory:
-    """Container de SessionResults com queries e analytics."""
+    """Container de SessionResults com queries e analytics.
+
+    Recebe opcionalmente um dict {session_id → Session} para resolver
+    referências a sessões planejadas (necessário para stimulus_minutes,
+    compliance, etc.).
+    """
 
     def __init__(
         self,
@@ -38,6 +57,8 @@ class TrainingHistory:
     ):
         self.results = sorted(results, key=lambda r: r.executed_at)
         self.sessions_index = sessions_index or {}
+
+    # ---------- Filtros ----------
 
     def for_athlete(self, athlete_id: str) -> list[SessionResult]:
         return [r for r in self.results if r.athlete_id == athlete_id]
@@ -49,25 +70,33 @@ class TrainingHistory:
         cutoff = ref - timedelta(days=days_back)
         return [r for r in self.for_athlete(athlete_id) if r.executed_at >= cutoff]
 
-    def detect_prs(self, athlete: Athlete, ref: Optional[datetime] = None) -> list[PR]:
-        """Encontra 1RMs novos. Dedupe por (movement_id, achieved_at, value_kg)."""
+    # ---------- PR detection ----------
+
+    def detect_prs(
+        self, athlete: Athlete, ref: Optional[datetime] = None,
+    ) -> list[PR]:
+        """Encontra 1RMs novos. Heurística: actual_reps==1 AND actual_load_kg
+        > 1RM atual. Funciona p/ test days e tentativas de máximo.
+        """
         prs: list[PR] = []
         for result in self.for_athlete(athlete.id):
             for block in result.block_results:
-                # Score-level detection: actual_load_kg + score contains "RM"
+                # Score-level (1RM testado, registrado no bloco)
                 if block.actual_load_kg and block.actual_score and "RM" in (block.actual_score or ""):
-                    for mr in block.movement_results:
-                        prev = athlete.get_1rm(mr.movement_id)
+                    # Tenta extrair movement_id do primeiro movement_result
+                    if block.movement_results:
+                        mid = block.movement_results[0].movement_id
+                        prev = athlete.get_1rm(mid)
                         if prev is None or block.actual_load_kg > prev:
                             prs.append(PR(
-                                movement_id=mr.movement_id,
+                                movement_id=mid,
                                 value_kg=block.actual_load_kg,
                                 previous_value_kg=prev,
                                 achieved_at=result.executed_at,
                                 session_id=result.session_id,
                                 rep_max=1,
                             ))
-                # Movement-level: actual_reps==1 AND actual_load_kg > current 1RM
+                # Movement-level (1 rep com carga)
                 for mr in block.movement_results:
                     if mr.actual_reps == 1 and mr.actual_load_kg:
                         prev = athlete.get_1rm(mr.movement_id)
@@ -80,7 +109,7 @@ class TrainingHistory:
                                 session_id=result.session_id,
                                 rep_max=1,
                             ))
-        # Dedupe
+        # Dedupe — mesmo PR pode ser detectado via block-level + movement-level
         seen = set()
         unique = []
         for pr in prs:
@@ -90,24 +119,36 @@ class TrainingHistory:
                 unique.append(pr)
         return unique
 
-    def compliance_rate(self, athlete_id: str, days_back: int = 28,
-                        ref: Optional[datetime] = None) -> float:
+    # ---------- Compliance ----------
+
+    def compliance_rate(
+        self, athlete_id: str, days_back: int = 28,
+        ref: Optional[datetime] = None,
+    ) -> float:
+        """% de sessões executadas (não SKIPPED) na janela."""
         results = self.in_window(athlete_id, days_back, ref)
         if not results:
             return 0.0
         completed = sum(1 for r in results if r.status != CompletionStatus.SKIPPED)
         return completed / len(results)
 
-    def average_rpe(self, athlete_id: str, days_back: int = 14,
-                     ref: Optional[datetime] = None) -> Optional[float]:
+    # ---------- RPE ----------
+
+    def average_rpe(
+        self, athlete_id: str, days_back: int = 14,
+        ref: Optional[datetime] = None,
+    ) -> Optional[float]:
         results = self.in_window(athlete_id, days_back, ref)
         rpes = [r.overall_rpe for r in results if r.overall_rpe is not None]
         return sum(rpes) / len(rpes) if rpes else None
+
+    # ---------- Volume ----------
 
     def volume_per_movement(
         self, athlete_id: str, days_back: int = 14,
         ref: Optional[datetime] = None,
     ) -> dict[str, float]:
+        """Tonelagem (kg × reps) por movement_id na janela."""
         volume: dict[str, float] = {}
         for result in self.in_window(athlete_id, days_back, ref):
             for block in result.block_results:
@@ -117,12 +158,16 @@ class TrainingHistory:
                         volume[mr.movement_id] = volume.get(mr.movement_id, 0) + kg
         return dict(sorted(volume.items(), key=lambda x: -x[1]))
 
+    # ---------- Stimulus distribution ----------
+
     def stimulus_minutes(
         self, athlete_id: str, days_back: int = 14,
         ref: Optional[datetime] = None,
     ) -> dict[Stimulus, int]:
+        """Minutos por stimulus na janela. Precisa de sessions_index."""
         if not self.sessions_index:
             return {}
+
         minutes: dict[Stimulus, int] = {}
         for result in self.in_window(athlete_id, days_back, ref):
             session = self.sessions_index.get(result.session_id)
@@ -131,9 +176,10 @@ class TrainingHistory:
             for block in session.blocks:
                 if block.stimulus is None:
                     continue
+                # Só conta se o bloco foi efetivamente executado
                 br = next(
-                    (b for b in result.block_results if b.block_order == block.order),
-                    None,
+                    (b for b in result.block_results
+                     if b.block_order == block.order), None,
                 )
                 if br is None or br.status == CompletionStatus.SKIPPED:
                     continue
@@ -141,33 +187,54 @@ class TrainingHistory:
                 minutes[block.stimulus] = minutes.get(block.stimulus, 0) + dur
         return dict(sorted(minutes.items(), key=lambda x: -x[1]))
 
+    # ---------- Overreaching heurístico ----------
+
     def overreaching_signals(
         self, athlete_id: str, ref: Optional[datetime] = None,
     ) -> list[str]:
+        """Heurísticas simples — coach deve revisar, não é diagnóstico."""
         signals = []
+
+        # 1. Average RPE alto na última semana
         rpe_recent = self.average_rpe(athlete_id, days_back=7, ref=ref)
         rpe_baseline = self.average_rpe(athlete_id, days_back=28, ref=ref)
         if rpe_recent and rpe_recent > 8.5:
-            signals.append(f"RPE medio ultimos 7d = {rpe_recent:.1f} (>8.5)")
+            signals.append(
+                f"RPE médio últimos 7d = {rpe_recent:.1f} (>8.5)"
+            )
         if rpe_recent and rpe_baseline and rpe_recent > rpe_baseline + 0.5:
-            signals.append(f"RPE recente ({rpe_recent:.1f}) > baseline ({rpe_baseline:.1f})")
+            signals.append(
+                f"RPE recente ({rpe_recent:.1f}) > baseline ({rpe_baseline:.1f})"
+            )
+
+        # 2. Sleep quality declinando
         recent = self.in_window(athlete_id, days_back=7, ref=ref)
         sleep_scores = [r.sleep_quality_prev_night for r in recent
                         if r.sleep_quality_prev_night is not None]
         if sleep_scores and sum(sleep_scores) / len(sleep_scores) < 5:
-            signals.append("Sleep quality medio < 5 nos ultimos 7d")
-        if recent:
-            comp = self.compliance_rate(athlete_id, days_back=7, ref=ref)
-            if comp < 0.6:
-                signals.append(f"Compliance 7d = {comp:.0%} (<60%)")
+            signals.append(f"Sleep quality médio últimos 7d < 5")
+
+        # 3. Compliance caindo
+        comp_recent = self.compliance_rate(athlete_id, days_back=7, ref=ref)
+        if recent and comp_recent < 0.6:
+            signals.append(
+                f"Compliance últimos 7d = {comp_recent:.0%} (<60%)"
+            )
+
+        # 4. Soreness persistente
         soreness_scores = [r.soreness for r in recent if r.soreness is not None]
         if soreness_scores and sum(soreness_scores) / len(soreness_scores) > 7:
-            signals.append("Soreness medio > 7/10 na ultima semana")
+            signals.append("Soreness médio > 7/10 na última semana")
+
         return signals
 
 
+# ============================================================
+# Apply PRs back to athlete
+# ============================================================
+
 def apply_prs_to_athlete(athlete: Athlete, prs: list[PR]) -> Athlete:
-    """Retorna Athlete atualizado com novos 1RMs (imutavel)."""
+    """Retorna Athlete atualizado com novos 1RMs."""
     new_orms = dict(athlete.one_rep_maxes)
     for pr in prs:
         if pr.rep_max != 1:

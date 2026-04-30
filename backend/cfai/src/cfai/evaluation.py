@@ -18,12 +18,6 @@ Referências:
 - Gabbett, T. (2016) — ACWR sweet spot 0.8-1.3
 - JMIR Scoping Review 2025 (e79217) — Evaluation Rigor Score
 - Glassman, G. — CrossFit Theoretical Template (3-on-1-off, MGW)
-
-Sprint 1 patches embutidos desde a primeira escrita:
-- Patch 1: PRILEPIN_TABLE 90+% range agora inclui 100% (lo=90, hi=101)
-- Patch 2: metric_foster_monotony e metric_foster_strain padding com rest days
-- Patch 3: summary_score com hard gating de validity
-- Patch 4: metric_prilepin_compliance e metric_inol defendem mp.reps não-int
 """
 
 import math
@@ -33,9 +27,9 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
-from athlete import Athlete
-from movements import MovementLibrary
-from workout_schema import (
+from .athlete import Athlete
+from .movements import MovementLibrary
+from .workout_schema import (
     BlockType, LoadSpec, Mesocycle, Phase, Session, Stimulus, Week,
 )
 
@@ -137,9 +131,10 @@ def metric_injury_safety(
 # B. VOLUME / INTENSITY
 # ============================================================
 
-# Prilepin's Chart — referência clássica.
+# Prilepin's Chart — referência clássica
 # (%1RM_min, %1RM_max) → (reps_per_set_max, optimal_total, range_min, range_max)
-# Patch 1: range superior inclui 100% (hi=101) — antes 100% caía em None.
+# Patch 1 (Sprint 1): range superior inclui 100% (hi=101) — antes 100%
+# caía em None porque o test era `lo <= pct < hi` com hi=100.
 PRILEPIN_TABLE = [
     (0,   70,  6, 24, 18, 30),     # <70%
     (70,  80,  6, 18, 12, 24),     # 70-79%
@@ -160,9 +155,6 @@ def metric_prilepin_compliance(session: Session) -> MetricResult:
     de Prilepin para a zona de %1RM dominante.
 
     Score = (compliant_blocks / strength_blocks) — 1.0 se todos OK.
-
-    Patch 4: mp.reps não-int (AMRAP, "12-15", "max") é skip silencioso —
-    Prilepin não faz sentido para volume aberto.
     """
     strength_blocks = [b for b in session.blocks
                        if b.type in (BlockType.STRENGTH_PRIMARY,
@@ -185,6 +177,9 @@ def metric_prilepin_compliance(session: Session) -> MetricResult:
         # Agrupa reps por zona de %1RM
         zones: dict[tuple, int] = {}
         for mp in block.movements:
+            # Patch 4 (Sprint 1): mp.reps não-int (AMRAP, "12-15", "max") é
+            # skip silencioso — Prilepin/INOL não fazem sentido para volume
+            # aberto. Antes do patch, mp.reps="AMRAP" causava TypeError.
             if (mp.load and mp.load.type == "percent_1rm"
                     and isinstance(mp.reps, int) and mp.reps > 0):
                 zone = _prilepin_zone(mp.load.value)
@@ -225,12 +220,13 @@ def metric_prilepin_compliance(session: Session) -> MetricResult:
 def metric_inol(session: Session) -> MetricResult:
     """INOL = reps / (100 - %1RM) por exercício na sessão.
     Ideal 0.4-1.0 por exercício; >2.0 é overload por sessão.
-
-    Patch 4: mp.reps não-int é skip silencioso (mesma justificativa do Prilepin).
     """
     inol_per_movement: dict[str, float] = {}
     for block in session.blocks:
         for mp in block.movements:
+            # Patch 4 (Sprint 1): mp.reps não-int (AMRAP, "12-15", "max") é
+            # skip silencioso — Prilepin/INOL não fazem sentido para volume
+            # aberto. Antes do patch, mp.reps="AMRAP" causava TypeError.
             if (mp.load and mp.load.type == "percent_1rm"
                     and isinstance(mp.reps, int) and mp.reps > 0):
                 pct = mp.load.value
@@ -319,11 +315,10 @@ def metric_acwr(weeks: list[Week], chronic_window_weeks: int = 4) -> MetricResul
 def metric_foster_monotony(week: Week) -> MetricResult:
     """Foster's Training Monotony (1996).
     Monotony = média_diária / desvio_padrão_diário sobre 7 dias.
-    Rest days entram como 0 — sem isso, a SD fica artificialmente baixa
-    e atletas treinando 5x/sem mostram monotony "perfeita" enganosamente.
 
-    Patch 2: padding com rest days (assume 1 sessão/dia; se schema permitir
-    two-a-day no futuro, agregar por Session.date antes).
+    Patch 2 (Sprint 1): rest days entram como 0 (padding para 7 dias). Sem
+    isso, atletas treinando 5x/sem com 5 sessões iguais davam SD=0 e
+    monotony=∞, mascarando que a SD real (incluindo dias zerados) tem sinal.
     """
     sessions_load = [s.estimated_duration_minutes for s in week.sessions]
     daily_loads = sessions_load + [0.0] * max(0, 7 - len(sessions_load))
@@ -366,7 +361,7 @@ def metric_foster_strain(week: Week) -> MetricResult:
     """Training Strain = total weekly load × monotony.
     Sem cutoff universal — útil pra trend longitudinal.
 
-    Patch 2: padding com rest days (mesma justificativa do monotony).
+    Patch 2 (Sprint 1): mesmo padding com rest days do monotony.
     """
     sessions_load = [s.estimated_duration_minutes for s in week.sessions]
     daily = sessions_load + [0.0] * max(0, 7 - len(sessions_load))
@@ -696,10 +691,11 @@ def summary_score(
 ) -> dict:
     """Score agregado por categoria.
 
-    Patch 3: hard gating. Categorias listadas em `hard_gate_categories` viram
-    0.0 se QUALQUER métrica daquela categoria falhar (não vira média).
-    Validity (injury_safety, equipment, library coverage) é não-negociável —
-    uma única falha no conjunto reprovaria o programa todo.
+    Patch 3 (Sprint 1): hard gating. Categorias listadas em
+    `hard_gate_categories` viram 0.0 se QUALQUER métrica daquela categoria
+    falhar (não vira média). Validity (injury_safety, equipment, library
+    coverage) é não-negociável — uma única falha no conjunto reprovaria o
+    programa todo, então a média era enganosa.
     """
     by_cat: dict[str, list[float]] = {}
 

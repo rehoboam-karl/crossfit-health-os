@@ -21,11 +21,11 @@ from pydantic import BaseModel, Field, model_validator
 # ============================================================
 
 class Phase(str, Enum):
-    BASE = "base"
-    BUILD = "build"
-    PEAK = "peak"
-    DELOAD = "deload"
-    TEST = "test"
+    BASE = "base"           # acumulação, volume, técnica
+    BUILD = "build"         # intensificação
+    PEAK = "peak"           # alta intensidade, baixo volume
+    DELOAD = "deload"       # recuperação ativa
+    TEST = "test"           # benchmarks / 1RM
 
 
 class SessionTemplate(str, Enum):
@@ -38,45 +38,45 @@ class SessionTemplate(str, Enum):
     RECOVERY = "recovery"
     OPEN_GYM = "open_gym"
     TEST_DAY = "test_day"
-    COMP_SIM = "comp_sim"
+    COMP_SIM = "comp_sim"   # simulação de competição (múltiplas peças)
 
 
 class BlockType(str, Enum):
     """Papel estrutural do bloco na sessão."""
     WARM_UP = "warm_up"
     ACTIVATION = "activation"
-    SKILL = "skill"
+    SKILL = "skill"                    # prática técnica, baixa intensidade
     STRENGTH_PRIMARY = "strength_primary"
     STRENGTH_SECONDARY = "strength_secondary"
-    OLY_COMPLEX = "oly_complex"
-    GYMNASTICS = "gymnastics"
+    OLY_COMPLEX = "oly_complex"        # complexos olímpicos (sn+ohs+sn balance)
+    GYMNASTICS = "gymnastics"          # volume/capacidade gímnica
     METCON = "metcon"
-    ENGINE = "engine"
-    AEROBIC_Z2 = "aerobic_z2"
-    MIDLINE = "midline"
-    ACCESSORY = "accessory"
+    ENGINE = "engine"                  # metcon focado em aeróbico/intervalado
+    AEROBIC_Z2 = "aerobic_z2"          # zona 2 prolongada, monostructural
+    MIDLINE = "midline"                # core/trunk standalone
+    ACCESSORY = "accessory"            # bodybuilding, unilateral, prehab
     MOBILITY = "mobility"
     COOLDOWN = "cooldown"
 
 
 class BlockFormat(str, Enum):
     """Estrutura temporal do bloco — ortogonal ao type."""
-    SETS_REPS = "sets_reps"
+    SETS_REPS = "sets_reps"            # 5x3, 4x8 — strength
     AMRAP = "amrap"
     EMOM = "emom"
     E2MOM = "e2mom"
     E3MOM = "e3mom"
     FOR_TIME = "for_time"
     FOR_TIME_CAPPED = "for_time_capped"
-    INTERVALS = "intervals"
+    INTERVALS = "intervals"            # 5x3min @ pace
     TABATA = "tabata"
     CHIPPER = "chipper"
-    LADDER = "ladder"
+    LADDER = "ladder"                  # ascending/descending
     DEATH_BY = "death_by"
-    STEADY = "steady"
-    REPEATS = "repeats"
+    STEADY = "steady"                  # zona 2, ritmo contínuo
+    REPEATS = "repeats"                # rodadas com descanso fixo
     NOT_FOR_TIME = "not_for_time"
-    QUALITY = "quality"
+    QUALITY = "quality"                # execução, sem timer
 
 
 class Stimulus(str, Enum):
@@ -86,7 +86,7 @@ class Stimulus(str, Enum):
     VO2_MAX = "vo2_max"
     LACTIC_TOLERANCE = "lactic_tolerance"
     ALACTIC_POWER = "alactic_power"
-    MIXED_MODAL = "mixed_modal"
+    MIXED_MODAL = "mixed_modal"        # CrossFit clássico
     STRENGTH_MAX = "strength_max"
     STRENGTH_VOLUME = "strength_volume"
     HYPERTROPHY = "hypertrophy"
@@ -111,11 +111,15 @@ class ScalingTier(str, Enum):
 class LoadSpec(BaseModel):
     """Como a carga é prescrita."""
     type: Literal[
-        "absolute_kg", "percent_1rm", "percent_bw",
-        "rpe", "ahap", "bodyweight",
+        "absolute_kg",      # peso fixo: 60kg
+        "percent_1rm",      # 75% de back_squat 1RM
+        "percent_bw",       # 50% bodyweight
+        "rpe",              # RPE 8
+        "ahap",             # As Heavy As Possible
+        "bodyweight",       # apenas BW, sem load externa
     ]
     value: Optional[float] = None
-    reference_lift: Optional[str] = None
+    reference_lift: Optional[str] = None  # para percent_1rm: "back_squat"
 
     @model_validator(mode="after")
     def validate_value(self):
@@ -127,17 +131,37 @@ class LoadSpec(BaseModel):
         return self
 
 
+class Movement(BaseModel):
+    """Entidade no catálogo de movimentos (referência por id)."""
+    id: str
+    name: str
+    category: Literal[
+        "barbell", "dumbbell", "kettlebell",
+        "gymnastic", "monostructural", "odd_object", "accessory"
+    ]
+    skill_level: int = Field(ge=1, le=5)   # 1=básico, 5=elite
+    equipment: list[str]
+
+
 class MovementPrescription(BaseModel):
     """Prescrição contextual ao bloco. Volume = UM de reps/time/dist/cal."""
     movement_id: str
+
+    # Volume — exatamente UM
     reps: Optional[int] = None
     time_seconds: Optional[int] = None
     distance_meters: Optional[int] = None
     calories: Optional[int] = None
+
+    # Carga
     load: Optional[LoadSpec] = None
-    tempo: Optional[str] = None
-    pacing: Optional[str] = None
+
+    # Execução
+    tempo: Optional[str] = None           # "31X1"
+    pacing: Optional[str] = None          # "unbroken", "smooth", "all-out"
     notes: Optional[str] = None
+
+    # Scaling — substituições por tier (mesmo movimento ajustado OU outro)
     scaling: dict[ScalingTier, "MovementPrescription"] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -158,19 +182,26 @@ class WorkoutBlock(BaseModel):
     order: int
     type: BlockType
     format: Optional[BlockFormat] = None
-    stimulus: Optional[Stimulus] = None
-    duration_minutes: Optional[int] = None
-    time_cap_minutes: Optional[int] = None
-    work_seconds: Optional[int] = None
+    stimulus: Optional[Stimulus] = None    # opcional para warm/cool/mobility
+
+    # Tempo
+    duration_minutes: Optional[int] = None  # planejado/estimado
+    time_cap_minutes: Optional[int] = None  # limite duro (For Time Capped)
+    work_seconds: Optional[int] = None      # intervals/tabata
     rest_seconds: Optional[int] = None
-    rounds: Optional[int] = None
+    rounds: Optional[int] = None            # AMRAP rounds-target, intervals
+
+    # Conteúdo
     movements: list[MovementPrescription] = Field(default_factory=list)
-    target_score: Optional[str] = None
-    target_pace: Optional[str] = None
+
+    # Targets de performance
+    target_score: Optional[str] = None      # "sub-12min", "5+ rounds", "BW snatch"
+    target_pace: Optional[str] = None       # "2:00/500m row"
     intensity_rpe: Optional[float] = Field(default=None, ge=1, le=10)
-    intent: Optional[str] = None
+
+    # Coaching
+    intent: Optional[str] = None            # "sustained breathing zone, no redline"
     coaching_notes: Optional[str] = None
-    derived_from_table_id: Optional[str] = None
 
 
 # ============================================================
@@ -194,12 +225,14 @@ class Session(BaseModel):
                 raise ValueError("Apenas OPEN_GYM permite sessão sem blocos")
             return self
 
+        # Order único e contíguo
         orders = [b.order for b in self.blocks]
         if len(orders) != len(set(orders)):
             raise ValueError("Order de blocos deve ser único")
 
         sorted_blocks = sorted(self.blocks, key=lambda b: b.order)
 
+        # Primeira peça: warm_up / mobility / activation (exceto recovery/open_gym)
         opener_types = {BlockType.WARM_UP, BlockType.MOBILITY, BlockType.ACTIVATION}
         if (
             self.template not in (SessionTemplate.OPEN_GYM, SessionTemplate.RECOVERY)
@@ -207,14 +240,17 @@ class Session(BaseModel):
         ):
             raise ValueError("Primeira peça deve ser warm_up/mobility/activation")
 
+        # Cooldown, se presente, é última
         cooldowns = [b for b in sorted_blocks if b.type == BlockType.COOLDOWN]
         if cooldowns and cooldowns[0] is not sorted_blocks[-1]:
             raise ValueError("Cooldown deve ser o último bloco")
 
+        # Máximo 1 strength_primary
         primaries = [b for b in self.blocks if b.type == BlockType.STRENGTH_PRIMARY]
         if len(primaries) > 1:
             raise ValueError("Máximo 1 strength_primary por sessão")
 
+        # Recovery: sem metcon/strength/engine
         if self.template == SessionTemplate.RECOVERY:
             forbidden = {
                 BlockType.METCON, BlockType.STRENGTH_PRIMARY,
@@ -232,8 +268,8 @@ class Session(BaseModel):
 # ============================================================
 
 class Week(BaseModel):
-    week_number: int
-    theme: Optional[str] = None
+    week_number: int                       # 1..N dentro do mesociclo
+    theme: Optional[str] = None            # "high-pulling volume", "midline emphasis"
     sessions: list[Session]
     deload: bool = False
 
@@ -250,13 +286,17 @@ class Week(BaseModel):
 
 class Mesocycle(BaseModel):
     id: str
-    name: str
+    name: str                              # "Q2 Base — Engine + Pulling"
     phase: Phase
     start_date: date
     duration_weeks: int = Field(ge=1, le=16)
     weeks: list[Week]
-    primary_focus: list[str]
-    target_benchmarks: list[str] = Field(default_factory=list)
+
+    # Foco programático
+    primary_focus: list[str]               # ["overhead_capacity", "engine_z2"]
+    target_benchmarks: list[str] = Field(default_factory=list)  # ["Fran", "5K row"]
+
+    # Encadeamento (macrocycle implícito)
     parent_macrocycle_id: Optional[str] = None
     next_mesocycle_id: Optional[str] = None
 

@@ -19,11 +19,15 @@ Referências:
 - s-RPE Foster (1996) — internal load
 - Kraemer & Ratamess (2004) — progressive overload outcomes
 
-Sprint 1 patches embutidos desde a primeira escrita:
-- Patch 5: imports limpos (timedelta no topo, sem __import__ inline)
-- Patch 6: modification_rate denominador exclui SKIPPED
-- Patch 7: LongitudinalMetric.n_a flag + value=None quando N/A + aggregator
-- Patch 8: pr_cadence phase-aware (BASE/BUILD não exigem PRs)
+Sprint 1 patches embutidos:
+- Patch 5: imports limpos (timedelta no topo, sem __import__ inline,
+  sem `from datetime import timedelta` dentro de função, sem dead imports)
+- Patch 6: modification_rate denominador exclui SKIPPED — atleta que pula
+  50% e modifica 100% do que executa NÃO pode parecer "moderado"
+- Patch 7: LongitudinalMetric.n_a flag + value=None quando N/A +
+  longitudinal_summary aggregator filtra n_a antes de contar passed/failed
+- Patch 8: pr_cadence phase-aware (BASE/BUILD esperam 0 PRs — block-style
+  periodization é accumulation, sem teste; PEAK/TEST esperam 1-2)
 """
 
 import statistics
@@ -31,10 +35,10 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
 
-from athlete import Athlete
-from history import TrainingHistory
-from results import CompletionStatus
-from workout_schema import Phase
+from .athlete import Athlete
+from .history import TrainingHistory
+from .results import CompletionStatus
+from .workout_schema import Phase
 
 
 # ============================================================
@@ -246,12 +250,9 @@ def benchmark_progression_metric(
             interpretation="Sem baseline",
         )
 
-    # Em produção: ler todos resultados históricos do benchmark
-    # Aqui demo simplificada com baseline + último valor
     return LongitudinalMetric(
         name=f"benchmark_progression_{benchmark_id}",
-        value=None,
-        n_a=True,
+        value=None, n_a=True,
         target="depende do benchmark (lower vs higher is better)",
         interpretation=(
             "STUB: implementar lendo todos resultados do benchmark "
@@ -338,7 +339,6 @@ def rpe_load_decoupling_metric(
             interpretation="Dados insuficientes",
         )
 
-    # Slope de RPE no tempo (esperado: ~0 ou negativo se programa OK)
     points.sort(key=lambda p: p[0])
     xs = [(p[0] - points[0][0]).total_seconds() / 86400 for p in points]
     rpes = [p[2] for p in points]

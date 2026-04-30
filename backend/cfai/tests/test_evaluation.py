@@ -1,10 +1,7 @@
 """Regressão: cobertura dos casos-limite que motivaram os 8 patches do Sprint 1.
 
-Como rodar (de fora do pacote v2/, porque seu __init__.py importa
-macrocycle_adapter → app.db.models, que precisa do contexto FastAPI):
-
-    cp backend/app/schema/v2/test_evaluation.py /tmp/
-    cd /tmp && PYTHONPATH=/path/to/backend/app/schema/v2 pytest test_evaluation.py -v
+Roda com:  pytest tests/test_evaluation.py -v
+(de dentro de backend/cfai/, com o pacote instalado via `pip install -e .`)
 
 Cada teste cobre um patch específico:
 - TestPrilepinZone        → Patch 1 (PRILEPIN_TABLE 100% edge)
@@ -14,12 +11,12 @@ Cada teste cobre um patch específico:
 """
 from types import SimpleNamespace
 
-from evaluation import (
+from cfai.evaluation import (
     PRILEPIN_TABLE, _prilepin_zone,
     metric_foster_monotony, metric_prilepin_compliance,
     summary_score, MetricCategory,
 )
-from workout_schema import BlockType
+from cfai.workout_schema import BlockType
 
 
 # ============================================================
