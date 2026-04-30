@@ -38,6 +38,7 @@ from .athlete import Athlete
 from .movements import Movement, MovementLibrary
 from .programmer import (
     BlockHints, HeuristicComposer, MovementComposer, ProgrammingContext,
+    expand_scaling,
 )
 from .workout_schema import (
     BlockFormat, BlockType, LoadSpec, MovementPrescription, Stimulus,
@@ -341,6 +342,7 @@ class LLMComposer:
         if not isinstance(raw_movs, list) or not raw_movs:
             raise ValueError("movements must be a non-empty list")
 
+        catalog_by_id = {m.id: m for m in candidates}
         prescriptions: list[MovementPrescription] = []
         for raw in raw_movs:
             if not isinstance(raw, dict):
@@ -349,7 +351,7 @@ class LLMComposer:
             if not mid or mid not in catalog_ids:
                 raise ValueError(f"movement_id {mid!r} not in candidate catalog")
             load_spec = _coerce_load(raw.get("load"))
-            prescriptions.append(MovementPrescription(
+            base = MovementPrescription(
                 movement_id=mid,
                 reps=_coerce_int(raw.get("reps")),
                 time_seconds=_coerce_int(raw.get("time_seconds")),
@@ -358,7 +360,14 @@ class LLMComposer:
                 load=load_spec,
                 pacing=_coerce_str(raw.get("pacing")),
                 notes=_coerce_str(raw.get("notes")),
-            ))
+            )
+            # Sprint 5b: post-process scaling tiers via library defaults.
+            # LLM gera só a base; tiers RX/Scaled/Foundation vêm do
+            # Movement.default_scaling encodado no seed (vocabulário de domínio).
+            scaling = expand_scaling(base, catalog_by_id[mid])
+            if scaling:
+                base = base.model_copy(update={"scaling": scaling})
+            prescriptions.append(base)
 
         fmt = _coerce_enum(payload.get("format"), BlockFormat)
         stim = _coerce_enum(payload.get("stimulus"), Stimulus) or hints.target_stimulus
