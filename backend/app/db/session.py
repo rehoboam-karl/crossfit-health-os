@@ -12,11 +12,15 @@ from typing import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-DEFAULT_DB_URL = "postgresql://postgres:postgres@127.0.0.1:5432/crossfit"
+from app.core.config import settings
 
 
 def _resolve_db_url() -> str:
-    return os.getenv("DATABASE_URL", DEFAULT_DB_URL)
+    # Prefer process env (e.g. set by docker-compose env_file or systemd
+    # EnvironmentFile) so tests/CI can override without touching .env. Fall
+    # back to settings.DATABASE_URL, which pydantic-settings loads from .env
+    # — this is what makes local `uvicorn ...` runs honor the .env file.
+    return os.getenv("DATABASE_URL") or settings.DATABASE_URL
 
 
 def _make_engine(url: str | None = None):
