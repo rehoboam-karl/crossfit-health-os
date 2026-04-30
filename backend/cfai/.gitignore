@@ -21,3 +21,4 @@ evaluation_history.jsonl
 calibration_data/
 smoke_judges_results.json
 smoke_composers_results.json
+compare_composers_results.json
