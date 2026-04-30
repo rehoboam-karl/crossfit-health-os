@@ -225,38 +225,133 @@ class StubJudge:
 
 
 # ============================================================
-# CLAUDE JUDGE — IMPLEMENTAÇÃO DE REFERÊNCIA
+# LLM PROVIDER JUDGE — implementação real, parametrizada por LLMProvider
 # ============================================================
 
-CLAUDE_JUDGE_REFERENCE_IMPL = '''
-# Implementação Claude — pseudocódigo:
+import json as _json
+from typing import TYPE_CHECKING
 
-import anthropic
+if TYPE_CHECKING:
+    from .llm_providers import LLMProvider
 
-class ClaudeJudge:
-    def __init__(self, api_key: str, model: str = "claude-opus-4-7"):
-        self.client = anthropic.Anthropic(api_key=api_key)
-        self.model = model
 
-    def score_pointwise(self, session, dimension, context):
+SYSTEM_INSTRUCTION_JUDGE = (
+    "Você é um coach CrossFit Level 3. Avalia sessões de treino com rigor "
+    "técnico, citando evidências específicas. Output sempre JSON válido."
+)
+
+
+class LLMProviderJudge:
+    """Judge real que delega chamadas de scoring para qualquer LLMProvider.
+
+    Substitui StubJudge em produção. Mantém o contrato `score_pointwise` /
+    `compare_pairwise`. Qualquer provider (Anthropic/OpenAI/DeepSeek/Groq/
+    Minimax) compatível com `LLMProvider` pode ser usado.
+
+    `calibration_status` deve permanecer `"uncalibrated"` até protocolo de
+    IRR ≥30 sessões com coach Level 2+ ter `within_one_rate ≥ 0.8` e
+    `spearman_rho ≥ 0.7`. Outputs antes disso não devem ser comparados
+    contra ground truth humano.
+    """
+
+    def __init__(
+        self,
+        provider: "LLMProvider",
+        calibration_status: str = "uncalibrated",
+        max_retries: int = 3,
+    ):
+        self.provider = provider
+        self.calibration_status = calibration_status
+        self.judge_model = provider.name
+        self.max_retries = max_retries
+
+    def score_pointwise(
+        self, session, dimension: JudgeDimension, context: dict,
+    ) -> JudgeScore:
         prompt = POINTWISE_PROMPT.format(
-            athlete_context=json.dumps(context, default=str),
-            session_json=session.model_dump_json(indent=2),
+            athlete_context=_json.dumps(context, default=str),
+            session_json=(
+                session.model_dump_json(indent=2)
+                if hasattr(session, "model_dump_json")
+                else _json.dumps(session, default=str)
+            ),
             dimension=dimension.value,
-            rubric=json.dumps(RUBRIC[dimension], indent=2),
+            rubric=_json.dumps(RUBRIC[dimension], ensure_ascii=False, indent=2),
         )
-        resp = self.client.messages.create(
-            model=self.model, max_tokens=1024,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        data = json.loads(resp.content[0].text)
+
+        last_resp = None
+        for attempt in range(self.max_retries):
+            resp = self.provider.complete(
+                system=SYSTEM_INSTRUCTION_JUDGE,
+                user=prompt,
+                json_mode=True,
+                temperature=0.0,
+                max_tokens=1024,
+                label=f"judge_pointwise_{dimension.value}",
+            )
+            last_resp = resp
+            if not resp["schema_failure"] and resp["parsed"]:
+                data = resp["parsed"]
+                if "score" in data and isinstance(data["score"], (int, float)):
+                    return JudgeScore(
+                        dimension=dimension,
+                        score=int(round(float(data["score"]))),
+                        reasoning=str(data.get("reasoning", "")),
+                        judge_model=self.judge_model,
+                    )
+            # else retry
+
+        # Esgotou retries — devolve um JudgeScore degradado, marcando o problema
         return JudgeScore(
             dimension=dimension,
-            score=data["score"],
-            reasoning=data["reasoning"],
-            judge_model=self.model,
+            score=0,
+            reasoning=(
+                f"[SCHEMA FAILURE after {self.max_retries} attempts] "
+                f"Last raw content: {(last_resp['content'] if last_resp else '')[:300]}"
+            ),
+            judge_model=self.judge_model,
         )
-'''
+
+    def compare_pairwise(
+        self, session_a, session_b,
+        dimension: JudgeDimension, context: dict,
+    ) -> PairwiseResult:
+        prompt = PAIRWISE_PROMPT.format(
+            athlete_context=_json.dumps(context, default=str),
+            session_a_json=(
+                session_a.model_dump_json(indent=2)
+                if hasattr(session_a, "model_dump_json")
+                else _json.dumps(session_a, default=str)
+            ),
+            session_b_json=(
+                session_b.model_dump_json(indent=2)
+                if hasattr(session_b, "model_dump_json")
+                else _json.dumps(session_b, default=str)
+            ),
+            dimension=dimension.value,
+            rubric=_json.dumps(RUBRIC[dimension], ensure_ascii=False, indent=2),
+        )
+        for _ in range(self.max_retries):
+            resp = self.provider.complete(
+                system=SYSTEM_INSTRUCTION_JUDGE, user=prompt,
+                json_mode=True, temperature=0.0, max_tokens=1024,
+                label=f"judge_pairwise_{dimension.value}",
+            )
+            if resp["parsed"] and "winner" in resp["parsed"]:
+                d = resp["parsed"]
+                w = d["winner"]
+                if w in ("A", "B", "tie"):
+                    return PairwiseResult(
+                        dimension=dimension,
+                        winner=w,
+                        reasoning=str(d.get("reasoning", "")),
+                        judge_model=self.judge_model,
+                    )
+        return PairwiseResult(
+            dimension=dimension, winner="tie",
+            reasoning="[SCHEMA FAILURE] retries esgotados",
+            judge_model=self.judge_model,
+        )
 
 
 # ============================================================
