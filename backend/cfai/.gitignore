@@ -19,3 +19,4 @@ venv/
 .vscode/
 evaluation_history.jsonl
 calibration_data/
+smoke_judges_results.json

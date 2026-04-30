@@ -18,7 +18,15 @@ dev = [
     "mypy>=1.5",
 ]
 judge = [
+    # Anthropic's own SDK (AnthropicProvider). Optional — provider só
+    # inicializa se ANTHROPIC_API_KEY estiver no env.
     "anthropic>=0.40",
+    # OpenAI SDK cobre OpenAI, DeepSeek, Groq, Minimax (todos compatíveis
+    # via base_url override).
+    "openai>=1.50",
+    # Para carregar .env automaticamente em smoke tests / scripts. Já vem
+    # com FastAPI normalmente, mas declarar explicitamente.
+    "python-dotenv>=1.0",
 ]
 
 [tool.setuptools.packages.find]
