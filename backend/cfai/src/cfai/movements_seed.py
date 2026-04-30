@@ -268,10 +268,15 @@ CARDIO = [
 # ============================================================
 
 ACCESSORY = [
+    _m("glute_bridge", "Glute Bridge", "accessory", ["G"], 1, [],
+       ["hip_hinge", "hip_dominant"],
+       name_pt="Glute Bridge"),
     _m("banded_glute_bridge", "Banded Glute Bridge", "accessory", ["G"], 1,
        ["band"],
        ["hip_hinge", "hip_dominant"],
-       name_pt="Glute Bridge com Mini Band"),
+       name_pt="Glute Bridge com Mini Band",
+       scaling={ST.SCALED: MovementScaling(substitute_movement_id="glute_bridge",
+                                           notes="sem band, BW")}),
     _m("dead_bug", "Dead Bug", "accessory", ["G"], 1, [],
        ["midline", "anti_rotation", "isometric"],
        name_pt="Dead Bug"),
