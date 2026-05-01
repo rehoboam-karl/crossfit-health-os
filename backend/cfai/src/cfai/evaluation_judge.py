@@ -241,6 +241,51 @@ SYSTEM_INSTRUCTION_JUDGE = (
 )
 
 
+def _summarize_mesocycle(mesocycle) -> str:
+    """Sumário compacto multi-week (Sprint 5e). Evita serializar mesocycle
+    inteiro (>20 sessions × 6 blocks × N movs explode tokens). Captura o
+    suficiente pra avaliar progressão: phase/deload, strength_primary loads,
+    stimulus distribution, total prescriptions."""
+    lines = []
+    for week in sorted(mesocycle.weeks, key=lambda w: w.week_number):
+        lines.append(
+            f"\nWeek {week.week_number} (deload={week.deload}, theme={week.theme!r}):"
+        )
+        # strength_primary loads agregados
+        strength_loads: list[str] = []
+        stimulus_counts: dict[str, int] = {}
+        total_movs = 0
+        for sess in week.sessions:
+            for block in sess.blocks:
+                if block.stimulus:
+                    stimulus_counts[block.stimulus.value] = (
+                        stimulus_counts.get(block.stimulus.value, 0) + 1
+                    )
+                for mp in block.movements:
+                    total_movs += 1
+                if block.type.value == "strength_primary":
+                    for mp in block.movements:
+                        if mp.load and mp.load.type == "percent_1rm":
+                            strength_loads.append(
+                                f"{mp.movement_id}@{mp.load.value:.0f}%"
+                            )
+                        elif mp.load and mp.load.type == "absolute_kg":
+                            strength_loads.append(
+                                f"{mp.movement_id}@{mp.load.value:.0f}kg"
+                            )
+        lines.append(f"  sessions={len(week.sessions)}, total_prescriptions={total_movs}")
+        if strength_loads:
+            lines.append(f"  strength_primary loads: {strength_loads[:8]}")
+        if stimulus_counts:
+            stim_str = ", ".join(
+                f"{k}={v}" for k, v in sorted(
+                    stimulus_counts.items(), key=lambda x: -x[1]
+                )[:5]
+            )
+            lines.append(f"  stimulus mix: {stim_str}")
+    return "".join(lines)
+
+
 class LLMProviderJudge:
     """Judge real que delega chamadas de scoring para qualquer LLMProvider.
 
@@ -264,6 +309,59 @@ class LLMProviderJudge:
         self.calibration_status = calibration_status
         self.judge_model = provider.name
         self.max_retries = max_retries
+
+    def score_mesocycle_progression(
+        self, mesocycle, context: dict,
+    ) -> JudgeScore:
+        """Judge dimension PROGRESSION_LOGIC com visão multi-semana.
+
+        Evita serializar o mesocycle inteiro (explode prompt). Constrói um
+        sumário compacto: por semana o phase/deload + strength_primary loads
+        + stimulus distribution + total volume estimate.
+        """
+        summary = _summarize_mesocycle(mesocycle)
+        prompt = (
+            "Você é um coach CrossFit Level 3 avaliando a PROGRESSÃO de um "
+            "mesociclo de treino.\n\n"
+            f"Contexto do atleta:\n{_json.dumps(context, default=str)}\n\n"
+            f"Mesocycle phase: {mesocycle.phase.value}\n"
+            f"Duration: {mesocycle.duration_weeks} weeks\n"
+            f"Primary focus: {mesocycle.primary_focus}\n\n"
+            f"Sumário semana-a-semana:\n{summary}\n\n"
+            f"Avalie EXCLUSIVAMENTE a dimensão: **{JudgeDimension.PROGRESSION_LOGIC.value}**\n\n"
+            f"Rubrica (1-5):\n{_json.dumps(RUBRIC[JudgeDimension.PROGRESSION_LOGIC], ensure_ascii=False, indent=2)}\n\n"
+            "Instruções:\n"
+            "1. Identifique o padrão de progressão entre semanas (linear, wave, "
+            "block, conjugate, ou ausente).\n"
+            "2. Verifique se há deload posicionado adequadamente.\n"
+            "3. Avalie consistência da intent semanal (theme alinhado com phase).\n"
+            "4. Atribua score 1-5 conforme rubrica.\n"
+            "5. Output JSON estrito:\n"
+            '{"reasoning": "...", "score": <int>, "evidence": ["W1 vs W2: ...", ...]}'
+        )
+
+        last_resp = None
+        for attempt in range(self.max_retries):
+            resp = self.provider.complete(
+                system=SYSTEM_INSTRUCTION_JUDGE,
+                user=prompt, json_mode=True, temperature=0.0,
+                max_tokens=4096, label="judge_mesocycle_progression",
+            )
+            last_resp = resp
+            if not resp["schema_failure"] and resp["parsed"]:
+                data = resp["parsed"]
+                if "score" in data and isinstance(data["score"], (int, float)):
+                    return JudgeScore(
+                        dimension=JudgeDimension.PROGRESSION_LOGIC,
+                        score=int(round(float(data["score"]))),
+                        reasoning=str(data.get("reasoning", "")),
+                        judge_model=self.judge_model,
+                    )
+        return JudgeScore(
+            dimension=JudgeDimension.PROGRESSION_LOGIC, score=0,
+            reasoning=f"[SCHEMA FAILURE] {(last_resp['content'] if last_resp else '')[:300]}",
+            judge_model=self.judge_model,
+        )
 
     def score_pointwise(
         self, session, dimension: JudgeDimension, context: dict,
