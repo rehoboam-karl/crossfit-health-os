@@ -227,6 +227,8 @@ class LLMComposer:
                 f"Fix the issue and try again.\n"
             )
 
+        load_guidance = self._strength_load_guidance(block_type)
+
         return (
             f"BLOCK_ROLE: {block_type.value}\n"
             f"PHASE: {ctx.phase.value}, week {ctx.week_number}, day {ctx.day_number}\n"
@@ -234,9 +236,41 @@ class LLMComposer:
             f"HINTS:\n{hints_dict}\n\n"
             f"ATHLETE:\n{athlete_summary}\n"
             f"{history}\n"
+            f"{load_guidance}"
             f"MOVEMENT_CATALOG (use ONLY these movement_id values):\n{catalog}\n\n"
             f"OUTPUT_SCHEMA:\n{schema}"
             f"{retry_block}"
+        )
+
+    @staticmethod
+    def _strength_load_guidance(block_type: BlockType) -> str:
+        """Sprint 5g: Prilepin chart + INOL target — só para blocos onde
+        percent_1rm faz sentido (strength_primary, strength_secondary,
+        oly_complex). Faz alinhamento direto com PRILEPIN_TABLE em
+        evaluation.py (mesmas zonas e ranges)."""
+        if block_type not in (
+            BlockType.STRENGTH_PRIMARY,
+            BlockType.STRENGTH_SECONDARY,
+            BlockType.OLY_COMPLEX,
+        ):
+            return ""
+        return (
+            "\nLOAD_SCIENCE (REQUIRED for strength blocks):\n"
+            "  Prilepin's table (zone %1RM → reps/set max, optimal_total, valid_range):\n"
+            "    <70%   : ≤6 reps/set, optimal 24 total, valid 18-30\n"
+            "    70-79% : ≤6 reps/set, optimal 18 total, valid 12-24\n"
+            "    80-89% : ≤4 reps/set, optimal 15 total, valid 10-20\n"
+            "    90%+   : ≤2 reps/set, optimal  7 total, valid  4-10\n"
+            "  INOL = reps / (100 - %1RM) per exercise per session, target 0.4-1.0.\n"
+            "  Examples that PASS:\n"
+            "    5x5 @ 75% (25 reps, INOL=1.0) — borderline ok\n"
+            "    5x3 @ 80% (15 reps, INOL=0.75) — optimal\n"
+            "    4x2 @ 88% (8 reps, INOL=0.67) — optimal peaking\n"
+            "  Examples that FAIL:\n"
+            "    5x5 @ 90% (25 reps in 90+ zone, valid_range was 4-10) — overshoot\n"
+            "    8x5 @ 70% (40 reps, valid_range 12-24) — overshoot\n"
+            "    3x2 @ 75% (6 reps, valid_range 12-24) — undershoot\n"
+            "  Pick reps × sets that land in the optimal_total or close to it.\n\n"
         )
 
     @staticmethod

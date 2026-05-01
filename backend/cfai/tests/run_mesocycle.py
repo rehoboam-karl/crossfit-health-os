@@ -153,8 +153,15 @@ for cname, meso in mesocycles.items():
     cat_summary = summary_score(res)
     # Cat keys são MetricCategory enum — convert para str
     cat = {str(k).split(".")[-1].lower(): v for k, v in cat_summary.items()}
+    # Per-session aggregations (prilepin, inol médio across 20 sessions)
+    sess_metrics_avg: dict[str, float] = {}
+    for sm in res["session_metrics"]:
+        for m in sm["metrics"]:
+            sess_metrics_avg.setdefault(m["name"], []).append(m["score"])
+    sess_avg = {k: sum(v)/len(v) for k, v in sess_metrics_avg.items()}
     l1_results[cname] = {
         "mesocycle_metrics": {n: m for n, m in by_name.items()},
+        "session_metrics_avg": sess_avg,
         "category_summary": cat,
     }
     print(f"   {cname:<18s} "
@@ -164,6 +171,18 @@ for cname, meso in mesocycles.items():
           f"{by_name['acwr']['score']:>5.2f}  "
           f"{cat.get('periodization', 0):>7.2f}  "
           f"{cat.get('validity', 0):>6.2f}")
+
+# Per-session aggregation table (prilepin/inol/etc averaged over 20 sessions)
+print(f"\n📐 L1 per-session means (averaged over 20 sessions/mesocycle):")
+sess_metric_names = ["movement_library_coverage", "equipment_feasibility",
+                     "injury_safety", "prilepin_compliance", "inol_per_session"]
+short = ["lib", "equip", "injury", "prilepin", "inol"]
+print(f"   {'composer':<18s} " + " ".join(f"{s:<10s}" for s in short))
+print(f"   {'-'*18} " + " ".join("-"*10 for _ in short))
+for cname in mesocycles:
+    avg = l1_results[cname]["session_metrics_avg"]
+    cells = " ".join(f"{avg.get(n, 0):<10.2f}" for n in sess_metric_names)
+    print(f"   {cname:<18s} {cells}")
 
 
 # ============================================================
