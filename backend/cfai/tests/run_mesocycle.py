@@ -37,6 +37,7 @@ try:
 except ImportError:
     pass
 
+from cfai.composer_hybrid import HybridComposer
 from cfai.composer_llm import LLMComposer
 from cfai.cost_tracker import cost_tracker
 from cfai.evaluation import (
@@ -97,6 +98,11 @@ print(f"\n⚖️  Judge: {judge_provider.name}")
 composers: dict[str, object] = {"heuristic": HeuristicComposer(library)}
 for name, provider in providers.items():
     composers[f"llm_{name}"] = LLMComposer(
+        provider=provider, library=library, max_retries=2,
+    )
+# Sprint 5h: HybridComposer (heurístico STRENGTH+rotina, LLM METCON+SKILL+GYM)
+for name, provider in providers.items():
+    composers[f"hybrid_{name}"] = HybridComposer(
         provider=provider, library=library, max_retries=2,
     )
 print(f"\n🎼 Composers: {list(composers)}")
@@ -225,7 +231,11 @@ print(f"\n📊 Progression_logic — session-isolated vs mesocycle-aware:")
 print(f"   {'composer':<18s} {'5c rerun':>8s}  {'5e meso':>8s}  {'Δ':>5s}")
 print(f"   {'-'*18} {'-'*8}  {'-'*8}  {'-'*5}")
 for cname in composers:
-    old = sprint5c_progression.get(cname, 0.0)
+    if cname not in sprint5c_progression:
+        new = l2_results.get(cname, {}).get("score", 0)
+        print(f"   {cname:<18s}        —  {new:>8d}     —")
+        continue
+    old = sprint5c_progression[cname]
     new = l2_results.get(cname, {}).get("score", 0)
     delta = round(new - old, 1)
     sign = "+" if delta > 0 else ""
