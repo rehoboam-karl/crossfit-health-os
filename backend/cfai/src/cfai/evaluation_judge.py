@@ -286,7 +286,7 @@ class LLMProviderJudge:
                 user=prompt,
                 json_mode=True,
                 temperature=0.0,
-                max_tokens=1024,
+                max_tokens=4096,
                 label=f"judge_pointwise_{dimension.value}",
             )
             last_resp = resp
@@ -334,7 +334,7 @@ class LLMProviderJudge:
         for _ in range(self.max_retries):
             resp = self.provider.complete(
                 system=SYSTEM_INSTRUCTION_JUDGE, user=prompt,
-                json_mode=True, temperature=0.0, max_tokens=1024,
+                json_mode=True, temperature=0.0, max_tokens=4096,
                 label=f"judge_pairwise_{dimension.value}",
             )
             if resp["parsed"] and "winner" in resp["parsed"]:
