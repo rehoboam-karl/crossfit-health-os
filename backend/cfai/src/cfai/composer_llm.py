@@ -201,6 +201,10 @@ class LLMComposer:
             "biomechanics + modality match the target stimulus. Respect "
             "athlete equipment and injury restrictions strictly. "
             "Use only movement_id values from the provided catalog. "
+            "When prior session history is provided, ensure progressive "
+            "overload — STRENGTH_PRIMARY %1RM should grow ~2-3% per week in "
+            "BUILD phase vs the previous week's load on the same lift. "
+            "Avoid stimulus monotony — vary block stimuli across the week. "
             "Output ONLY valid JSON matching the schema — no prose, no "
             "markdown fences."
         )
@@ -214,6 +218,7 @@ class LLMComposer:
         catalog = self._catalog_summary(candidates)
         hints_dict = self._hints_payload(hints)
         schema = self._output_schema_doc()
+        history = self._recent_sessions_summary(ctx)
 
         retry_block = ""
         if last_error:
@@ -227,10 +232,47 @@ class LLMComposer:
             f"PHASE: {ctx.phase.value}, week {ctx.week_number}, day {ctx.day_number}\n"
             f"WEEKLY_FOCUS: {ctx.weekly_focus}\n\n"
             f"HINTS:\n{hints_dict}\n\n"
-            f"ATHLETE:\n{athlete_summary}\n\n"
+            f"ATHLETE:\n{athlete_summary}\n"
+            f"{history}\n"
             f"MOVEMENT_CATALOG (use ONLY these movement_id values):\n{catalog}\n\n"
             f"OUTPUT_SCHEMA:\n{schema}"
             f"{retry_block}"
+        )
+
+    @staticmethod
+    def _recent_sessions_summary(ctx: ProgrammingContext) -> str:
+        """Sumário compacto de recent_sessions (Sprint 5f). Vazio se ctx
+        não tiver histórico — typical em chamadas standalone do SessionPlanner.
+        Para mesocycle planning, MesocyclePlanner popula com últimas sessões."""
+        if not ctx.recent_sessions:
+            return ""
+        # Agrupa loads de strength_primary por (week, movement_id)
+        lines = []
+        for s in ctx.recent_sessions[-7:]:  # cap 7 sessions
+            strength_loads: list[str] = []
+            stims: list[str] = []
+            for b in s.blocks:
+                if b.stimulus:
+                    stims.append(b.stimulus.value)
+                if b.type.value == "strength_primary":
+                    for mp in b.movements:
+                        if mp.load and mp.load.type == "percent_1rm":
+                            strength_loads.append(
+                                f"{mp.movement_id}@{mp.load.value:.0f}%"
+                            )
+                        elif mp.load and mp.load.type == "absolute_kg":
+                            strength_loads.append(
+                                f"{mp.movement_id}@{mp.load.value:.0f}kg"
+                            )
+            stim_summary = ", ".join(sorted(set(stims))[:4]) if stims else "—"
+            load_summary = strength_loads[0] if strength_loads else "no_strength"
+            lines.append(
+                f"  - {s.template.value} | strength_primary={load_summary} | stims=[{stim_summary}]"
+            )
+        return (
+            "\nRECENT_SESSION_HISTORY (use to plan progression — increase "
+            "%1RM 2-3% in BUILD vs prior week on same lift):\n"
+            + "\n".join(lines)
         )
 
     @staticmethod
