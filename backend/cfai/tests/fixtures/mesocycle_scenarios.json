@@ -1,0 +1,47 @@
+{
+  "description": "Mesocycle scenarios para teste de robustez (Sprint 5i). Cada cenário define um mesociclo de 4 semanas (3 BUILD/PEAK/BASE + 1 DELOAD na W4 — exceção em PEAK que termina em TEST), com weekly_focus diferente. Permite comparar composer rankings across phases × focus.",
+  "version": 1,
+  "athlete_id": "ath_001",
+  "scenarios": [
+    {
+      "id": "scen_build_squat",
+      "name": "4w BUILD — squat volume",
+      "weeks": ["build", "build", "build", "deload"],
+      "deload_weeks": [4],
+      "primary_focus": ["squat_volume", "pulling_capacity"],
+      "weekly_focus": ["squat_volume"]
+    },
+    {
+      "id": "scen_build_pulling",
+      "name": "4w BUILD — pulling capacity",
+      "weeks": ["build", "build", "build", "deload"],
+      "deload_weeks": [4],
+      "primary_focus": ["pulling_capacity", "midline"],
+      "weekly_focus": ["pulling"]
+    },
+    {
+      "id": "scen_build_press",
+      "name": "4w BUILD — overhead press",
+      "weeks": ["build", "build", "build", "deload"],
+      "deload_weeks": [4],
+      "primary_focus": ["press_overhead", "shoulder_capacity"],
+      "weekly_focus": ["press_overhead"]
+    },
+    {
+      "id": "scen_peak_competition",
+      "name": "4w PEAK — competition prep",
+      "weeks": ["peak", "peak", "peak", "test"],
+      "deload_weeks": [],
+      "primary_focus": ["competition_sim", "lactic_tolerance"],
+      "weekly_focus": ["competition_sim"]
+    },
+    {
+      "id": "scen_base_aerobic",
+      "name": "4w BASE — aerobic threshold",
+      "weeks": ["base", "base", "base", "deload"],
+      "deload_weeks": [4],
+      "primary_focus": ["aerobic_threshold", "engine_z2"],
+      "weekly_focus": ["aerobic_threshold"]
+    }
+  ]
+}
