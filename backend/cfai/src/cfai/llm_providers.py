@@ -164,6 +164,13 @@ class OpenAICompatibleProvider:
         json_mode: bool = True, temperature: float = 0.0,
         max_tokens: int = 1024, label: Optional[str] = None,
     ) -> LLMResponse:
+        # gpt-5 / o-series exigem max_completion_tokens; modelos antigos
+        # exigem max_tokens. Tentativa optimista + fallback automático.
+        token_param = (
+            "max_completion_tokens"
+            if self.model.startswith(("gpt-5", "o1", "o3", "o4"))
+            else "max_tokens"
+        )
         kwargs = {
             "model": self.model,
             "messages": [
@@ -171,7 +178,7 @@ class OpenAICompatibleProvider:
                 {"role": "user", "content": user},
             ],
             "temperature": temperature,
-            "max_tokens": max_tokens,
+            token_param: max_tokens,
         }
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
@@ -179,9 +186,24 @@ class OpenAICompatibleProvider:
         try:
             resp = self.client.chat.completions.create(**kwargs)
         except Exception as e:
+            err = str(e).lower()
             # Alguns providers não aceitam json_object — retry sem
-            if json_mode and "response_format" in str(e).lower():
+            if json_mode and "response_format" in err:
                 kwargs.pop("response_format", None)
+                resp = self.client.chat.completions.create(**kwargs)
+            # gpt-5 / o-series não aceitam temperature != 1 (ou nem o param)
+            elif "temperature" in err and "unsupported" in err:
+                kwargs.pop("temperature", None)
+                resp = self.client.chat.completions.create(**kwargs)
+            # Fallback do max_tokens / max_completion_tokens (caso heurística falhe)
+            elif "max_tokens" in err or "max_completion_tokens" in err:
+                kwargs.pop("max_tokens", None)
+                kwargs.pop("max_completion_tokens", None)
+                alt_param = (
+                    "max_tokens" if token_param == "max_completion_tokens"
+                    else "max_completion_tokens"
+                )
+                kwargs[alt_param] = max_tokens
                 resp = self.client.chat.completions.create(**kwargs)
             else:
                 raise
@@ -212,7 +234,7 @@ class OpenAICompatibleProvider:
 
 class OpenAIProvider(OpenAICompatibleProvider):
     family = "openai"
-    default_model = "gpt-4o"
+    default_model = "gpt-5-mini"
     env_var = "OPENAI_API_KEY"
 
 

@@ -29,6 +29,8 @@ PRICING: dict[str, tuple[float, float]] = {
     "claude-opus-4-7":       (15.00, 75.00),
     "claude-haiku-4-5-20251001": (0.80, 4.00),
     # OpenAI
+    "gpt-5":                 (1.25, 10.00),
+    "gpt-5-mini":            (0.25, 2.00),
     "gpt-4o":                (2.50, 10.00),
     "gpt-4o-mini":           (0.15, 0.60),
     # DeepSeek

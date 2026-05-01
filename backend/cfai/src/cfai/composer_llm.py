@@ -123,7 +123,7 @@ class LLMComposer:
             try:
                 resp = self.provider.complete(
                     system=system_msg, user=user_msg,
-                    json_mode=True, temperature=0.3, max_tokens=1500,
+                    json_mode=True, temperature=0.3, max_tokens=4096,
                     label=label,
                 )
             except Exception as e:
