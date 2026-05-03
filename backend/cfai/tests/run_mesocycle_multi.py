@@ -57,7 +57,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--max-scenarios", "--max", type=int, default=3)
 parser.add_argument("--out", default="run_mesocycle_multi_results.json")
 parser.add_argument("--no-confirm", action="store_true")
+parser.add_argument("--exclude-providers", default="",
+                    help="lista CSV pra excluir do pool, ex: 'minimax,groq'")
 args = parser.parse_args()
+EXCLUDED_PROVIDERS = frozenset(
+    p.strip() for p in args.exclude_providers.split(",") if p.strip()
+)
 
 
 # ============================================================
@@ -84,6 +89,11 @@ for s in scenarios_raw:
 print("\n🔌 Inicializando providers...")
 providers = {}
 for name, cls in PROVIDER_CLASSES.items():
+    if name in ("ollama", "unsloth"):
+        continue  # local providers — escopo separado
+    if name in EXCLUDED_PROVIDERS:
+        print(f"   ⛔ {name:10s} excluído via --exclude-providers")
+        continue
     try:
         providers[name] = cls()
         print(f"   ✅ {name:10s} → {providers[name].name}")

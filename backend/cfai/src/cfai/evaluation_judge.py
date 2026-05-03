@@ -151,8 +151,8 @@ POINTWISE_PROMPT = """Você é um coach CrossFit Level 3 avaliando uma sessão d
 Contexto do atleta:
 {athlete_context}
 
-Sessão prescrita (JSON):
-{session_json}
+Sessão prescrita (sumário compacto):
+{session_summary}
 
 Avalie EXCLUSIVAMENTE a dimensão: **{dimension}**
 
@@ -175,8 +175,8 @@ PAIRWISE_PROMPT = """Você é um coach CrossFit Level 3 comparando duas sessões
 
 Contexto: {athlete_context}
 
-Sessão A (JSON): {session_a_json}
-Sessão B (JSON): {session_b_json}
+Sessão A: {session_a_summary}
+Sessão B: {session_b_summary}
 
 Dimensão de comparação: **{dimension}**
 Rubrica: {rubric}
@@ -286,6 +286,141 @@ def _summarize_mesocycle(mesocycle) -> str:
     return "".join(lines)
 
 
+def _summarize_session(session) -> str:
+    """Sumário textual compacto de uma Session pra prompts de judge.
+
+    Substitui session.model_dump_json (~6-8k tokens) por ~1-2k tokens. Captura:
+    template, primary_stimulus, blocks (type/format/stimulus/timing/intent),
+    movements (id, volume, load, tempo, pacing, scaling tiers disponíveis).
+
+    Motivação: groq qwen3-32b free tier tem TPM=6000, e session.model_dump_json
+    sozinho passa de 7800 tokens — 413 rate_limit_exceeded em ~50% das calls.
+    """
+    lines = [
+        f"id={session.id} date={session.date} "
+        f"template={session.template.value} "
+        f"primary_stimulus={session.primary_stimulus.value} "
+        f"duration_est={session.estimated_duration_minutes}min"
+    ]
+    if getattr(session, "title", None):
+        lines.append(f"title: {session.title!r}")
+    if session.equipment_required:
+        lines.append(f"equipment: {', '.join(session.equipment_required)}")
+
+    for block in sorted(session.blocks, key=lambda b: b.order):
+        head = f"\n[{block.order}] {block.type.value}"
+        if block.format:
+            head += f" / {block.format.value}"
+        if block.stimulus:
+            head += f" / stim={block.stimulus.value}"
+        timing = []
+        if block.duration_minutes:
+            timing.append(f"{block.duration_minutes}min")
+        if block.time_cap_minutes:
+            timing.append(f"cap={block.time_cap_minutes}min")
+        if block.rounds:
+            timing.append(f"{block.rounds}rds")
+        if block.work_seconds:
+            timing.append(f"work={block.work_seconds}s")
+        if block.rest_seconds:
+            timing.append(f"rest={block.rest_seconds}s")
+        if timing:
+            head += " (" + ", ".join(timing) + ")"
+        lines.append(head)
+
+        if block.target_score:
+            lines.append(f"  target: {block.target_score}")
+        if block.intensity_rpe:
+            lines.append(f"  RPE: {block.intensity_rpe}")
+        if block.intent:
+            lines.append(f"  intent: {block.intent}")
+
+        for mp in block.movements:
+            parts = [mp.movement_id]
+            if mp.reps is not None:
+                parts.append(f"{mp.reps}reps")
+            elif mp.time_seconds is not None:
+                parts.append(f"{mp.time_seconds}s")
+            elif mp.distance_meters is not None:
+                parts.append(f"{mp.distance_meters}m")
+            elif mp.calories is not None:
+                parts.append(f"{mp.calories}cal")
+            if mp.load:
+                if mp.load.type == "percent_1rm":
+                    parts.append(f"@{mp.load.value:.0f}%{mp.load.reference_lift or '1RM'}")
+                elif mp.load.type == "absolute_kg":
+                    parts.append(f"@{mp.load.value:.0f}kg")
+                elif mp.load.type == "rpe":
+                    parts.append(f"@RPE{mp.load.value}")
+                elif mp.load.type == "percent_bw":
+                    parts.append(f"@{mp.load.value:.0f}%BW")
+                elif mp.load.type == "ahap":
+                    parts.append("@AHAP")
+                elif mp.load.type == "bodyweight":
+                    parts.append("@BW")
+            if mp.tempo:
+                parts.append(f"tempo={mp.tempo}")
+            if mp.pacing:
+                parts.append(f"pacing={mp.pacing}")
+            line = "  - " + " ".join(parts)
+            if mp.scaling:
+                tiers = ", ".join(t.value for t in mp.scaling.keys())
+                line += f" [scaling: {tiers}]"
+            lines.append(line)
+            if mp.notes:
+                lines.append(f"    notes: {mp.notes}")
+
+    return "\n".join(lines)
+
+
+def _extract_score(data: dict) -> Optional[int]:
+    """Extrai score 1-5 de um dict tolerando shapes alternativos.
+
+    Casos cobertos (todos vistos em LLMs reais):
+    - "score": 3                     → 3
+    - "score": 3.0                   → 3
+    - "score": "3"                   → 3
+    - "score": "3/5"                 → 3
+    - "score": null                  → None (caller faz retry)
+    - {"evaluation": {"score": 3}}   → 3 (nesting raso)
+    """
+    if not isinstance(data, dict):
+        return None
+
+    raw = data.get("score")
+    if raw is None:
+        # tenta keys alternativos no top level
+        for key in ("rating", "evaluation_score", "judgment", "level"):
+            if key in data and data[key] is not None:
+                raw = data[key]
+                break
+    if raw is None:
+        # nesting raso: {evaluation: {score: ...}}
+        for nest_key in ("evaluation", "result", "judgment"):
+            nested = data.get(nest_key)
+            if isinstance(nested, dict) and nested.get("score") is not None:
+                raw = nested["score"]
+                break
+
+    if raw is None:
+        return None
+    if isinstance(raw, bool):  # bool é subclass de int em Python; rejeita
+        return None
+    if isinstance(raw, (int, float)):
+        n = int(round(float(raw)))
+    elif isinstance(raw, str):
+        s = raw.strip().split("/")[0].strip()  # "3/5" → "3"
+        try:
+            n = int(round(float(s)))
+        except ValueError:
+            return None
+    else:
+        return None
+    if n < 1 or n > 5:
+        return None
+    return n
+
+
 class LLMProviderJudge:
     """Judge real que delega chamadas de scoring para qualquer LLMProvider.
 
@@ -349,12 +484,12 @@ class LLMProviderJudge:
             )
             last_resp = resp
             if not resp["schema_failure"] and resp["parsed"]:
-                data = resp["parsed"]
-                if "score" in data and isinstance(data["score"], (int, float)):
+                score = _extract_score(resp["parsed"])
+                if score is not None:
                     return JudgeScore(
                         dimension=JudgeDimension.PROGRESSION_LOGIC,
-                        score=int(round(float(data["score"]))),
-                        reasoning=str(data.get("reasoning", "")),
+                        score=score,
+                        reasoning=str(resp["parsed"].get("reasoning", "")),
                         judge_model=self.judge_model,
                     )
         return JudgeScore(
@@ -368,9 +503,9 @@ class LLMProviderJudge:
     ) -> JudgeScore:
         prompt = POINTWISE_PROMPT.format(
             athlete_context=_json.dumps(context, default=str),
-            session_json=(
-                session.model_dump_json(indent=2)
-                if hasattr(session, "model_dump_json")
+            session_summary=(
+                _summarize_session(session)
+                if hasattr(session, "blocks")
                 else _json.dumps(session, default=str)
             ),
             dimension=dimension.value,
@@ -389,12 +524,12 @@ class LLMProviderJudge:
             )
             last_resp = resp
             if not resp["schema_failure"] and resp["parsed"]:
-                data = resp["parsed"]
-                if "score" in data and isinstance(data["score"], (int, float)):
+                score = _extract_score(resp["parsed"])
+                if score is not None:
                     return JudgeScore(
                         dimension=dimension,
-                        score=int(round(float(data["score"]))),
-                        reasoning=str(data.get("reasoning", "")),
+                        score=score,
+                        reasoning=str(resp["parsed"].get("reasoning", "")),
                         judge_model=self.judge_model,
                     )
             # else retry
@@ -416,14 +551,14 @@ class LLMProviderJudge:
     ) -> PairwiseResult:
         prompt = PAIRWISE_PROMPT.format(
             athlete_context=_json.dumps(context, default=str),
-            session_a_json=(
-                session_a.model_dump_json(indent=2)
-                if hasattr(session_a, "model_dump_json")
+            session_a_summary=(
+                _summarize_session(session_a)
+                if hasattr(session_a, "blocks")
                 else _json.dumps(session_a, default=str)
             ),
-            session_b_json=(
-                session_b.model_dump_json(indent=2)
-                if hasattr(session_b, "model_dump_json")
+            session_b_summary=(
+                _summarize_session(session_b)
+                if hasattr(session_b, "blocks")
                 else _json.dumps(session_b, default=str)
             ),
             dimension=dimension.value,

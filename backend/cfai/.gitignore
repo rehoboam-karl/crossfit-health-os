@@ -26,3 +26,9 @@ run_test_set_results.json
 multi_judge_results.json
 run_mesocycle_results.json
 run_mesocycle_multi_results.json
+run_unsloth_results.json
+run_variance_results.json
+*.log
+# backups de runs (.before_*.json, .after_*.json)
+*.before_*.json
+*.after_*.json

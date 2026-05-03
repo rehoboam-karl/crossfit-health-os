@@ -46,22 +46,52 @@ class LLMResponse(TypedDict):
     provider: str
 
 
+_THINK_TAG_RE = re.compile(r"<think\b[^>]*>[\s\S]*?</think>", re.IGNORECASE)
+_THINK_TEXT_RE = re.compile(
+    r"^\s*Thinking\.{3}.*?\.{3}done thinking\.\s*",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
 def _parse_json_tolerant(text: str) -> Optional[dict]:
-    """Tenta json.loads direto; se falhar, busca o primeiro `{...}` no texto.
-    LLMs frequentemente envolvem JSON em markdown ou comentários."""
+    """Tenta json.loads direto; se falhar, busca o último `{...}` no texto.
+    LLMs frequentemente envolvem JSON em markdown, comentários ou blocos de
+    raciocínio. Suporta:
+      - `<think>...</think>` (Claude-style hidden reasoning)
+      - `Thinking... ...done thinking.` (qwen3-thinking via Ollama)
+      - markdown fences ```json ... ```
+    Estratégia: limpa thinking → tenta direto → tenta último objeto top-level.
+    """
+    text = _THINK_TAG_RE.sub("", text)
+    text = _THINK_TEXT_RE.sub("", text)
     text = text.strip()
+    # Remove fences markdown ```json ... ``` ou ``` ... ```
+    if text.startswith("```"):
+        text = re.sub(r"^```[a-zA-Z]*\s*", "", text)
+        text = re.sub(r"\s*```\s*$", "", text)
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
-    # Fallback: extrair primeiro objeto JSON do texto
-    match = re.search(r"\{[\s\S]*\}", text)
-    if not match:
+    # Fallback 1: extrair último objeto top-level (pula JSON dentro de
+    # thinking/explicações). rfind último '}' + procurar '{' balanceado.
+    last_brace = text.rfind("}")
+    if last_brace == -1:
         return None
-    try:
-        return json.loads(match.group(0))
-    except json.JSONDecodeError:
-        return None
+    depth = 0
+    for i in range(last_brace, -1, -1):
+        ch = text[i]
+        if ch == "}":
+            depth += 1
+        elif ch == "{":
+            depth -= 1
+            if depth == 0:
+                candidate = text[i: last_brace + 1]
+                try:
+                    return json.loads(candidate)
+                except json.JSONDecodeError:
+                    return None
+    return None
 
 
 # ============================================================
@@ -136,6 +166,9 @@ class OpenAICompatibleProvider:
     default_model = ""
     default_base_url: Optional[str] = None
     env_var = "OPENAI_API_KEY"
+    # Local thinking-models (Ollama qwen3) não respondem em strict json_object —
+    # produzem string vazia. Subclasses setam False pra confiar no parser.
+    supports_response_format = True
 
     def __init__(
         self,
@@ -180,7 +213,7 @@ class OpenAICompatibleProvider:
             "temperature": temperature,
             token_param: max_tokens,
         }
-        if json_mode:
+        if json_mode and self.supports_response_format:
             kwargs["response_format"] = {"type": "json_object"}
         t0 = time.monotonic()
         try:
@@ -259,6 +292,122 @@ class MinimaxProvider(OpenAICompatibleProvider):
     env_var = "MINIMAX_API_KEY"
 
 
+class OllamaProvider(OpenAICompatibleProvider):
+    """Local Ollama (qwen3.6:35b-a3b-coding-mxfp8 etc).
+
+    Configurável via env:
+      OLLAMA_BASE_URL   (default: http://localhost:11434/v1)
+      OLLAMA_MODEL      (default: qwen3.6:35b-a3b-coding-mxfp8)
+
+    Sem API key. Custo registrado como 0 (modelo desconhecido no PRICING).
+    Health check via GET /api/tags (endpoint nativo Ollama, sempre 200 quando
+    o daemon está up).
+    """
+    family = "ollama"
+    default_model = "qwen3.6:35b-a3b-coding-mxfp8"
+    default_base_url = "http://localhost:11434/v1"
+    env_var = "OLLAMA_API_KEY"  # opcional
+    # Modelos qwen3-thinking via Ollama travam em response_format=json_object
+    # (retornam string vazia). Confiamos em prompt-based JSON + tolerant parser.
+    supports_response_format = False
+
+    def __init__(
+        self,
+        model: Optional[str] = None,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+    ):
+        try:
+            from openai import OpenAI
+        except ImportError as e:
+            raise ImportError(
+                "openai SDK ausente. Instale: pip install openai"
+            ) from e
+        resolved_base = (
+            base_url
+            or os.getenv("OLLAMA_BASE_URL")
+            or self.default_base_url
+        )
+        # Health: ollama nativo /api/tags retorna {models: [...]} se daemon up
+        try:
+            import urllib.request
+            host = resolved_base.split("/")[2]  # ex: localhost:11434
+            urllib.request.urlopen(
+                f"http://{host}/api/tags", timeout=1.5,
+            ).close()
+        except Exception as e:
+            raise ValueError(
+                f"Ollama unreachable at {resolved_base!r} "
+                f"(GET /api/tags failed: {type(e).__name__}). "
+                f"Inicie com `ollama serve`."
+            ) from e
+
+        self.client = OpenAI(
+            api_key=api_key or os.getenv(self.env_var) or "ollama",
+            base_url=resolved_base,
+        )
+        self.model = (
+            model or os.getenv("OLLAMA_MODEL") or self.default_model
+        )
+        self.name = f"{self.family}-{self.model}"
+
+
+class UnslothProvider(OpenAICompatibleProvider):
+    """Local Unsloth Studio (qwen-3.6-35b-a3b-gguf etc).
+
+    Configurável via env:
+      UNSLOTH_BASE_URL  (default: http://localhost:8888/api)
+      UNSLOTH_MODEL     (default: qwen-3.6-35b-a3b-gguf)
+
+    Sem API key. Custo registrado como 0 (cost_tracker fallback p/ modelo
+    desconhecido). Latência real é capturada no record.
+    """
+    family = "unsloth"
+    default_model = "qwen-3.6-35b-a3b-gguf"
+    default_base_url = "http://localhost:8888/api"
+    env_var = "UNSLOTH_API_KEY"  # opcional
+
+    def __init__(
+        self,
+        model: Optional[str] = None,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+    ):
+        try:
+            from openai import OpenAI
+        except ImportError as e:
+            raise ImportError(
+                "openai SDK ausente. Instale: pip install openai"
+            ) from e
+        resolved_base = (
+            base_url
+            or os.getenv("UNSLOTH_BASE_URL")
+            or self.default_base_url
+        )
+        # Health check — sem isso, harnesses que tentam tudo iam crashar
+        # ao primeiro complete() em vez de skip-ar limpo.
+        try:
+            import urllib.request
+            host = resolved_base.split("/")[2]  # ex: localhost:8888
+            urllib.request.urlopen(
+                f"http://{host}/", timeout=1.0,
+            ).close()
+        except Exception as e:
+            raise ValueError(
+                f"Unsloth endpoint {resolved_base!r} unreachable: "
+                f"{type(e).__name__}"
+            ) from e
+
+        self.client = OpenAI(
+            api_key=api_key or os.getenv(self.env_var) or "sk-local",
+            base_url=resolved_base,
+        )
+        self.model = (
+            model or os.getenv("UNSLOTH_MODEL") or self.default_model
+        )
+        self.name = f"{self.family}-{self.model}"
+
+
 # ============================================================
 # Factory util
 # ============================================================
@@ -269,6 +418,8 @@ PROVIDER_CLASSES: dict[str, type] = {
     "deepseek": DeepSeekProvider,
     "groq": GroqProvider,
     "minimax": MinimaxProvider,
+    "ollama": OllamaProvider,
+    "unsloth": UnslothProvider,
 }
 
 

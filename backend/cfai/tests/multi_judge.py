@@ -130,7 +130,17 @@ if len(providers) < 2:
     print(f"\n❌ Multi-judge precisa ≥2 providers. Apenas {list(providers)}.")
     raise SystemExit(1)
 
-judges = {name: LLMProviderJudge(p, max_retries=2) for name, p in providers.items()}
+# Sprint 5d: groq qwen3-32b removido do pool de judges — bimodal output
+# (sempre 0 ou 5, sem discriminação) + rate limit hostil no free tier.
+# Ainda funciona como composer.
+EXCLUDED_JUDGES = frozenset({"groq"})
+judges = {
+    name: LLMProviderJudge(p, max_retries=2)
+    for name, p in providers.items()
+    if name not in EXCLUDED_JUDGES
+}
+if EXCLUDED_JUDGES:
+    print(f"\n   ⚠️  Excluídos do pool de judges: {sorted(EXCLUDED_JUDGES)}")
 
 
 # ============================================================
