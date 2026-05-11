@@ -52,12 +52,13 @@ class StrengthRx:
 
 
 # BUILD: progressive overload, volume + intensification.
-# 5x5 mantido (compatibilidade com runs anteriores). Ramp idêntica à legada.
+# Ramp dosa reps para manter INOL = reps_totais / (100 - %1RM) em [0.4, 1.0].
+# Legacy 5x5 estourava em W2-W4 (INOL 1.00 / 1.11 / 1.25). Agora 5×4 / 5×4 / 5×3.
 _BUILD_RAMP: tuple[StrengthRx, ...] = (
-    StrengthRx(72.5, 5, 5, 180),  # W1
-    StrengthRx(75.0, 5, 5, 180),  # W2
-    StrengthRx(77.5, 5, 5, 180),  # W3
-    StrengthRx(80.0, 5, 5, 180),  # W4 (raro chegar; deload normalmente cobre)
+    StrengthRx(72.5, 5, 5, 180),  # W1 — INOL 0.91
+    StrengthRx(75.0, 5, 4, 180),  # W2 — INOL 0.80 (era 5×5 → 1.00)
+    StrengthRx(77.5, 5, 4, 180),  # W3 — INOL 0.89 (era 5×5 → 1.11)
+    StrengthRx(80.0, 5, 3, 180),  # W4 — INOL 0.75 (era 5×5 → 1.25)
 )
 
 # PEAK: alta intensidade, baixo volume, expressão de força.

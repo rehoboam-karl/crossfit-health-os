@@ -93,6 +93,13 @@ class LLMComposer:
         self.max_movements_in_prompt = max_movements_in_prompt
         # Heurístico é o fallback default (e quem cuida de blocos triviais).
         self.fallback: MovementComposer = fallback or HeuristicComposer(library)
+        # Per-session exclusion. HybridComposer sets this between blocks to
+        # prevent LLM from re-prescribing movements already claimed at %1RM
+        # by the heuristic strength block (caused INOL stacking >1.0 on
+        # back_squat during squat-focused weeks — Sprint 5h followup).
+        # Reset to empty per `compose_block`; whoever orchestrates is expected
+        # to set it before the call.
+        self._excluded_movement_ids: frozenset[str] = frozenset()
 
     # ---------- API pública (Protocol) ----------
 
@@ -158,6 +165,13 @@ class LLMComposer:
         movs = self.library.filter_by_equipment(ctx.athlete.equipment_available)
         movs = [m for m in movs if not m.is_warmup_only]
         movs = [m for m in movs if not _is_restricted(m, ctx.athlete)]
+        # Per-session exclusion (movements already claimed by prior blocks in
+        # this session). Skip if filter would empty the catalog — fallback to
+        # unfiltered list is preferable to hard-failing the block.
+        if self._excluded_movement_ids:
+            filtered = [m for m in movs if m.id not in self._excluded_movement_ids]
+            if filtered:
+                movs = filtered
 
         # Filtros suaves por hint — best-effort, não exclui se vazia
         if hints.target_modalities:
@@ -228,11 +242,13 @@ class LLMComposer:
             )
 
         load_guidance = self._strength_load_guidance(block_type)
+        focus_scope = self._weekly_focus_scope_guidance(block_type, ctx.weekly_focus)
 
         return (
             f"BLOCK_ROLE: {block_type.value}\n"
             f"PHASE: {ctx.phase.value}, week {ctx.week_number}, day {ctx.day_number}\n"
-            f"WEEKLY_FOCUS: {ctx.weekly_focus}\n\n"
+            f"WEEKLY_FOCUS: {ctx.weekly_focus}\n"
+            f"{focus_scope}"
             f"HINTS:\n{hints_dict}\n\n"
             f"ATHLETE:\n{athlete_summary}\n"
             f"{history}\n"
@@ -240,6 +256,32 @@ class LLMComposer:
             f"MOVEMENT_CATALOG (use ONLY these movement_id values):\n{catalog}\n\n"
             f"OUTPUT_SCHEMA:\n{schema}"
             f"{retry_block}"
+        )
+
+    @staticmethod
+    def _weekly_focus_scope_guidance(
+        block_type: BlockType, weekly_focus: list[str],
+    ) -> str:
+        """WEEKLY_FOCUS dosa o STRENGTH_PRIMARY do dia, não o resto da sessão.
+        Sem essa nota, o LLM defaultava back_squat/front_squat com %1RM em
+        metcons, skill_days e gymnastic_days dos squat-focus weeks — INOL
+        per_movement caía para 0.25-0.40 e o test set falhava (ver
+        hybrid_grok 7/20 sessions failing INOL antes do guard)."""
+        if not weekly_focus:
+            return ""
+        if block_type in (
+            BlockType.STRENGTH_PRIMARY,
+            BlockType.STRENGTH_SECONDARY,
+            BlockType.OLY_COMPLEX,
+        ):
+            return ""
+        return (
+            "WEEKLY_FOCUS_SCOPE: weekly_focus dosa apenas STRENGTH_PRIMARY do "
+            "dia. Para este bloco, NÃO use percent_1rm em movimentos que "
+            "implementem o padrão do focus (ex: focus=squat_volume → não "
+            "prescreva back_squat/front_squat/overhead_squat com percent_1rm). "
+            "Esses movimentos podem aparecer com bodyweight/absolute_kg leve "
+            "ou ser substituídos por padrões complementares.\n"
         )
 
     @staticmethod

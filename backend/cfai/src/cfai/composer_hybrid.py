@@ -56,7 +56,14 @@ _HEURISTIC_BLOCKS = frozenset({
 
 class HybridComposer:
     """Dispatcher: heurístico para load science + warm/cool;
-    LLM para metcon/skill/engine/gym/midline. Implementa MovementComposer."""
+    LLM para metcon/skill/engine/gym/midline. Implementa MovementComposer.
+
+    Estado per-session: rastreia movement_ids prescritos com percent_1rm pelos
+    blocos anteriores da sessão e injeta exclusão em `self.llm` antes de cada
+    bloco LLM. Reset acontece em `order == 1` (primeiro bloco da próxima
+    sessão). Evita o stacking de INOL >1.0 quando o LLM repete o movimento
+    primário (típico em semanas com weekly_focus=squat_volume).
+    """
 
     composer_status = "uncalibrated"  # consistente com LLMProviderJudge
 
@@ -73,6 +80,7 @@ class HybridComposer:
             provider=provider, library=library,
             max_retries=max_retries, fallback=self.heuristic,
         )
+        self._session_claimed: set[str] = set()
 
     @property
     def name(self) -> str:
@@ -82,12 +90,28 @@ class HybridComposer:
         self, *, order: int, block_type: BlockType,
         hints: BlockHints, ctx: ProgrammingContext,
     ) -> WorkoutBlock:
+        # SessionPlanner sempre começa um session em order=1. Reset aqui.
+        if order == 1:
+            self._session_claimed = set()
+
         if block_type in _HEURISTIC_BLOCKS:
-            return self.heuristic.compose_block(
+            block = self.heuristic.compose_block(
                 order=order, block_type=block_type,
                 hints=hints, ctx=ctx,
             )
-        return self.llm.compose_block(
-            order=order, block_type=block_type,
-            hints=hints, ctx=ctx,
-        )
+        else:
+            self.llm._excluded_movement_ids = frozenset(self._session_claimed)
+            try:
+                block = self.llm.compose_block(
+                    order=order, block_type=block_type,
+                    hints=hints, ctx=ctx,
+                )
+            finally:
+                self.llm._excluded_movement_ids = frozenset()
+
+        # Marca movimentos com percent_1rm — são os que contribuem para INOL
+        # e estavam causando o stacking. Movements sem %1RM passam livres.
+        for mp in block.movements:
+            if mp.load and mp.load.type == "percent_1rm":
+                self._session_claimed.add(mp.movement_id)
+        return block
