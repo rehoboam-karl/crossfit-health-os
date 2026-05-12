@@ -51,14 +51,41 @@ class StrengthRx:
     rest_seconds: int    # 90-300
 
 
+# Prilepin chart (Sprint 6c): (pct_max_exclusive, sets, reps).
+# Total-reps cap por zona mantém INOL ≤ 1.0. Fonte de verdade única para
+# dosing baseado em %1RM. BUILD deriva daqui; PEAK/BASE deliberadamente
+# divergem (taper / hipertrofia).
+_PRILEPIN_SCHEME: tuple[tuple[float, int, int], ...] = (
+    (75.0,  5, 5),   # <75%:   25 reps
+    (80.0,  5, 4),   # 75-79%: 20 reps
+    (85.0,  5, 3),   # 80-84%: 15 reps
+    (90.0,  4, 3),   # 85-89%: 12 reps
+    (100.0, 4, 2),   # 90%+:    8 reps
+)
+
+
+def _scheme_for(pct: float) -> tuple[int, int]:
+    """Resolve (sets, reps) a partir do %1RM via _PRILEPIN_SCHEME."""
+    for cutoff, sets, reps in _PRILEPIN_SCHEME:
+        if pct < cutoff:
+            return sets, reps
+    return _PRILEPIN_SCHEME[-1][1:]  # fallback for pct ≥100
+
+
+def _rx(pct: float, rest: int) -> StrengthRx:
+    """Constrói StrengthRx com (sets, reps) derivados da Prilepin chart."""
+    s, r = _scheme_for(pct)
+    return StrengthRx(pct, s, r, rest)
+
+
 # BUILD: progressive overload, volume + intensification.
-# Ramp dosa reps para manter INOL = reps_totais / (100 - %1RM) em [0.4, 1.0].
-# Legacy 5x5 estourava em W2-W4 (INOL 1.00 / 1.11 / 1.25). Agora 5×4 / 5×4 / 5×3.
+# (sets, reps) derivam de _PRILEPIN_SCHEME. INOL fica em [0.4, 1.0] por
+# construção. Legacy 5×5 fixo estourava em W2-W4 (1.00 / 1.11 / 1.25).
 _BUILD_RAMP: tuple[StrengthRx, ...] = (
-    StrengthRx(72.5, 5, 5, 180),  # W1 — INOL 0.91
-    StrengthRx(75.0, 5, 4, 180),  # W2 — INOL 0.80 (era 5×5 → 1.00)
-    StrengthRx(77.5, 5, 4, 180),  # W3 — INOL 0.89 (era 5×5 → 1.11)
-    StrengthRx(80.0, 5, 3, 180),  # W4 — INOL 0.75 (era 5×5 → 1.25)
+    _rx(72.5, 180),  # W1 — 5×5 (INOL 0.91)
+    _rx(75.0, 180),  # W2 — 5×4 (INOL 0.80)
+    _rx(77.5, 180),  # W3 — 5×4 (INOL 0.89)
+    _rx(80.0, 180),  # W4 — 5×3 (INOL 0.75)
 )
 
 # PEAK: alta intensidade, baixo volume, expressão de força.

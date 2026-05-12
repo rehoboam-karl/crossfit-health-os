@@ -43,6 +43,13 @@ PRICING: dict[str, tuple[float, float]] = {
     "MiniMax-M2":            (0.20, 1.10),
     "MiniMax-M2.7":          (0.20, 1.10),    # [E] usando M2 como proxy
     "abab6.5s-chat":         (0.30, 1.50),
+    # xAI Grok — pricing do catálogo console.x.ai (USD por 1M tokens).
+    "grok-4.3":                       (1.25, 2.50),
+    "grok-4.20-multi-agent-0309":     (1.25, 2.50),
+    "grok-4.20-0309-reasoning":       (1.25, 2.50),
+    "grok-4.20-0309-non-reasoning":   (1.25, 2.50),
+    "grok-4-1-fast-reasoning":        (0.20, 0.50),
+    "grok-4-1-fast-non-reasoning":    (0.20, 0.50),
 }
 
 

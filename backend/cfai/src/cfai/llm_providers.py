@@ -292,6 +292,33 @@ class MinimaxProvider(OpenAICompatibleProvider):
     env_var = "MINIMAX_API_KEY"
 
 
+class GrokProvider(OpenAICompatibleProvider):
+    """xAI Grok — distinto do GroqProvider (api.groq.com, OSS hosting).
+
+    API OpenAI-compatible em https://api.x.ai/v1. Env var XAI_API_KEY
+    (canônica nos docs xAI); aceita GROK_API_KEY como alias.
+    """
+    family = "grok"
+    default_model = "grok-4-1-fast-reasoning"
+    default_base_url = "https://api.x.ai/v1"
+    env_var = "XAI_API_KEY"
+
+    def __init__(
+        self,
+        model: Optional[str] = None,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+    ):
+        # Aceita GROK_API_KEY como alias — usuários frequentemente confundem
+        # com XAI_API_KEY. Resolução: arg > XAI_API_KEY > GROK_API_KEY.
+        resolved_key = (
+            api_key
+            or os.getenv(self.env_var)
+            or os.getenv("GROK_API_KEY")
+        )
+        super().__init__(model=model, api_key=resolved_key, base_url=base_url)
+
+
 class OllamaProvider(OpenAICompatibleProvider):
     """Local Ollama (qwen3.6:35b-a3b-coding-mxfp8 etc).
 
@@ -418,6 +445,7 @@ PROVIDER_CLASSES: dict[str, type] = {
     "deepseek": DeepSeekProvider,
     "groq": GroqProvider,
     "minimax": MinimaxProvider,
+    "grok": GrokProvider,
     "ollama": OllamaProvider,
     "unsloth": UnslothProvider,
 }
